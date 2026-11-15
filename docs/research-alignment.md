@@ -461,7 +461,7 @@ Evaluation datasets must be licensed, versioned, and hashed. If a dataset cannot
 | LIM-VER-02 | Static analyzers have false positives/negatives | Detection, verification | Analyzer versions + explicit tool attribution |
 | LIM-REPRO-01 | GPU/library nondeterminism limits exact reproduction | Experiments | Determinism tier + variance |
 | LIM-ENV-01 | CodeQL/Joern may be unavailable or version-dependent | Static adapters | Capability discovery + warnings |
-| LIM-PA-01 | CFG/DFG is intraprocedural; calls are not resolved and no interprocedural flow exists | Program analysis | Scope statement + `docs/program-analysis.md` |
+| LIM-PA-01 | CFG/DFG calls are unresolved and intraprocedural; taint adds only limited direct same-file propagation | Program analysis | Scope statement + `docs/program-analysis.md` |
 | LIM-PA-02 | Exception flow uses structured try dispatch; handler matching is not evaluated and finally may be bypassed | Program analysis | Edge-kind disclosure + limitations |
 | LIM-PA-03 | Closures and scopes are resolved syntactically; dynamic scope/eval/reflection are unsupported | Program analysis | Closure edge kind + unresolved-use flag |
 | LIM-PA-04 | The analysis does not track types, aliases, fields, or object mutation | Program analysis | Base-name approximation + limitations |
@@ -469,6 +469,14 @@ Evaluation datasets must be licensed, versioned, and hashed. If a dataset cannot
 | LIM-PA-06 | Syntax recovery and unreachable code make graphs partial; path feasibility is not evaluated | Program analysis | `has_syntax_errors`, unreachable blocks, limitations |
 | LIM-PA-07 | Synthetic entry/exit spans are zero-width and block spans exclude synthetic anchors | Program analysis | Exact real spans + limitation note |
 | LIM-PA-08 | Graphs are rebuilt without incremental or cross-file indexing; determinism is structural | Program analysis | Rebuild scope + determinism note |
+| LIM-PA-09 | Taint follows only direct, same-file declaration or `self`/`this` method calls; imports, aliases, dynamic dispatch, callbacks, and cross-file summaries are unresolved | Program analysis, taint | Resolution metadata + unresolved-call count + limitations |
+| LIM-PA-10 | Taint findings are potential syntactic flows, not confirmed vulnerabilities; feasibility, runtime values, types, auth, routing, and blocking validation are not evaluated | Program analysis, taint | `potential: true` + confidence notes + limitations |
+| LIM-PA-11 | Taint sources, sanitizers, validators, propagators, and sinks are explicit configuration; validators do not clear taint and unknown calls block flow | Program analysis, taint | Rule inventory + site roles + limitations |
+| LIM-STATIC-01 | Static adapters are library-only and are not wired into scan, detection, repair, or verification; findings do not appear in API responses or the extension | Static adapters | Library-only status + limitations |
+| LIM-STATIC-02 | CodeQL requires a pre-built database, query suite, and accepted license; Joern requires a CPG, query script, and supported CLI; adapters do not build databases, download packs, or upgrade schemas | Static adapters (CodeQL, Joern) | Capability discovery + explicit failure status + warnings |
+| LIM-STATIC-03 | Native output parsing and CWE mapping are best-effort for tested formats/versions; unknown output fails explicitly and unsupported mappings stay `None`; analyzer findings are not confirmed vulnerabilities | Static adapters | Parse warnings + preserved rule IDs + tool/version provenance |
+| LIM-STATIC-04 | Deduplication merges only overlapping findings sharing a rule, fingerprint, or CWE; non-overlapping duplicates remain and distinct issues sharing a CWE can merge | Static adapters | `related`/`rule_ids` + merge scope in limitations |
+| LIM-STATIC-05 | Subprocess execution is shell-free and bounded but not an OS sandbox; analyzers share the engine user's filesystem/network access and may consume substantial resources | Static adapters | Argv-only execution + sanitized env + timeout + trusted-config requirement |
 
 Each limitation ID must appear in the relevant module's documentation and, where user-visible, in the UI.
 
@@ -489,7 +497,9 @@ They do **not** establish:
 - that counterfactual effects generalize;
 - that steering improves security in practice;
 - that repairs are correct beyond the checks run;
-- that the detector is accurate or calibrated.
+- that the detector is accurate or calibrated;
+- that static-analyzer findings are complete, free of false positives, or correctly
+  mapped to a CWE.
 
 Those require the evaluation plan in §11 with real models, real artifacts, and real data. Conflating the two is a research-integrity violation.
 

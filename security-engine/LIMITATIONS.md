@@ -1,10 +1,11 @@
 # Security Engine Limitations
 
 The HTTP API, file/workspace inspection, shared contract validation, standalone
-Python/JavaScript source preprocessing, and intraprocedural CFG/DFG construction
-are implemented. No detector, model, SAE, counterfactual, steering, repair, or
-verification component is implemented as of this phase. This file tracks
-component-specific limitations as each module is built.
+Python/JavaScript source preprocessing, intraprocedural CFG/DFG construction,
+configuration-driven same-file taint analysis, and standalone Semgrep/Bandit/
+CodeQL/Joern adapters are implemented. No detector, model, SAE, counterfactual,
+steering, repair, or verification component is implemented as of this phase. This
+file tracks component-specific limitations as each module is built.
 
 The authoritative limitation register is maintained in
 [docs/research-alignment.md](../docs/research-alignment.md#12-limitations-register).
@@ -19,12 +20,18 @@ before its capability is exposed.
   extracts functions from, chunks, and summarizes Python and JavaScript files.
   It is not connected to the API, workspace scans, or the VS Code extension.
 - A standalone program-analysis library builds intraprocedural control-flow and
-  data-flow graphs for Python and JavaScript. It is not connected to the API,
-  workspace scans, or the VS Code extension.
+  data-flow graphs for Python and JavaScript, plus a configuration-driven taint
+  graph with direct same-file call/return propagation. It is not connected to the
+  API, workspace scans, or the VS Code extension.
 - Shared JSON Schema contracts and fixtures are validated by both runtimes, but the
   HTTP API still returns interim operation envelopes and does not generate or
   validate runtime responses from those schemas.
-- No static analyzer adapter (Semgrep, Bandit, CodeQL, Joern) is connected.
+- A standalone static-analysis library runs Semgrep and Bandit, plus optional
+  CodeQL and Joern, with executable/version detection, validated configuration,
+  bounded argv-only subprocesses, normalized findings, conservative CWE mapping,
+  and deduplication. It is not connected to the API, workspace scans, detection, or
+  the VS Code extension. Missing, failed, and timed-out tools are explicit
+  results, never empty successful scans.
 - No evidence-fusion detector exists; scan findings are always empty with an
   explicit `analysisAvailable: false`.
 - No SAE artifact has been registered or validated.
@@ -70,12 +77,15 @@ before its capability is exposed.
 
 ## Program-analysis limitations
 
-The analysis is intraprocedural and syntactic. It preserves exact spans and
-produces deterministic NetworkX graphs, but it is not sound or complete.
+The CFG and DFG are intraprocedural and syntactic. The taint layer adds direct
+same-file argument/parameter and return/call-result propagation. All three
+preserve exact spans and produce deterministic NetworkX graphs, but none is sound
+or complete.
 
-- `LIM-PA-01` — Calls are syntactic sites, not resolved targets. There is no call
-  graph, recursion handling, argument-to-parameter binding, return-to-caller flow,
-  or interprocedural taint.
+- `LIM-PA-01` — CFG/DFG calls are syntactic sites, not resolved targets. There is
+  no call graph, recursion handling, argument-to-parameter binding, or
+  return-to-caller flow in the CFG/DFG products. Taint's limited same-file
+  propagation is covered by `LIM-PA-09`.
 - `LIM-PA-02` — Exception edges originate at a `try` dispatch, not at every
   potentially raising instruction. Handler type matching is not evaluated, a
   `raise` inside a `try` routes to the first handler, and returns/raises inside
@@ -103,6 +113,56 @@ produces deterministic NetworkX graphs, but it is not sound or complete.
 - `LIM-PA-08` — Graphs are rebuilt from scratch with no incremental or cross-file
   index. Output order is structurally deterministic for a fixed parser/grammar
   version, not semantically stable across grammar upgrades or language changes.
+- `LIM-PA-09` — Taint follows direct calls only when the target is a unique
+  same-file declaration name, or a `self`/`this` method in the same class
+  container. Imports, re-exports, aliases, dynamic dispatch, callbacks,
+  higher-order calls, and cross-file summaries are not resolved. Ambiguous or
+  unknown targets block value flow.
+- `LIM-PA-10` — Taint findings are potential syntactic source-to-sink flows, not
+  confirmed vulnerabilities. Path feasibility, runtime values, types,
+  authentication, authorization, framework routing, and blocking validation are
+  not evaluated. Confidence is analysis confidence, not exploitability.
+- `LIM-PA-11` — Sources, sanitizers, validators, propagators, and sinks are
+  explicit configuration. Validators are inventoried but do not clear taint
+  unless configured as sanitizers. An unconfigured unknown call is assumed to
+  block value flow, so missing rules produce false negatives.
+
+## Static-analysis limitations
+
+The static adapters are library-only. They detect executables, validate
+configuration, run bounded subprocesses, parse native output, and normalize
+findings, but they do not establish that a repository is free of vulnerabilities.
+Tool output and coverage remain bounded by each analyzer's own rules and
+limitations.
+
+- `LIM-STATIC-01` — The adapters are not wired into the HTTP scan pipeline,
+  detection, repair, or verification. Their findings never appear in API scan
+  responses or the VS Code extension, and no evidence-fusion or scoring step
+  consumes them.
+- `LIM-STATIC-02` — CodeQL runs against a caller-supplied, pre-built database and
+  requires at least one query suite plus an explicit license acceptance. The
+  adapter does not create databases, download query packs, or upgrade schemas, so
+  a missing or mismatched database fails explicitly. Joern requires a
+  caller-supplied CPG and a query script with the documented output contract, and
+  the CLI must meet the configured minimum version.
+- `LIM-STATIC-03` — Native output parsers support the formats and versions
+  exercised by the tests. Unknown or changed output shapes produce a failed or
+  partial result with warnings, not an assumed-clean scan. CWE mapping is
+  conservative: it uses Semgrep metadata, SARIF rule tags, Bandit metadata and a
+  curated map, and explicit Joern fields; findings without supporting evidence
+  keep `cwe: None`. Tool rule IDs are preserved. A normalized finding is analyzer
+  output, not a confirmed vulnerability, and never establishes exploitability.
+- `LIM-STATIC-04` — Deduplication merges only findings whose source spans overlap
+  and that share a rule ID, fingerprint, or at least one CWE. It keeps the primary
+  record, the highest severity, the union of CWE evidence, and all original rule
+  IDs. Non-overlapping duplicates remain separate, and distinct issues that share
+  only a CWE at an overlapping span can be merged into one primary finding.
+- `LIM-STATIC-05` — Execution uses an argv-only subprocess with `shell=False`, a
+  sanitized environment, closed stdin, a timeout, process-group termination, and
+  bounded output capture. This is not an OS sandbox: analyzers run with the
+  engine user's filesystem and network access, may execute CodeQL/Joern queries,
+  and can consume substantial CPU, memory, or disk. Callers must supply only
+  trusted configurations and query or rule packs.
 
 ## API limitations
 

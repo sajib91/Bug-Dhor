@@ -1,15 +1,18 @@
-# Program analysis: CFG and DFG
+# Program analysis: CFG, DFG, and taint
 
 The Python package `craftsec.program_analysis` provides standalone
-intraprocedural control-flow graphs (CFGs) and data-flow graphs (DFGs) for the
-Python and JavaScript source that `craftsec.parsing` accepts. It is a library
-layer: no API route, workspace scan, detector, or VS Code command invokes it yet.
+intraprocedural control-flow graphs (CFGs) and data-flow graphs (DFGs), plus a
+configuration-driven taint analysis for the Python and JavaScript source that
+`craftsec.parsing` accepts. It is a library layer: no API route, workspace scan,
+detector, or VS Code command invokes it yet.
 
 The analysis is deliberately syntactic. It preserves exact source locations for
 every instruction, basic block, graph node, and graph edge, and it is built on
-[NetworkX](https://networkx.org/) `DiGraph` objects. It does not resolve calls,
-types, aliases, or runtime values. Known approximations are listed under
-[Limitations](#limitations) and tracked by `LIM-PA-*` identifiers.
+[NetworkX](https://networkx.org/) `DiGraph` objects. CFG/DFG construction does not
+resolve calls, types, aliases, or runtime values. Taint adds direct same-file
+call/return propagation but does not resolve imports, dynamic targets, or runtime
+values. Known approximations are listed under [Limitations](#limitations) and
+tracked by `LIM-PA-*` identifiers.
 
 ## Quick start
 
@@ -37,6 +40,23 @@ print([(node.name, node.kind.value) for node in function_dfg.nodes])
 existing `craftsec.parsing.ParsedSource`. Callers handling untrusted paths must
 apply the workspace containment layer in `craftsec.core.paths` first.
 
+Taint analysis uses the same source input and an explicit rule set:
+
+```python
+from craftsec.program_analysis import analyze_taint
+
+source = """def handler(request):
+    query = "SELECT * FROM users WHERE name = '" + request.args["name"] + "'"
+    cursor.execute(query)
+"""
+
+result = analyze_taint(source, path="handler.py")
+for finding in result.findings:
+    print(finding.kind.value, finding.source_text, "->", finding.sink_text)
+    for step in finding.path:
+        print(step.role, step.span.start.line, step.text)
+```
+
 Lower-level entry points:
 
 | Function | Product |
@@ -45,6 +65,9 @@ Lower-level entry points:
 | `build_module_cfg(...)` | Module-level `ControlFlowGraph` only |
 | `build_function_cfg(source, name, ...)` | Named function or method `ControlFlowGraph` |
 | `build_dfg(source, *, cfg=None, ...)` | `DataFlowAnalysis`; reuses a supplied CFG when provided |
+| `analyze_taint(source, *, config=None, ...)` | `TaintAnalysis` with sources, sanitizers, validators, sinks, graph, and potential findings |
+| `analyze_taint_file(path, ...)` | Reads a UTF-8 file, then runs `analyze_taint` |
+| `build_taint`, `analyze_taint_source` | Aliases of `analyze_taint` |
 | `build_control_flow_graph`, `analyze_control_flow` | Aliases of `build_cfg` |
 | `build_data_flow_graph`, `analyze_data_flow` | Aliases of `build_dfg` |
 
@@ -201,10 +224,145 @@ uses only; function bodies appear only in their own DFG. A nested function's
 closure edge may point to a definition node in an outer scope, but there is no
 argument-to-parameter or return-to-caller propagation.
 
+## Taint analysis
+
+`analyze_taint` builds a third NetworkX `DiGraph` over the CFG/DFG products and
+reports *potential* source-to-sink flows. It is explicit and configurable: only
+the source, sanitizer, validator, propagator, and sink rules supplied to a run
+are used. `default_taint_config()` returns a representative rule set for five
+vulnerability classes; passing a custom `TaintConfig` replaces the defaults
+rather than merging with them.
+
+### Rules and configuration
+
+| Rule | Purpose |
+|---|---|
+| `SourceRule` | Names an untrusted input such as `request.args`, `req.query`, `input`, or `process.env`. `NameMatch` controls exact, dotted-suffix, or prefix matching. |
+| `SanitizerRule` | Neutralizes configured taint kinds at a call. `category=SANITIZER` clears those kinds; `category=VALIDATOR` is inventoried but does not clear taint. |
+| `PropagatorRule` | Carries taint through an otherwise unresolved call from its arguments, receiver, or both to the call result. |
+| `SinkRule` | Names a sensitive call argument or an assigned property. `argument` selects a positional index or keyword name; `SinkTarget.ATTRIBUTE_ASSIGNMENT` selects property assignment such as `innerHTML`. |
+| `TaintConfig` | Groups rules and caps path/finding output. It also has an `interprocedural` switch. |
+
+```python
+from craftsec.program_analysis import (
+    NameMatch,
+    SanitizerRule,
+    SinkRule,
+    SourceRule,
+    TaintConfig,
+    TaintKind,
+)
+
+config = TaintConfig(
+    sources=(
+        SourceRule(
+            name="app.query",
+            patterns=("request.args",),
+            kinds=(TaintKind.SQL_INJECTION,),
+        ),
+    ),
+    sanitizers=(
+        SanitizerRule(
+            name="app.integer",
+            patterns=("to_int",),
+            kinds=(TaintKind.SQL_INJECTION,),
+            match=NameMatch.EXACT,
+        ),
+    ),
+    sinks=(
+        SinkRule(
+            name="app.sql",
+            kind=TaintKind.SQL_INJECTION,
+            patterns=("execute",),
+            argument=0,
+        ),
+    ),
+)
+```
+
+A sanitizer is kind-specific. For example, the default numeric conversion rules
+clear SQL-injection and command-injection taint but do not clear path-traversal
+taint, because an integer is not a safe filename abstraction. A call with no
+matching source, sanitizer, propagator, or sink rule is an unknown call: it does
+not carry taint from its arguments to its result.
+
+### Default coverage
+
+The default rules are representative, not exhaustive:
+
+| Class | Example sources | Example sinks |
+|---|---|---|
+| SQL injection | Flask/Django request values, Express `req.query`/`req.body`, `input`, environment values | `execute`/`executemany`, raw query helpers, `db.query` |
+| Command injection | HTTP request values, `sys.argv`, `process.argv` | `os.system`, `subprocess.*`, child-process `exec`/`spawn`, Python `exec`, `eval` |
+| Cross-site scripting | HTTP request values, browser URL and referrer values | `render_template_string`, `HttpResponse`, `document.write`, `res.send`, `innerHTML`/`outerHTML`, `insertAdjacentHTML` |
+| Path traversal | HTTP request values, process arguments | `open`, `os.open`, `Path`, filesystem read/write/copy/delete helpers, `sendFile` |
+| Unsafe deserialization | HTTP request values, process arguments | `pickle`/`dill`/`marshal` loads, unsafe YAML loading, generic `unserialize` |
+
+Sanitizers include numeric conversion for SQL/command contexts, shell quoting,
+HTML escaping, basename-only path conversion, and explicitly labeled validators.
+Validators such as `validate_path` are recorded in `TaintAnalysis.validators` but
+are not assumed to sanitize their input.
+
+### Value-flow semantics
+
+The taint graph contains the DFG's `def_use` and `closure` edges plus:
+
+- value edges from expression parts to the containing expression, including
+  concatenation, f-strings, template strings, containers, attributes, and
+  subscripts;
+- direct same-file interprocedural edges from call arguments to parameters (by
+  position or keyword) and from explicit returns or expression-bodied
+  lambdas/arrows to the call result;
+- receiver and argument edges for configured sanitizer/validator calls;
+- propagator edges for configured unresolved calls;
+- sink edges represented by the sink occurrence and its selected argument.
+
+Control flow is not traversed directly. A finding exists when a source node can
+reach the selected sink argument (or assignment value) in the taint graph for
+that vulnerability kind. Sanitizer calls are removed from the graph for the
+kinds they sanitize, which blocks paths through them for those kinds only.
+
+Same-file resolution uses declaration names and `self`/`this` method lookup.
+Imports, re-exports, aliases, callbacks, higher-order calls, and cross-file
+summaries are not resolved. Recursion is represented only by the same direct
+edges and is not bounded by a call-depth analysis.
+
+### Findings and evidence
+
+A `TaintFinding` includes:
+
+- `kind`, `title`, `source_rule`, and `sink_rule`;
+- exact source, sink, and selected-argument spans and text;
+- `path`, an ordered tuple of `TaintPathStep` values with role, span, text,
+  scope, and the edge kind (`via`) used to reach each step;
+- `confidence` and `confidence_notes`;
+- `limitations`, repeated from `LIM-PA-09` through `LIM-PA-11`.
+
+`confidence` describes confidence in the syntactic flow, never exploitability:
+
+- `high` — a direct same-scope flow without closure, interprocedural,
+  propagator, or assignment-sink approximation;
+- `medium` — a flow crossing a same-file function/closure boundary, a configured
+  propagator, or an attribute-assignment sink;
+- `low` — reserved for future lower-confidence analysis modes; the current
+  builder does not emit it.
+
+Every finding is `potential: true` in serialized output. Authentication,
+authorization, routing, runtime values, path feasibility, and blocking
+validation are not evaluated. A finding is therefore evidence of a syntactic
+flow to review, not proof of an exploitable vulnerability.
+
+`TaintAnalysis` exposes `sources`, `sanitizers`, `validators`, `sinks`,
+`findings`, `graph`, `unresolved_calls`, `limitations`, `findings_for(kind)`,
+`summary()`, and `to_dict()`. The serialized graph nodes and edges carry exact
+spans and rule metadata; `json.dumps(analysis.to_dict())` is JSON-safe.
+
+
 ## Source locations
 
-Every instruction, basic block, CFG node/edge, DFG node/edge, variable
-occurrence, and call site carries an exact `craftsec.parsing.SourceSpan`.
+Every instruction, basic block, CFG node/edge, DFG node/edge, taint graph
+node/edge, variable occurrence, call site, matched taint site, finding, and
+evidence-path step carries an exact `craftsec.parsing.SourceSpan`.
 Spans refer to the original source text, not the normalized parse buffer:
 
 - `byte_offset` is an absolute UTF-8 byte offset into the original source.
@@ -239,6 +397,11 @@ Graph correctness tests live in:
 - `tests/unit/test_program_analysis_api.py` — high-level API parity, file
   loading, aliases, NetworkX/JSON serialization, syntax-error tolerance, and
   missing-scope errors.
+- `tests/unit/test_program_analysis_taint.py` — positive and negative flows for
+  all five classes in Python and JavaScript, sanitizer kind gating, sink
+  argument selection, validators, custom rules and propagators, same-file
+  interprocedural flows, lambdas/arrows, evidence paths, confidence and
+  limitations, path caps, and JSON/NetworkX serialization.
 
 Run them with:
 
@@ -249,20 +412,24 @@ cd security-engine
 
 ## Limitations
 
-The implementation is a syntactic, intraprocedural approximation. It is not a
-sound or complete program analysis and must not be used to claim that a path is
-impossible or that a value always has a particular origin.
+The implementation is a syntactic approximation. It is not a sound or complete
+program analysis and must not be used to claim that a path is impossible, that a
+value always has a particular origin, or that a reported taint flow is
+exploitable.
 
 | ID | Limitation |
 |---|---|
-| `LIM-PA-01` | **Intraprocedural only.** Calls are syntactic sites, not resolved targets. There is no call graph, recursion handling, argument-to-parameter binding, return-to-caller flow, or interprocedural taint. |
+| `LIM-PA-01` | **Intraprocedural CFG and DFG.** Calls in the CFG/DFG are syntactic sites, not resolved targets. CFG/DFG products have no call graph, recursion handling, argument-to-parameter binding, or return-to-caller flow. Taint adds only the limited same-file propagation described by `LIM-PA-09`. |
 | `LIM-PA-02` | **Structured exception approximation.** Exception edges originate at a `try` dispatch, not at every potentially raising instruction. Handler type matching is not evaluated, a `raise` inside a `try` routes to the first handler, and returns/raises inside `try`/`finally` bypass the finalizer. |
 | `LIM-PA-03` | **Syntactic scopes and closures.** Closures resolve to the nearest earlier definition in an enclosing scope. `global`/`nonlocal`, named JavaScript function expressions, dynamic scoping, `eval`, reflection, and monkeypatching are not modeled. |
-| `LIM-PA-04` | **No value, type, alias, or mutation tracking.** Attribute/subscript flow is reduced to base-name uses. Mutating a container or object does not create a new definition. Points-to, field sensitivity, string evaluation, and runtime type information are absent. |
+| `LIM-PA-04` | **No value, type, alias, or mutation tracking.** Attribute/subscript flow is reduced to base-name uses. Mutating a container or object does not create a new definition. Points-to, field sensitivity, string evaluation, and runtime type information are absent. Taint treats attributes and containers as value-preserving approximations. |
 | `LIM-PA-05` | **Construct approximations.** Comprehensions do not get loop CFGs. Generators and async functions are treated as ordinary functions and `yield`/`await` scheduling is ignored. Python `match` has no fallthrough and only a literal `_` pattern is treated as exhaustive. JavaScript labels are not modeled as break/continue targets, and JSX is treated as opaque expression syntax. TypeScript/TSX are unsupported by the parsing layer. |
 | `LIM-PA-06` | **Syntactic partial graphs.** Tree-sitter recovery can produce incomplete or misleading instructions, functions, and edges for invalid source. Dead code is represented as unreachable blocks. Path feasibility, constant conditions, and implicit/exception flows are not evaluated. |
 | `LIM-PA-07` | **Location caveats.** Spans are exact for parsed nodes, but synthetic entry/exit blocks are zero-width and block text spans exclude synthetic lowering anchors. Consumers must retain the original source for slicing. |
 | `LIM-PA-08` | **Scale and determinism scope.** Graphs are rebuilt from scratch with no incremental or cross-file index. Output order is deterministic for a fixed parser/grammar version, but it is structural determinism, not a claim of semantic stability across grammar upgrades or language changes. |
+| `LIM-PA-09` | **Limited interprocedural taint.** Taint follows direct calls only when the target is a unique same-file declaration name, or a `self`/`this` method in the same class container. Imports, re-exports, aliases, dynamic dispatch, callbacks, higher-order calls, and cross-file summaries are not resolved. Ambiguous or unknown targets block value flow. |
+| `LIM-PA-10` | **Potential flows, not vulnerabilities.** Findings describe syntactic source-to-sink reachability. Path feasibility, runtime values, types, authentication, authorization, framework routing, and blocking validation are not evaluated. Confidence is analysis confidence, not exploitability. |
+| `LIM-PA-11` | **Explicit configuration.** Sources, sanitizers, validators, propagators, and sinks are rule-driven. Validators are inventoried but do not clear taint unless configured as sanitizers. An unconfigured unknown call is assumed to block value flow, so missing rules produce false negatives. |
 
 See also [`../security-engine/LIMITATIONS.md`](../security-engine/LIMITATIONS.md)
 and the authoritative register in

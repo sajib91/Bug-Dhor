@@ -4,16 +4,20 @@ Local FastAPI research engine for vulnerability evidence, SAE feature extraction
 
 ## Status
 
-**HTTP API, source preprocessing, and program analysis implemented; research
-stages unavailable.** The versioned FastAPI transport, typed request/response
+**HTTP API, source preprocessing, program analysis, and static adapters
+implemented; research stages unavailable.** The versioned FastAPI transport, typed request/response
 schemas, structured errors, logging, auth, CORS, request limits, workspace
 containment, and real file/workspace inspection exist. A standalone tree-sitter
 preprocessing library detects, parses, tokenizes, chunks, and summarizes Python and
 JavaScript source. A second standalone library builds intraprocedural control-flow
-and data-flow graphs with exact source spans and NetworkX. No analyzer adapter,
-detector, model runtime, SAE loader, counterfactual engine, steering controller,
-repair generator, or adequate verification sandbox is implemented. Those stages
-return explicit `unavailable` statuses; no results are invented.
+and data-flow graphs, plus same-file taint propagation with explicit source,
+sanitizer, validator, propagator, and sink rules. All graph products preserve
+exact source spans and use NetworkX. A third standalone library integrates
+Semgrep and Bandit, plus optional CodeQL and Joern, through safe bounded
+subprocesses and normalizes their output into shared findings. No detector, model
+runtime, SAE loader, counterfactual engine, steering controller, repair generator,
+or adequate verification sandbox is implemented. Those stages return explicit
+`unavailable` statuses; no results are invented.
 
 Implemented and tested:
 
@@ -28,26 +32,37 @@ Implemented and tested:
   repository metadata, and recoverable syntax-error diagnostics.
 - `src/craftsec/program_analysis/` — module/function CFGs with basic blocks,
   branches, loops, exceptions, returns, and break/continue; reaching-definition
-  DFGs with def-use, parameter, call, return, raise, and closure edges; exact
-  spans and NetworkX `DiGraph` products.
+  DFGs with def-use, parameter, call, return, raise, and closure edges; a taint
+  graph with explicit source, sanitizer, validator, propagator, and sink rules,
+  per-kind gating, direct same-file interprocedural propagation, evidence paths,
+  confidence notes, and limitation disclosures; exact spans and NetworkX
+  `DiGraph` products.
+- `src/craftsec/static/` — Semgrep and Bandit adapters, plus optional CodeQL and
+  Joern adapters, with executable/version detection, argv-only sanitized
+  subprocess execution, timeouts, bounded stdout/stderr capture, native-output
+  parsing, shared normalized findings, conservative CWE extraction, and
+  deduplication. Missing, failed, and timed-out tools are explicit statuses, never
+  empty successful scans.
 - `src/craftsec/main.py` — Uvicorn entry point with configurable host and port.
 - File scans — allowlisted-root validation, path/symlink containment, UTF-8 and
   size checks, SHA-256 computation, and language detection.
 - Workspace scans — symlink-safe source discovery with ignored generated
   directories and a configurable file-count limit. Discovery does not invoke the
   parsing library yet.
-- 253 tests under `tests/`, covering every endpoint, validation, problem details,
+- 320 tests under `tests/`, covering every endpoint, validation, problem details,
   auth, CORS, request/file/workspace limits, path containment, pipeline status
-  semantics, settings, OpenAPI paths, shared contracts, source preprocessing, and
-  CFG/DFG graph correctness.
+  semantics, settings, OpenAPI paths, shared contracts, source preprocessing,
+  CFG/DFG graph correctness, positive/negative taint flows, subprocess safety and
+  timeouts, static-output normalization and deduplication, and mocked adapter
+  integrations.
 - [API documentation](../docs/api.md), [program-analysis documentation](../docs/program-analysis.md),
   and generated OpenAPI at `/openapi.json`, `/docs`, and `/redoc`.
 
 All analysis endpoints currently return `analysisAvailable: false` with explicit
 stage reason codes. Health reports every operation capability as `false`. The
-preprocessing and program-analysis libraries are not connected to a scan route or
-stage, so scan responses still contain no tokens, functions, chunks, syntax
-diagnostics, CFGs, or DFGs.
+preprocessing, program-analysis, and static-adapter libraries are not connected to
+a scan route or stage, so scan responses still contain no tokens, functions,
+chunks, syntax diagnostics, CFGs, DFGs, taint flows, or static-analyzer findings.
 
 ## API
 
@@ -83,7 +98,7 @@ src/craftsec/
   models/             HF runtime and activation hooks
   observability/      logging, redaction, audit
   parsing/            tree-sitter detection, tokenization, symbols, chunks, metadata
-  program_analysis/   intraprocedural CFG/DFG construction with NetworkX
+  program_analysis/   intraprocedural CFG/DFG and same-file taint with NetworkX
   repair/             context assembly and patch generation
   sae/                artifact registry, loader, encode/decode
   sandbox/            isolated execution backends
@@ -131,11 +146,15 @@ cd security-engine
 ```
 
 The suite exercises the HTTP API, backend primitives, shared contract schemas, the
-standalone preprocessing library, and the standalone program-analysis library. It
-does not exercise vulnerability detection, SAE features, counterfactuals,
-steering, repair, or execution verification because those capabilities are not
-implemented. Because parsing and graph construction are not wired into the scan
-pipeline, scan responses do not include preprocessing or graph products.
+standalone preprocessing library, the standalone program-analysis library, taint
+flows, and the standalone static-analyzer adapters. Static adapter tests use
+mocked tool output and fake executables; they do not require Semgrep, Bandit,
+CodeQL, or Joern to be installed. The suite does not exercise vulnerability
+detection, SAE features, counterfactuals, steering, repair, or execution
+verification because those capabilities are not implemented. Because parsing,
+graph construction, taint analysis, and static adapters are not wired into the scan
+pipeline, scan responses do not include preprocessing, graph, taint, or static
+analyzer products.
 
 ## Build
 

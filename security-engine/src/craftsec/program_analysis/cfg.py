@@ -1523,6 +1523,8 @@ def _collect_function_nodes(parsed: ParsedSource) -> list[Node]:
     stack = [parsed.root_node]
     while stack:
         node = stack.pop()
+        if not node.is_named:
+            continue
         if node.type in function_types:
             found.append(node)
         stack.extend(reversed(node.children))

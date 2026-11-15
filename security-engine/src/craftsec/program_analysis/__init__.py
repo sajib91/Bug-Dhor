@@ -1,13 +1,15 @@
 """Program analysis for CRAFT-Sec.
 
 This package currently provides intraprocedural control-flow graphs (CFGs) and
-data-flow graphs (DFGs) for Python and JavaScript. Both analyses preserve exact
-source spans and are built on NetworkX graphs.
+data-flow graphs (DFGs) plus an explicit, configuration-driven taint analysis
+for Python and JavaScript. Every product preserves exact source spans and is
+built on NetworkX graphs.
 
-The implementation is deliberately syntactic. Call targets, dynamic dispatch,
-interprocedural return flow, and type information are not resolved. Unsupported
-or approximated language constructs are listed in ``docs/program-analysis.md``
-and tracked by the ``LIM-PA-*`` limitation identifiers.
+The implementation is deliberately syntactic. The taint layer resolves direct
+same-file calls and returns, but imports, aliases, dynamic dispatch, runtime
+types, and cross-file summaries are not resolved. Unsupported or approximated
+language constructs are listed in ``docs/program-analysis.md`` and tracked by
+the ``LIM-PA-*`` limitation identifiers.
 """
 
 from craftsec.program_analysis.analysis import (
@@ -50,6 +52,33 @@ from craftsec.program_analysis.models import (
     VariableRole,
     span_to_dict,
 )
+from craftsec.program_analysis.taint import (
+    DEFAULT_TAINT_CONFIG,
+    TAINT_LIMITATIONS,
+    NameMatch,
+    PropagatorMode,
+    PropagatorRule,
+    SanitizerCategory,
+    SanitizerRule,
+    SinkRule,
+    SinkTarget,
+    SiteRole,
+    SourceRule,
+    TaintAnalysis,
+    TaintConfidence,
+    TaintConfig,
+    TaintEdgeKind,
+    TaintFinding,
+    TaintKind,
+    TaintNodeKind,
+    TaintPathStep,
+    TaintSite,
+    analyze_taint,
+    analyze_taint_file,
+    analyze_taint_source,
+    build_taint,
+    default_taint_config,
+)
 
 __all__ = [
     "BasicBlock",
@@ -59,6 +88,7 @@ __all__ = [
     "CallSite",
     "ControlFlowAnalysis",
     "ControlFlowGraph",
+    "DEFAULT_TAINT_CONFIG",
     "DFGEdge",
     "DFGEdgeKind",
     "DFGNode",
@@ -68,7 +98,26 @@ __all__ = [
     "FunctionScopeInfo",
     "Instruction",
     "InstructionKind",
+    "NameMatch",
     "ProgramAnalysis",
+    "PropagatorMode",
+    "PropagatorRule",
+    "SanitizerCategory",
+    "SanitizerRule",
+    "SinkRule",
+    "SinkTarget",
+    "SiteRole",
+    "SourceRule",
+    "TAINT_LIMITATIONS",
+    "TaintAnalysis",
+    "TaintConfig",
+    "TaintConfidence",
+    "TaintEdgeKind",
+    "TaintFinding",
+    "TaintKind",
+    "TaintNodeKind",
+    "TaintPathStep",
+    "TaintSite",
     "VariableCategory",
     "VariableOccurrence",
     "VariableRole",
@@ -77,11 +126,16 @@ __all__ = [
     "analyze_file",
     "analyze_parsed",
     "analyze_source",
+    "analyze_taint",
+    "analyze_taint_file",
+    "analyze_taint_source",
     "build_cfg",
     "build_control_flow_graph",
     "build_data_flow_graph",
     "build_dfg",
     "build_function_cfg",
     "build_module_cfg",
+    "build_taint",
+    "default_taint_config",
     "span_to_dict",
 ]

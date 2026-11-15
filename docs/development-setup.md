@@ -2,7 +2,7 @@
 
 **Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, diagnostics, and HTTP API verification was repeated on 2026-11-12. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
-This repository is an early implementation. Setup installs the toolchain, and the VS Code extension shell with its dashboard and diagnostics pipeline can run in an Extension Development Host. The Python engine now provides a tested, versioned FastAPI HTTP API with real file/workspace inspection; the extension does not yet start it or use a live HTTP client. No analyzer adapter, detector, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or adequate verification sandbox is implemented. Those stages report `unavailable`. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
+This repository is an early implementation. Setup installs the toolchain, and the VS Code extension shell with its dashboard and diagnostics pipeline can run in an Extension Development Host. The Python engine now provides a tested, versioned FastAPI HTTP API with real file/workspace inspection, plus standalone source-preprocessing, program-analysis, and static-analyzer adapter libraries; the extension does not yet start it or use a live HTTP client. No analyzer adapter is enabled in the scan pipeline, and no detector, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or adequate verification sandbox is implemented. Those stages report `unavailable`. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
 
 ## 1. Supported toolchain
 
@@ -296,20 +296,21 @@ The VSIX is a development artifact. It has no repository URL or license yet, so 
 
 ## 11. Verification record
 
-Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer, dashboard, and diagnostics verification on 2026-11-12, source-preprocessing verification on 2026-11-13, and program-analysis verification on 2026-11-14:
+Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer, dashboard, and diagnostics verification on 2026-11-12, and source-preprocessing, program-analysis, and taint verification on 2026-11-13/14:
 
 | Check | Result |
 |---|---|
 | `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads |
-| `npm run structure:check` | 50 required directories and 159 required files present; no TypeScript sources |
+| `npm run structure:check` | 50 required directories and 161 required files present; no TypeScript sources |
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
 | Tree-sitter grammars | Python and JavaScript grammars exercised by parsing tests; the TypeScript module imports but is not supported by preprocessing |
 | `npm run lint` | Ruff passed; ESLint passed |
 | `npm run format:check` | Ruff and Prettier reported no formatting differences |
-| `npm test` | 253 pytest tests passed (API, contracts, parsing, program analysis, settings, paths, and pipeline); 219 Node unit tests passed |
+| `npm test` | 320 pytest tests passed (API, contracts, parsing, program analysis, taint, static adapters, settings, paths, and pipeline); 219 Node unit tests passed |
 | Parsing unit tests | 59 tests passed over valid and invalid Python/JavaScript source, BOM/CRLF source maps, UTF-16 positions, tokenization, function extraction, chunking, and repository metadata |
-| Program-analysis unit tests | 27 tests passed over Python/JavaScript basic blocks, branches, loops, exceptions, functions, exact locations, reaching definitions, calls, returns, closures, unresolved uses, graph invariants, and determinism |
+| Program-analysis unit tests | 62 tests passed over Python/JavaScript basic blocks, branches, loops, exceptions, functions, exact locations, reaching definitions, calls, returns, closures, unresolved uses, graph invariants, determinism, and positive/negative taint flows for five vulnerability classes |
+| Static-adapter tests | 32 tests passed over subprocess safety, timeouts, output capture, Semgrep/Bandit/SARIF/Joern parsing, CWE normalization, deduplication, missing/failed/unavailable statuses, CodeQL license/config gates, Joern version gates, and mocked end-to-end integrations |
 | `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
 | Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
 | `npm run check` | Structure, lint, format check, and both test suites passed |
