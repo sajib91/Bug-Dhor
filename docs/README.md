@@ -7,6 +7,8 @@
 - [Development setup](development-setup.md) — macOS and Windows installation, CPU-only development, environment variables, verification record.
 - [Research alignment and integrity contract](research-alignment.md) — claim taxonomy, SAE rules, counterfactual semantics, steering protocol, verification, reproducibility, limitations.
 - [Sparse autoencoder](sae.md) — PyTorch SAE training, validation metrics, checkpoints, and interpretation limits.
+- [SAE feature analysis](sae-feature-analysis.md) — labeled activation associations, CWE analysis, stability, and cross-dataset validation.
+- [SAE feature interpretation](sae-feature-interpretation.md) — evidence-backed reports, annotations, interventions, and JSON/CSV export.
 - [Architecture decision records](adr/README.md) — recorded decisions and future ADR conventions.
 
 Documents distinguish the implemented HTTP/file-inspection, source-preprocessing,
