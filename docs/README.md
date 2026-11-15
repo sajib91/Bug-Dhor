@@ -6,6 +6,7 @@
 - [Shared JSON contracts](../shared/schemas/README.md) — Draft 2020-12 schemas, fixtures, and score/availability rules validated from Python and JavaScript.
 - [Development setup](development-setup.md) — macOS and Windows installation, CPU-only development, environment variables, verification record.
 - [Research alignment and integrity contract](research-alignment.md) — claim taxonomy, SAE rules, counterfactual semantics, steering protocol, verification, reproducibility, limitations.
+- [Sparse autoencoder](sae.md) — PyTorch SAE training, validation metrics, checkpoints, and interpretation limits.
 - [Architecture decision records](adr/README.md) — recorded decisions and future ADR conventions.
 
 Documents distinguish the implemented HTTP/file-inspection, source-preprocessing,

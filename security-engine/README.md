@@ -4,8 +4,8 @@ Local FastAPI research engine for vulnerability evidence, SAE feature extraction
 
 ## Status
 
-**HTTP API, source preprocessing, program analysis, and static adapters
-implemented; research stages unavailable.** The versioned FastAPI transport, typed request/response
+**HTTP API, source preprocessing, program analysis, static adapters, local model
+runtime, and SAE training implemented; other research stages remain unavailable.** The versioned FastAPI transport, typed request/response
 schemas, structured errors, logging, auth, CORS, request limits, workspace
 containment, and real file/workspace inspection exist. A standalone tree-sitter
 preprocessing library detects, parses, tokenizes, chunks, and summarizes Python and
@@ -14,9 +14,9 @@ and data-flow graphs, plus same-file taint propagation with explicit source,
 sanitizer, validator, propagator, and sink rules. All graph products preserve
 exact source spans and use NetworkX. A third standalone library integrates
 Semgrep and Bandit, plus optional CodeQL and Joern, through safe bounded
-subprocesses and normalizes their output into shared findings. No detector, model
-runtime, SAE loader, counterfactual engine, steering controller, repair generator,
-or adequate verification sandbox is implemented. Those stages return explicit
+subprocesses and normalizes their output into shared findings. Counterfactual,
+steering, repair, and adequate verification sandbox stages remain unimplemented.
+Those stages return explicit
 `unavailable` statuses; no results are invented.
 
 Implemented and tested:
@@ -95,12 +95,12 @@ src/craftsec/
   explain/            evidence graph
   features/           SAE feature extraction and aggregation
   ingestion/          project snapshots
-  models/             HF runtime and activation hooks
+  models/             Lazy local HF runtime, tokenizer, inference, and activations
   observability/      logging, redaction, audit
   parsing/            tree-sitter detection, tokenization, symbols, chunks, metadata
   program_analysis/   intraprocedural CFG/DFG and same-file taint with NetworkX
   repair/             context assembly and patch generation
-  sae/                artifact registry, loader, encode/decode
+  sae/                sparse autoencoder training, metrics, and checkpoints
   sandbox/            isolated execution backends
   static/             Semgrep, Bandit, CodeQL, Joern adapters
   steering/           activation steering and evaluation
@@ -118,6 +118,9 @@ npm test
 ```
 
 `--cpu` installs CPU-only PyTorch. `--with-analyzers` adds Semgrep and Bandit; omit it for a lighter environment. No model weights are downloaded.
+
+See [../docs/models.md](../docs/models.md) for supported Hugging Face
+checkpoints, licensing, local loading behavior, and activation limitations.
 
 For a manual environment:
 
