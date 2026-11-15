@@ -1,6 +1,17 @@
-"""CRAFT-Sec explain package.
+"""CRAFT-Sec evidence-grounded explanation engine."""
 
-Evidence graph assembly and claim-aware explanations.
+from craftsec.explain.engine import (
+    CounterfactualReference,
+    ExplainableVulnerabilityEngine,
+    FeatureInteractionReference,
+    SAEFeatureReference,
+    VulnerabilityExplanation,
+)
 
-Status: package scaffold only. No runtime behavior is implemented yet.
-"""
+__all__ = [
+    "CounterfactualReference",
+    "ExplainableVulnerabilityEngine",
+    "FeatureInteractionReference",
+    "SAEFeatureReference",
+    "VulnerabilityExplanation",
+]

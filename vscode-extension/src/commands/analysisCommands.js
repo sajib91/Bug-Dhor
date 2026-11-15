@@ -20,21 +20,55 @@ const { requireActiveEditor, requireSelection, createEditorRequest } = require('
  * }} context
  */
 function registerAnalysisCommands(context) {
-  const { vscode } = context;
+  const { vscode, dashboard } = context;
+  const updateDashboard = (patch) => {
+    if (typeof dashboard?.updateLiveState === 'function') {
+      dashboard.updateLiveState(patch);
+    }
+  };
 
-  registerEngineCommand(context, getCommandDefinition(COMMANDS.explainVulnerability), () =>
-    createEditorRequest(vscode, requireActiveEditor(vscode))
+  registerEngineCommand(
+    context,
+    getCommandDefinition(COMMANDS.explainVulnerability),
+    () => createEditorRequest(vscode, requireActiveEditor(vscode)),
+    {
+      onResult: (response) =>
+        updateDashboard({
+          explanations: response?.result ? [response.result] : [],
+          generatedAt: new Date().toISOString()
+        })
+    }
   );
 
-  registerEngineCommand(context, getCommandDefinition(COMMANDS.analyzeSecurityFeatures), () =>
-    createEditorRequest(vscode, requireActiveEditor(vscode))
+  registerEngineCommand(
+    context,
+    getCommandDefinition(COMMANDS.analyzeSecurityFeatures),
+    () => createEditorRequest(vscode, requireActiveEditor(vscode)),
+    {
+      onResult: (response) =>
+        updateDashboard({
+          saeFeatures: response?.result ?? null,
+          generatedAt: new Date().toISOString()
+        })
+    }
   );
 
-  registerEngineCommand(context, getCommandDefinition(COMMANDS.counterfactualAnalysis), () => {
-    const editor = requireActiveEditor(vscode);
-    requireSelection(editor);
-    return createEditorRequest(vscode, editor);
-  });
+  registerEngineCommand(
+    context,
+    getCommandDefinition(COMMANDS.counterfactualAnalysis),
+    () => {
+      const editor = requireActiveEditor(vscode);
+      requireSelection(editor);
+      return createEditorRequest(vscode, editor);
+    },
+    {
+      onResult: (response) =>
+        updateDashboard({
+          featureInteractions: response?.result ?? null,
+          generatedAt: new Date().toISOString()
+        })
+    }
+  );
 }
 
 module.exports = { registerAnalysisCommands };

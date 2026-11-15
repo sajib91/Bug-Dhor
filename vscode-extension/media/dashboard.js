@@ -1377,50 +1377,295 @@
     }
 
     for (const explanation of state.explanations) {
-      const title = textOrDash(explanation.title);
-      const claimKind = stringOrNull(explanation.claimKind);
-      const header = el('div', 'card__header');
-      const copy = el('div');
-      copy.appendChild(el('h3', 'card__title', title));
-      if (typeof explanation.summary === 'string' && explanation.summary.length > 0) {
-        copy.appendChild(el('p', 'card__description', explanation.summary));
-      }
-      header.appendChild(copy);
-      header.appendChild(
-        claimKind ? badge(`Claim: ${claimKind}`, 'info') : badge('Unlabelled claim', 'warning')
-      );
-
-      const body = el('div', 'card__body');
-      body.appendChild(
-        el(
-          'p',
-          'text-muted',
-          claimKind
-            ? 'Claim kind is reported by the engine. Interpret it according to the documented ' +
-                'score semantics.'
-            : 'No claim kind was provided. This result must not be described as a probability or ' +
-                'as a validated security conclusion.'
-        )
-      );
-      body.appendChild(renderEvidenceList(explanation.evidence));
-
-      if (Array.isArray(explanation.limitations) && explanation.limitations.length > 0) {
-        body.appendChild(el('h4', 'subheading', 'Limitations'));
-        body.appendChild(renderStringList(explanation.limitations, 'policy-list'));
-      }
-
-      if (isRecord(explanation.provenance)) {
-        body.appendChild(el('h4', 'subheading', 'Provenance'));
-        body.appendChild(renderProvenance(explanation.provenance));
-      }
-
-      const article = el('article', 'card');
-      article.appendChild(header);
-      article.appendChild(body);
-      section.appendChild(article);
+      section.appendChild(renderExplainabilityReport(explanation));
     }
 
     return section;
+  }
+
+  function renderExplainabilityReport(explanation) {
+    const report = el('article', 'explanation-report');
+    const title = textOrDash(explanation.what ?? explanation.title);
+    const cwe = stringOrNull(explanation.cwe);
+    const header = el('div', 'card__header');
+    const copy = el('div');
+    copy.appendChild(el('h3', 'card__title', title));
+    if (typeof explanation.findingId === 'string') {
+      copy.appendChild(el('p', 'card__description mono', `Finding: ${explanation.findingId}`));
+    }
+    header.appendChild(copy);
+    header.appendChild(cwe ? badge(cwe, 'warning') : badge('CWE unavailable', 'warning'));
+    report.appendChild(header);
+
+    const summaryGrid = el('div', 'explanation-grid');
+    summaryGrid.appendChild(
+      explanationCard(
+        'Vulnerability summary',
+        'What the backend reports for this finding.',
+        definitionList(
+          [
+            ['What was detected', explanation.what ?? explanation.title],
+            ['Potential impact', explanation.potential_security_impact],
+            ['Remediation', explanation.recommended_remediation]
+          ],
+          'Unavailable information: the explanation did not provide a summary.'
+        )
+      )
+    );
+    summaryGrid.appendChild(
+      explanationCard(
+        'CWE classification',
+        'Classification is displayed exactly as supplied by the backend.',
+        definitionList(
+          [
+            ['CWE', explanation.cwe],
+            ['Finding ID', explanation.findingId],
+            ['Provenance', provenanceLabel(explanation.provenance)]
+          ],
+          'Unavailable information: no CWE classification was supplied.'
+        )
+      )
+    );
+    summaryGrid.appendChild(
+      explanationCard(
+        'Vulnerable code location',
+        'Open the affected source line when the backend provides a workspace-contained path.',
+        renderExplanationLocation(explanation.where ?? explanation.location)
+      )
+    );
+    report.appendChild(summaryGrid);
+
+    const evidenceGrid = el('div', 'explanation-grid');
+    evidenceGrid.appendChild(
+      explanationCard(
+        'Evidence sources',
+        'Observed evidence and its provenance.',
+        renderEvidenceRecords(
+          explanation.directlyObservedEvidence ?? explanation.why_detected,
+          'No directly observed evidence was supplied.'
+        )
+      )
+    );
+    evidenceGrid.appendChild(
+      explanationCard(
+        'AST / CFG / DFG visualization',
+        'Graph nodes and edges are rendered only when supplied by the backend.',
+        renderGraphEvidence(explanation.astCfgDfg ?? explanation.graph)
+      )
+    );
+    evidenceGrid.appendChild(
+      explanationCard(
+        'Taint propagation path',
+        'Potential source-to-sink paths retain their confidence and limitations.',
+        renderTaintPaths(explanation.source_to_sink_paths ?? explanation.sourceToSinkPaths)
+      )
+    );
+    report.appendChild(evidenceGrid);
+
+    const researchGrid = el('div', 'explanation-grid');
+    researchGrid.appendChild(
+      explanationCard(
+        'SAE feature activation',
+        'SAE values are measurements or associations, not feature meanings.',
+        renderResearchRecords(
+          explanation.sae_features ?? explanation.saeFeatures,
+          'No SAE feature activation evidence was supplied.'
+        )
+      )
+    );
+    researchGrid.appendChild(
+      explanationCard(
+        'Counterfactual feature effects',
+        'Controlled intervention results do not prove a change in true vulnerability status.',
+        renderResearchRecords(
+          explanation.counterfactual_interventions ?? explanation.counterfactuals,
+          'No counterfactual intervention evidence was supplied.'
+        )
+      )
+    );
+    researchGrid.appendChild(
+      explanationCard(
+        'Feature interaction analysis',
+        'Only experimentally validated interactions should appear here.',
+        renderValidatedInteractions(
+          explanation.feature_interactions ?? explanation.featureInteractions
+        )
+      )
+    );
+    report.appendChild(researchGrid);
+
+    const technical = el('details', 'technical-details');
+    const summary = el('summary', null, 'Technical explanation and model-generated claims');
+    technical.appendChild(summary);
+    const technicalBody = el('div', 'technical-details__body');
+    technicalBody.appendChild(
+      explanationCard(
+        'Model-generated explanations',
+        'These claims are hypotheses, not directly observed evidence or causal explanations.',
+        renderResearchRecords(
+          explanation.model_generated_explanations ?? explanation.modelGeneratedExplanations,
+          'No model-generated explanation was supplied.'
+        )
+      )
+    );
+    technicalBody.appendChild(
+      explanationCard(
+        'Uncertainty and unavailable information',
+        'Missing evidence is shown explicitly rather than inferred.',
+        renderStringList(
+          Array.isArray(explanation.limitations) ? explanation.limitations : [],
+          'policy-list',
+          'No additional limitations were supplied.'
+        )
+      )
+    );
+    technicalBody.appendChild(
+      explanationCard(
+        'Recommended security fixes',
+        'Remediation text is supplied by the backend and is not generated by the dashboard.',
+        textOrDash(explanation.recommended_remediation, 'Unavailable information.')
+      )
+    );
+    technical.appendChild(technicalBody);
+    report.appendChild(technical);
+    return report;
+  }
+
+  function explanationCard(title, description, body) {
+    return card(title, description, body);
+  }
+
+  function renderExplanationLocation(location) {
+    if (!isRecord(location) || typeof location.path !== 'string') {
+      return unavailableEvidence('No source location was supplied.');
+    }
+    const body = el('div', 'source-location');
+    body.appendChild(
+      el(
+        'p',
+        'mono',
+        `${location.path}:${numberOrNull(location.startLine) ?? '—'}:${numberOrNull(
+          location.startColumn
+        ) ?? '—'}`
+      )
+    );
+    const button = el('button', 'button button--secondary source-location__button', 'Open source line');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      sendMessage({
+        type: 'openLocation',
+        path: location.path,
+        line: location.startLine,
+        column: location.startColumn
+      });
+    });
+    body.appendChild(button);
+    return body;
+  }
+
+  function renderEvidenceRecords(items, emptyMessage) {
+    const recordsList = records(items);
+    if (recordsList.length === 0) {
+      return unavailableEvidence(emptyMessage);
+    }
+    const list = el('ul', 'evidence-records');
+    for (const item of recordsList) {
+      const entry = el('li', 'evidence-record');
+      const title = item.title ?? item.source ?? item.type ?? item.kind;
+      entry.appendChild(el('strong', null, textOrDash(title)));
+      const detail = item.detail ?? item.message ?? item.claim ?? item.status;
+      if (isDisplayValue(detail)) {
+        entry.appendChild(el('span', 'evidence-record__detail', textOrDash(detail)));
+      }
+      const meta = [
+        item.status ?? item.claimKind ?? item.claim_kind,
+        item.source,
+        item.provenance?.producer
+      ]
+        .filter(isDisplayValue)
+        .map(textOrDash)
+        .join(' · ');
+      if (meta) {
+        entry.appendChild(el('span', 'evidence-record__meta', meta));
+      }
+      list.appendChild(entry);
+    }
+    return list;
+  }
+
+  function renderGraphEvidence(graph) {
+    if (!isRecord(graph)) {
+      return unavailableEvidence('Unavailable information: no AST, CFG, or DFG graph was supplied.');
+    }
+    const nodes = records(graph.nodes);
+    const edges = records(graph.edges);
+    if (nodes.length === 0 && edges.length === 0) {
+      return unavailableEvidence('Unavailable information: the graph contains no nodes or edges.');
+    }
+    const body = el('div', 'graph-evidence');
+    body.appendChild(
+      definitionList(
+        [
+          ['Graph type', graph.type ?? graph.kind],
+          ['Nodes', nodes.length],
+          ['Edges', edges.length]
+        ],
+        'Graph metadata unavailable.'
+      )
+    );
+    if (nodes.length > 0) {
+      body.appendChild(el('h4', 'subheading', 'Nodes'));
+      body.appendChild(renderEvidenceRecords(nodes, 'No graph nodes supplied.'));
+    }
+    if (edges.length > 0) {
+      body.appendChild(el('h4', 'subheading', 'Edges'));
+      body.appendChild(renderEvidenceRecords(edges, 'No graph edges supplied.'));
+    }
+    return body;
+  }
+
+  function renderTaintPaths(paths) {
+    const pathRecords = records(paths);
+    if (pathRecords.length === 0) {
+      return unavailableEvidence('Unavailable information: no taint path was supplied.');
+    }
+    const body = el('div', 'taint-paths');
+    for (const path of pathRecords) {
+      const details = el('details', 'taint-path');
+      details.appendChild(
+        el(
+          'summary',
+          null,
+          `${textOrDash(path.sourceRule ?? path.source)} → ${textOrDash(
+            path.sinkRule ?? path.sink
+          )} · ${textOrDash(path.confidence, 'confidence unavailable')}`
+        )
+      );
+      details.appendChild(
+        renderEvidenceRecords(
+          [...records(path.steps), path],
+          'Unavailable information: no taint steps were supplied.'
+        )
+      );
+      body.appendChild(details);
+    }
+    return body;
+  }
+
+  function renderResearchRecords(items, emptyMessage) {
+    return renderEvidenceRecords(items, emptyMessage);
+  }
+
+  function renderValidatedInteractions(items) {
+    const interactions = records(items).filter(
+      (item) => item.validated === true || item.valid === true
+    );
+    if (interactions.length === 0) {
+      return unavailableEvidence(
+        'Unavailable information: no validated feature interaction was supplied.'
+      );
+    }
+    return renderEvidenceRecords(interactions, 'No validated interaction evidence supplied.');
   }
 
   function renderRepairSection() {

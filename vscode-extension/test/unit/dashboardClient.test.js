@@ -54,6 +54,26 @@ test('dashboard client labels demo and unavailability states honestly', () => {
   assert.match(source, /not probabilities/i);
 });
 
+test('dashboard client renders explainability evidence sections and source navigation', () => {
+  for (const label of [
+    'Vulnerability summary',
+    'CWE classification',
+    'Vulnerable code location',
+    'Evidence sources',
+    'AST / CFG / DFG visualization',
+    'Taint propagation path',
+    'SAE feature activation',
+    'Counterfactual feature effects',
+    'Feature interaction analysis',
+    'Recommended security fixes'
+  ]) {
+    assert.ok(source.includes(label), `${label} must be rendered`);
+  }
+  assert.ok(source.includes("type: 'openLocation'"));
+  assert.match(source, /hypotheses, not directly observed evidence or causal explanations/i);
+  assert.match(source, /Unavailable information/);
+});
+
 test('dashboard client validates commands before posting them', () => {
   assert.ok(source.includes('safeCommandPattern'));
   assert.ok(source.includes('/^craftsec\\.[A-Za-z][A-Za-z0-9]*$/'));

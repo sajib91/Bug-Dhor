@@ -14,6 +14,7 @@ const {
 function createUri(path) {
   return {
     path,
+    fsPath: path,
     scheme: 'file',
     toString() {
       return `file://${path}`;
@@ -24,6 +25,8 @@ function createUri(path) {
 function createFakeVscode(options = {}) {
   const createdPanels = [];
   const executedCommands = [];
+  const openedDocuments = [];
+  const shownDocuments = [];
 
   const vscode = {
     ViewColumn: { One: 1 },
@@ -31,6 +34,9 @@ function createFakeVscode(options = {}) {
       joinPath(base, ...parts) {
         const separator = base.path.endsWith('/') ? '' : '/';
         return createUri(`${base.path}${separator}${parts.join('/')}`);
+      },
+      file(filePath) {
+        return createUri(filePath);
       }
     },
     window: {
@@ -38,8 +44,21 @@ function createFakeVscode(options = {}) {
         const panel = createFakePanel({ options: panelOptions, viewType, title, column });
         createdPanels.push(panel);
         return panel;
+      },
+      async showTextDocument(document, options) {
+        shownDocuments.push({ document, options });
       }
     },
+    workspace: {
+      workspaceFolders: [{ uri: createUri('/workspace') }],
+      async openTextDocument(uri) {
+        const document = { uri };
+        openedDocuments.push(document);
+        return document;
+      }
+    },
+    Position,
+    Range,
     commands: {
       async executeCommand(command, ...args) {
         executedCommands.push({ command, args });
@@ -52,7 +71,21 @@ function createFakeVscode(options = {}) {
     }
   };
 
-  return { vscode, createdPanels, executedCommands };
+  return { vscode, createdPanels, executedCommands, openedDocuments, shownDocuments };
+}
+
+class Position {
+  constructor(line, character) {
+    this.line = line;
+    this.character = character;
+  }
+}
+
+class Range {
+  constructor(start, end) {
+    this.start = start;
+    this.end = end;
+  }
 }
 
 function createFakePanel({ options, viewType, title, column }) {
@@ -238,6 +271,29 @@ test('ready and refresh messages post the current state', async () => {
   harness.controller.dispose();
 });
 
+test('live backend results replace unavailable dashboard data without inventing fields', () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+
+  harness.controller.updateLiveState({
+    vulnerabilities: [{ findingId: 'finding-1' }],
+    explanations: [{ findingId: 'finding-1', analysisAvailable: true }]
+  });
+
+  assert.deepEqual(panel.postedMessages.at(-1), {
+    type: 'state',
+    state: {
+      dataMode: 'live',
+      generatedAt: '2026-11-11T12:00:00.000Z',
+      request: 2,
+      vulnerabilities: [{ findingId: 'finding-1' }],
+      explanations: [{ findingId: 'finding-1', analysisAvailable: true }]
+    }
+  });
+
+  harness.controller.dispose();
+});
+
 test('demo mode toggling validates input and rebuilds state', async () => {
   const harness = createHarness();
   const panel = harness.controller.open();
@@ -291,6 +347,39 @@ test('dashboard opens CRAFT-Sec settings and the output channel', async () => {
     { command: 'workbench.action.openSettings', args: ['craftsec'] }
   ]);
   assert.equal(harness.logger.shown, true);
+
+  harness.controller.dispose();
+});
+
+test('dashboard opens workspace-contained explanation source locations', async () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+
+  await panel.send({
+    type: 'openLocation',
+    path: '/workspace/src/app.py',
+    line: 7,
+    column: 3
+  });
+
+  assert.equal(harness.openedDocuments.length, 1);
+  assert.equal(harness.openedDocuments[0].uri.path, '/workspace/src/app.py');
+  assert.equal(harness.shownDocuments.length, 1);
+  assert.equal(harness.shownDocuments[0].options.selection.start.line, 7);
+  assert.equal(harness.shownDocuments[0].options.selection.start.character, 3);
+
+  harness.controller.dispose();
+});
+
+test('dashboard rejects explanation locations outside the workspace', async () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+
+  await panel.send({ type: 'openLocation', path: '/outside/app.py', line: 1 });
+
+  assert.equal(harness.openedDocuments.length, 0);
+  assert.equal(panel.postedMessages.at(-1).level, 'warning');
+  assert.ok(harness.logger.entries.some((entry) => entry.level === 'warn'));
 
   harness.controller.dispose();
 });

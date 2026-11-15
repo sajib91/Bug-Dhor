@@ -1,6 +1,7 @@
 'use strict';
 
 const { COMMAND_DEFINITIONS } = require('../commands/definitions');
+const { isFileUriWithinFolders } = require('../security/paths');
 const { createNonce } = require('./csp');
 const { createDashboardHtml } = require('./dashboardHtml');
 const { createEmptyDashboardState } = require('./dashboardModel');
@@ -46,6 +47,7 @@ class DashboardPanelController {
     this.logger = logger;
     this.getState = getState ?? (() => createEmptyDashboardState());
     this.dataMode = 'empty';
+    this.liveData = {};
     /** @type {import('vscode').WebviewPanel | undefined} */
     this.panel = undefined;
     /** @type {object | undefined} */
@@ -80,7 +82,7 @@ class DashboardPanelController {
     this.panel = panel;
     panel.iconPath = this.vscode.Uri.joinPath(this.extensionUri, 'media', 'icon.png');
 
-    this.state = this.getState(this.dataMode);
+    this.state = this.buildCurrentState();
     panel.webview.html = this.buildHtml(panel.webview, mediaRoot, this.state);
 
     this.disposables = [
@@ -143,8 +145,51 @@ class DashboardPanelController {
       case 'showLogs':
         this.logger.show();
         break;
+      case 'openLocation':
+        await this.openLocation(message);
+        break;
       default:
         this.logger.debug('Ignored an unknown dashboard message.');
+    }
+
+  }
+
+  /**
+   * Open a backend-supplied source location only when it is inside a workspace.
+   *
+   * @param {{ path?: unknown, line?: unknown, column?: unknown }} message
+   */
+  async openLocation(message) {
+    if (
+      typeof message.path !== 'string' ||
+      !Number.isInteger(message.line) ||
+      message.line < 0 ||
+      (message.column !== undefined &&
+        (!Number.isInteger(message.column) || message.column < 0))
+    ) {
+      this.logger.warn('Ignored a malformed dashboard source-location request.');
+      return;
+    }
+
+    const uri = this.vscode.Uri.file(message.path);
+    if (!isFileUriWithinFolders(uri, this.vscode.workspace.workspaceFolders ?? [])) {
+      this.logger.warn(`Ignored a dashboard location outside the workspace: ${message.path}`);
+      this.postNotice('warning', 'The requested source location is outside the workspace.');
+      return;
+    }
+
+    try {
+      const document = await this.vscode.workspace.openTextDocument(uri);
+      const position = new this.vscode.Position(message.line, message.column ?? 0);
+      await this.vscode.window.showTextDocument(document, {
+        selection: new this.vscode.Range(position, position),
+        preserveFocus: false,
+        preview: false
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Unable to open dashboard source location: ${detail}`, error);
+      this.postNotice('error', 'Unable to open the requested source location. See CRAFT-Sec logs.');
     }
   }
 
@@ -156,7 +201,7 @@ class DashboardPanelController {
     if (!this.panel) {
       return;
     }
-    this.state = this.getState(this.dataMode);
+    this.state = this.buildCurrentState();
     this.postState();
     this.logger.debug(`Dashboard data mode: ${this.dataMode}.`);
   }
@@ -165,7 +210,7 @@ class DashboardPanelController {
     if (!this.panel) {
       return;
     }
-    this.state = this.getState(this.dataMode);
+    this.state = this.buildCurrentState();
     this.postState();
     this.logger.debug('Refreshed the CRAFT-Sec security dashboard.');
   }
@@ -175,6 +220,31 @@ class DashboardPanelController {
       return;
     }
     this.panel.webview.postMessage({ type: 'state', state: this.state });
+  }
+
+  /**
+   * Merge validated backend data into the live dashboard state.
+   *
+   * @param {Record<string, unknown>} patch
+   */
+  updateLiveState(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      this.logger.warn('Ignored malformed live dashboard data.');
+      return;
+    }
+    this.liveData = { ...this.liveData, ...patch, dataMode: 'live' };
+    if (this.panel) {
+      this.state = this.buildCurrentState();
+      this.postState();
+    }
+  }
+
+  buildCurrentState() {
+    const base = this.getState(this.dataMode);
+    if (this.dataMode !== 'empty' || Object.keys(this.liveData).length === 0) {
+      return base;
+    }
+    return { ...base, ...this.liveData, dataMode: 'live' };
   }
 
   /**
@@ -225,6 +295,7 @@ class DashboardPanelController {
     }
     this.panel = undefined;
     this.state = undefined;
+    this.liveData = {};
     this.disposeListeners();
     this.logger.debug('Closed the CRAFT-Sec security dashboard.');
   }
@@ -245,6 +316,7 @@ class DashboardPanelController {
     const panel = this.panel;
     this.panel = undefined;
     this.state = undefined;
+    this.liveData = {};
     this.disposeListeners();
     if (panel) {
       panel.dispose();

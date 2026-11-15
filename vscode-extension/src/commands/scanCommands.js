@@ -33,6 +33,28 @@ function reportScanAvailability({ vscode, logger }, label, result) {
   void vscode.window.showWarningMessage(message);
 }
 
+function updateDashboardFromScan(dashboard, result) {
+  if (!dashboard || typeof dashboard.updateLiveState !== 'function') {
+    return;
+  }
+  const findings = Array.isArray(result?.findings) ? result.findings : [];
+  const severityCounts = findings.reduce((counts, finding) => {
+    const severity = typeof finding?.severity === 'string' ? finding.severity : 'unknown';
+    counts[severity] = (counts[severity] ?? 0) + 1;
+    return counts;
+  }, {});
+  dashboard.updateLiveState({
+    vulnerabilities: findings,
+    summary: {
+      analysisAvailable: result?.analysisAvailable === true,
+      findings: findings.length,
+      severityCounts,
+      filesScanned: Number.isInteger(result?.filesScanned) ? result.filesScanned : undefined
+    },
+    generatedAt: new Date().toISOString()
+  });
+}
+
 /**
  * Register the three scanning commands.
  *
@@ -48,7 +70,7 @@ function reportScanAvailability({ vscode, logger }, label, result) {
  * }} context
  */
 function registerScanCommands(context) {
-  const { vscode, diagnostics } = context;
+  const { vscode, diagnostics, dashboard } = context;
 
   registerEngineCommand(
     context,
@@ -57,6 +79,7 @@ function registerScanCommands(context) {
     {
       onResult: (result, request) => {
         diagnostics.publishScanResult(result, { scopeUris: [request.documentUri] });
+        updateDashboardFromScan(dashboard, result);
         reportScanAvailability(context, 'current-file scan', result);
       }
     }
@@ -73,6 +96,7 @@ function registerScanCommands(context) {
     {
       onResult: (result, request) => {
         diagnostics.publishScanResult(result, { scopeUris: [request.documentUri] });
+        updateDashboardFromScan(dashboard, result);
         reportScanAvailability(context, 'selection scan', result);
       }
     }
@@ -88,10 +112,11 @@ function registerScanCommands(context) {
     {
       onResult: (result) => {
         diagnostics.publishScanResult(result);
+        updateDashboardFromScan(dashboard, result);
         reportScanAvailability(context, 'workspace scan', result);
       }
     }
   );
 }
 
-module.exports = { registerScanCommands, reportScanAvailability };
+module.exports = { registerScanCommands, reportScanAvailability, updateDashboardFromScan };
