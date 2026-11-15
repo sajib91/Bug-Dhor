@@ -222,7 +222,15 @@ function unavailableInteractionState() {
     message:
       'Feature interactions require measured activations and a counterfactual run. Estimated ' +
       'effects are not real-world causal claims.',
-    items: []
+    items: [],
+    baselineRisk: null,
+    singleFeatureEffects: [],
+    pairwiseEffects: [],
+    higherOrderEffects: [],
+    activationChanges: [],
+    cweResults: [],
+    metadata: null,
+    unavailableEvidence: ['No counterfactual experiment has supplied measured results.']
   };
 }
 

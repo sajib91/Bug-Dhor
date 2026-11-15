@@ -704,6 +704,118 @@ h1 {
   color: var(--craft-muted);
 }
 
+.interaction-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.interaction-evidence {
+  display: grid;
+  gap: 16px;
+}
+
+.interaction-chart {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  overflow: visible;
+}
+
+.interaction-chart__label,
+.interaction-chart__value,
+.interaction-chart__muted {
+  fill: var(--vscode-foreground);
+  font-size: 11px;
+}
+
+.interaction-chart__value {
+  text-anchor: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.interaction-chart__muted {
+  fill: var(--craft-muted);
+}
+
+.interaction-chart__bar {
+  fill: var(--vscode-charts-blue, #4c9bd6);
+}
+
+.interaction-chart__bar--negative {
+  fill: var(--vscode-charts-red, #d16969);
+}
+
+.interaction-chart__bar--before {
+  fill: var(--craft-muted);
+}
+
+.interaction-chart__axis {
+  stroke: var(--craft-border);
+  stroke-width: 1;
+}
+
+.interaction-selector {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 7px 9px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--craft-border);
+  border-radius: 4px;
+}
+
+.interaction-detail-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.interaction-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--craft-border);
+}
+
+.interaction-detail-row__label {
+  color: var(--craft-muted);
+}
+
+.interaction-detail-row__value {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.interaction-examples {
+  margin-top: 12px;
+}
+
+.interaction-examples__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.code-example {
+  max-height: 220px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-textCodeBlock-background, var(--craft-surface));
+  border: 1px solid var(--craft-border);
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.metadata-list {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.6fr) minmax(0, 1.4fr);
+  gap: 8px 16px;
+  margin: 0;
+}
+
 .mono {
   font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.95em;

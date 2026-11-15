@@ -1,6 +1,69 @@
-"""CRAFT-Sec counterfactual package.
+"""CRAFT-Sec controlled SAE counterfactual analysis."""
 
-Genuine single-feature, pairwise, and higher-order counterfactual analysis.
+from craftsec.counterfactual.engine import (
+    ActivationMeasurement,
+    CounterfactualComparison,
+    CounterfactualEngine,
+    CounterfactualMetadata,
+    CounterfactualResult,
+    CounterfactualSpec,
+    RiskOutcome,
+)
+from craftsec.counterfactual.higher_order import (
+    ComplexityReport,
+    FeatureSubset,
+    HigherOrderEstimate,
+    HigherOrderExperiment,
+    HigherOrderInteractionEngine,
+    HigherOrderMetadata,
+    HigherOrderResult,
+    complexity_report,
+    estimate_higher_order,
+    generate_feature_subsets,
+    preselect_features,
+    rank_higher_order,
+)
+from craftsec.counterfactual.pairwise import (
+    FeaturePair,
+    InteractionEstimate,
+    PairwiseCell,
+    PairwiseInteractionEngine,
+    PairwiseInteractionResult,
+    PairwiseMetadata,
+    estimate_interaction,
+    rank_interactions,
+    select_association_pairs,
+    select_feature_pairs,
+)
 
-Status: package scaffold only. No runtime behavior is implemented yet.
-"""
+__all__ = [
+    "ActivationMeasurement",
+    "CounterfactualComparison",
+    "CounterfactualEngine",
+    "CounterfactualMetadata",
+    "CounterfactualResult",
+    "CounterfactualSpec",
+    "FeaturePair",
+    "FeatureSubset",
+    "ComplexityReport",
+    "HigherOrderEstimate",
+    "HigherOrderExperiment",
+    "HigherOrderInteractionEngine",
+    "HigherOrderMetadata",
+    "HigherOrderResult",
+    "InteractionEstimate",
+    "PairwiseCell",
+    "PairwiseInteractionEngine",
+    "PairwiseInteractionResult",
+    "PairwiseMetadata",
+    "RiskOutcome",
+    "estimate_interaction",
+    "estimate_higher_order",
+    "generate_feature_subsets",
+    "preselect_features",
+    "rank_interactions",
+    "rank_higher_order",
+    "select_association_pairs",
+    "select_feature_pairs",
+    "complexity_report",
+]

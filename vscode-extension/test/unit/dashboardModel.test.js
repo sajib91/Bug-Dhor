@@ -102,6 +102,13 @@ test('empty dashboard state reports unknowns as null, never zero', () => {
   assert.deepEqual(state.sae.features, []);
   assert.equal(state.featureInteractions.available, false);
   assert.deepEqual(state.featureInteractions.items, []);
+  assert.equal(state.featureInteractions.baselineRisk, null);
+  assert.deepEqual(state.featureInteractions.singleFeatureEffects, []);
+  assert.deepEqual(state.featureInteractions.pairwiseEffects, []);
+  assert.deepEqual(state.featureInteractions.higherOrderEffects, []);
+  assert.deepEqual(state.featureInteractions.activationChanges, []);
+  assert.deepEqual(state.featureInteractions.cweResults, []);
+  assert.equal(state.featureInteractions.metadata, null);
   assert.equal(state.steering.available, false);
   assert.deepEqual(state.steering.controls, []);
   assert.equal(state.verification.status, 'not-run');

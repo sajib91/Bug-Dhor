@@ -53,6 +53,7 @@
   const demoFallbackNotice =
     'Demo data is shown for interface preview only. It was not produced by a scan or security ' +
     'engine, and no SAE, interaction, explanation, repair, or verification result is simulated.';
+  const SVG_NAMESPACE = ['http', '://www.w3.org/2000/svg'].join('');
 
   const content = document.getElementById('dashboard-content');
   const bannerSlot = document.getElementById('dashboard-banner');
@@ -884,6 +885,8 @@
       return section;
     }
 
+    section.appendChild(renderInteractionEvidence(interactions));
+
     const items = Array.isArray(interactions.items) ? arrayOfRecords(interactions.items) : [];
     if (items.length === 0) {
       section.appendChild(
@@ -925,6 +928,360 @@
     );
 
     return section;
+  }
+
+  function renderInteractionEvidence(interactions) {
+    const body = el('div', 'interaction-evidence');
+    const baseline = isRecord(interactions.baselineRisk) ? interactions.baselineRisk : null;
+    const single = records(interactions.singleFeatureEffects);
+    const pairwise = records(interactions.pairwiseEffects);
+    const higherOrder = records(interactions.higherOrderEffects);
+    const activationChanges = records(interactions.activationChanges);
+    const cweResults = records(interactions.cweResults);
+    const metadata = isRecord(interactions.metadata) ? interactions.metadata : null;
+
+    const overview = el('div', 'interaction-overview');
+    if (baseline) {
+      overview.appendChild(
+        kpi(
+          'Baseline risk',
+          baseline.value,
+          baseline.scale ? `Scale: ${baseline.scale}` : 'Measured baseline outcome',
+          'info',
+          true
+        )
+      );
+    } else {
+      overview.appendChild(
+        kpi('Baseline risk', null, 'Unavailable evidence: no baseline outcome supplied.', 'neutral')
+      );
+    }
+    overview.appendChild(
+      kpi(
+        'Intervention cells',
+        single.length + pairwise.length + higherOrder.length,
+        'Measured results supplied by the experiment',
+        'neutral'
+      )
+    );
+    overview.appendChild(
+      kpi(
+        'Activation changes',
+        activationChanges.length,
+        activationChanges.length > 0
+          ? 'Token/layer changes supplied by the experiment'
+          : 'Unavailable evidence',
+        'neutral'
+      )
+    );
+    body.appendChild(overview);
+
+    const effectItems = [
+      ...single.map((item, index) => ({ ...item, kind: 'single', index })),
+      ...pairwise.map((item, index) => ({ ...item, kind: 'pairwise', index })),
+      ...higherOrder.map((item, index) => ({ ...item, kind: 'higher-order', index }))
+    ];
+    if (effectItems.length > 0) {
+      body.appendChild(
+        card(
+          'Intervention effects',
+          'Bars show only supplied outcome values. The outcome scale and evidence category are experiment-specific.',
+          createEffectChart(effectItems)
+        )
+      );
+
+      const selector = el('select', 'interaction-selector');
+      selector.setAttribute('aria-label', 'Select a counterfactual interaction');
+      effectItems.forEach((item, index) => {
+        const label =
+          item.kind === 'single'
+            ? `Single feature: ${describeFeatureValue(item)}`
+            : `${humanize(item.kind)}: ${describeFeatureList(item)}`;
+        selector.appendChild(option(String(index), label));
+      });
+      const details = el('div', 'interaction-details');
+      const detailCard = card(
+        'Selected intervention',
+        'Inspect the supplied code evidence and measured metadata for this result.',
+        [selector, details]
+      );
+      body.appendChild(detailCard);
+
+      const renderDetails = () => {
+        const selected = effectItems[Number(selector.value)];
+        details.replaceChildren(selected ? renderInteractionDetails(selected) : unavailableEvidence());
+      };
+      selector.addEventListener('change', renderDetails);
+      renderDetails();
+    } else {
+      body.appendChild(
+        emptyState(
+          '—',
+          'No intervention effects',
+          'The experiment supplied no single-feature, pairwise, or higher-order outcome values. ' +
+            'No chart is rendered.'
+        )
+      );
+    }
+
+    if (activationChanges.length > 0) {
+      body.appendChild(
+        card(
+          'Feature activation changes',
+          'Before/after values are shown on the activation scale supplied by the experiment.',
+          createActivationChart(activationChanges)
+        )
+      );
+    } else {
+      body.appendChild(
+        callout(
+          'Activation changes unavailable',
+          'No token-, layer-, or feature-level activation deltas were supplied for visualization.',
+          'warning'
+        )
+      );
+    }
+
+    if (cweResults.length > 0) {
+      body.appendChild(
+        card(
+          'CWE-specific outcomes',
+          'CWE labels are displayed as supplied; an effect does not establish a change in true vulnerability status.',
+          createTable({
+            caption: 'CWE-specific counterfactual results',
+            columns: [
+              { label: 'CWE' },
+              { label: 'Outcome' },
+              { label: 'Uncertainty' },
+              { label: 'Evidence' }
+            ],
+            rows: cweResults.map((item) => [
+              textOrDash(item.cwe),
+              formatSignedNumber(item.effect ?? item.outcome),
+              formatUncertainty(item.uncertainty),
+              evidenceBadge(item.evidenceType)
+            ])
+          }).element
+        )
+      );
+    } else {
+      body.appendChild(
+        callout(
+          'CWE-specific results unavailable',
+          'No CWE-filtered counterfactual outcomes were supplied by the experiment.',
+          'warning'
+        )
+      );
+    }
+
+    body.appendChild(
+      card(
+        'Experiment metadata',
+        'Provenance is retained for reproducibility. Missing fields remain unavailable.',
+        metadata ? metadataList(metadata) : unavailableEvidence()
+      )
+    );
+    return body;
+  }
+
+  function createEffectChart(items) {
+    const values = items.map((item) => numericValue(item.effect ?? item.contrast ?? item.outcome));
+    const finite = values.filter((value) => value !== null);
+    if (finite.length === 0) {
+      return unavailableEvidence();
+    }
+    const max = Math.max(...finite.map((value) => Math.abs(value)), 1);
+    const chart = svgElement('svg');
+    chart.setAttribute('class', 'interaction-chart');
+    chart.setAttribute('viewBox', `0 0 640 ${Math.max(items.length * 38, 90)}`);
+    chart.setAttribute('role', 'img');
+    chart.setAttribute('aria-label', 'Measured counterfactual intervention effects');
+    items.forEach((item, index) => {
+      const value = values[index];
+      const y = index * 38 + 8;
+      const label =
+        item.kind === 'single'
+          ? `F ${describeFeatureValue(item)}`
+          : describeFeatureList(item);
+      chart.appendChild(svgText(label.slice(0, 30), 4, y + 16, 'interaction-chart__label'));
+      if (value === null) {
+        chart.appendChild(svgText('Unavailable evidence', 220, y + 16, 'interaction-chart__muted'));
+        return;
+      }
+      const width = Math.max((Math.abs(value) / max) * 330, 2);
+      const x = value < 0 ? 220 - width : 220;
+      const bar = svgElement('rect');
+      bar.setAttribute('x', String(x));
+      bar.setAttribute('y', String(y));
+      bar.setAttribute('width', String(width));
+      bar.setAttribute('height', '22');
+      bar.setAttribute('rx', '3');
+      bar.setAttribute('class', value < 0 ? 'interaction-chart__bar interaction-chart__bar--negative' : 'interaction-chart__bar');
+      chart.appendChild(bar);
+      chart.appendChild(svgText(formatSignedNumber(value), 560, y + 16, 'interaction-chart__value'));
+    });
+    const axis = svgElement('line');
+    axis.setAttribute('x1', '220');
+    axis.setAttribute('x2', '220');
+    axis.setAttribute('y1', '0');
+    axis.setAttribute('y2', String(Math.max(items.length * 38, 90)));
+    axis.setAttribute('class', 'interaction-chart__axis');
+    chart.appendChild(axis);
+    return chart;
+  }
+
+  function createActivationChart(items) {
+    const chart = svgElement('svg');
+    chart.setAttribute('class', 'interaction-chart interaction-chart--activation');
+    chart.setAttribute('viewBox', `0 0 640 ${Math.max(items.length * 46, 90)}`);
+    chart.setAttribute('role', 'img');
+    chart.setAttribute('aria-label', 'Measured activation changes');
+    items.forEach((item, index) => {
+      const before = numericValue(item.before);
+      const after = numericValue(item.after);
+      const delta = numericValue(item.delta);
+      const y = index * 46 + 8;
+      chart.appendChild(svgText(textOrDash(item.label ?? item.feature ?? item.token), 4, y + 16, 'interaction-chart__label'));
+      if (before === null || after === null) {
+        chart.appendChild(svgText('Unavailable evidence', 220, y + 16, 'interaction-chart__muted'));
+        return;
+      }
+      const max = Math.max(Math.abs(before), Math.abs(after), 1);
+      const beforeWidth = (Math.abs(before) / max) * 220;
+      const afterWidth = (Math.abs(after) / max) * 220;
+      appendActivationBar(chart, 220, y, beforeWidth, 'Before');
+      appendActivationBar(chart, 220, y + 12, afterWidth, 'After');
+      chart.appendChild(
+        svgText(`Δ ${formatSignedNumber(delta ?? after - before)}`, 560, y + 16, 'interaction-chart__value')
+      );
+    });
+    return chart;
+  }
+
+  function appendActivationBar(chart, x, y, width, label) {
+    const bar = svgElement('rect');
+    bar.setAttribute('x', String(x));
+    bar.setAttribute('y', String(y));
+    bar.setAttribute('width', String(Math.max(width, 2)));
+    bar.setAttribute('height', '8');
+    bar.setAttribute('rx', '2');
+    bar.setAttribute('class', label === 'Before' ? 'interaction-chart__bar interaction-chart__bar--before' : 'interaction-chart__bar');
+    chart.appendChild(bar);
+    chart.appendChild(svgText(label, 450, y + 8, 'interaction-chart__muted'));
+  }
+
+  function renderInteractionDetails(item) {
+    const details = el('div', 'interaction-detail-grid');
+    details.appendChild(detailRow('Evidence category', evidenceLabel(item.evidenceType)));
+    details.appendChild(detailRow('Outcome scale', item.outcomeScale ?? item.scale));
+    details.appendChild(detailRow('Effect', formatSignedNumber(item.effect ?? item.contrast ?? item.outcome)));
+    details.appendChild(detailRow('Uncertainty', formatUncertainty(item.uncertainty ?? item.interval ?? item.ci)));
+    details.appendChild(detailRow('CWE', Array.isArray(item.cwe) ? item.cwe.join(', ') : item.cwe));
+
+    const examples = Array.isArray(item.examples)
+      ? item.examples
+      : [...(Array.isArray(item.positiveExamples) ? item.positiveExamples : []),
+        ...(Array.isArray(item.negativeExamples) ? item.negativeExamples : [])];
+    const examplesNode = el('div', 'interaction-examples');
+    examplesNode.appendChild(el('h4', 'interaction-examples__title', 'Code examples'));
+    if (examples.length === 0) {
+      examplesNode.appendChild(el('p', 'text-muted', 'Unavailable evidence: no code examples supplied.'));
+    } else {
+      for (const example of examples) {
+        const pre = el('pre', 'code-example');
+        pre.textContent = isRecord(example) ? String(example.code ?? example.text ?? '') : String(example);
+        examplesNode.appendChild(pre);
+      }
+    }
+    details.appendChild(examplesNode);
+    return details;
+  }
+
+  function metadataList(metadata) {
+    const list = el('dl', 'metadata-list');
+    for (const [key, value] of Object.entries(metadata)) {
+      if (value === null || value === undefined || value === '') {
+        continue;
+      }
+      addSettingsRow(list, humanize(key), Array.isArray(value) ? value.join(', ') : String(value));
+    }
+    return list.childNodes.length > 0 ? list : unavailableEvidence();
+  }
+
+  function detailRow(label, value) {
+    const row = el('div', 'interaction-detail-row');
+    row.appendChild(el('span', 'interaction-detail-row__label', label));
+    row.appendChild(el('span', 'interaction-detail-row__value', textOrDash(value)));
+    return row;
+  }
+
+  function unavailableEvidence() {
+    return callout(
+      'Unavailable evidence',
+      'This result was not supplied by a measured experiment. The dashboard does not infer or fabricate it.',
+      'warning'
+    );
+  }
+
+  function evidenceBadge(value) {
+    return badge(evidenceLabel(value), value ? 'info' : 'warning');
+  }
+
+  function evidenceLabel(value) {
+    const labels = {
+      observed_association: 'Observed association',
+      controlled_intervention: 'Controlled intervention',
+      estimated_interaction: 'Estimated interaction',
+      unavailable: 'Unavailable evidence'
+    };
+    return labels[value] ?? 'Unavailable evidence';
+  }
+
+  function formatUncertainty(value) {
+    if (isRecord(value)) {
+      if (Array.isArray(value.confidenceInterval)) {
+        return `CI [${formatDecimal(value.confidenceInterval[0])}, ${formatDecimal(value.confidenceInterval[1])}]`;
+      }
+      if (Array.isArray(value.interval)) {
+        return `[${formatDecimal(value.interval[0])}, ${formatDecimal(value.interval[1])}]`;
+      }
+      if (numericValue(value.standardError) !== null) {
+        return `SE ${formatDecimal(value.standardError)}`;
+      }
+    }
+    return textOrDash(value, 'Unavailable evidence');
+  }
+
+  function records(value) {
+    return Array.isArray(value) ? arrayOfRecords(value) : [];
+  }
+
+  function numericValue(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  function describeFeatureValue(item) {
+    return describeFeature(item.feature ?? item.featureId ?? item.featureIndex);
+  }
+
+  function describeFeatureList(item) {
+    const features = Array.isArray(item.features)
+      ? item.features
+      : [item.featureA, item.featureB].filter((value) => isDisplayValue(value));
+    return features.map(describeFeature).join(' + ') || 'Unavailable evidence';
+  }
+
+  function svgElement(tagName) {
+    return document.createElementNS(SVG_NAMESPACE, tagName);
+  }
+
+  function svgText(value, x, y, className) {
+    const text = svgElement('text');
+    text.setAttribute('x', String(x));
+    text.setAttribute('y', String(y));
+    text.setAttribute('class', className);
+    text.textContent = value;
+    return text;
   }
 
   function renderSteeringSection() {

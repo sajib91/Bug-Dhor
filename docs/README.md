@@ -9,6 +9,9 @@
 - [Sparse autoencoder](sae.md) — PyTorch SAE training, validation metrics, checkpoints, and interpretation limits.
 - [SAE feature analysis](sae-feature-analysis.md) — labeled activation associations, CWE analysis, stability, and cross-dataset validation.
 - [SAE feature interpretation](sae-feature-interpretation.md) — evidence-backed reports, annotations, interventions, and JSON/CSV export.
+- [SAE counterfactual analysis](counterfactual.md) — reproducible ablation/modification experiments and output-risk comparisons.
+- [Pairwise SAE interactions](pairwise-counterfactual.md) — four-cell interaction contrasts, rankings, and uncertainty.
+- [Higher-order SAE interactions](higher-order-counterfactual.md) — factorial contrasts, bounded subset generation, and complexity reporting.
 - [Architecture decision records](adr/README.md) — recorded decisions and future ADR conventions.
 
 Documents distinguish the implemented HTTP/file-inspection, source-preprocessing,
