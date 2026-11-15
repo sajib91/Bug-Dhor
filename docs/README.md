@@ -14,6 +14,7 @@
 - [Higher-order SAE interactions](higher-order-counterfactual.md) — factorial contrasts, bounded subset generation, and complexity reporting.
 - [SAE activation steering](steering.md) — disabled-by-default decoder-direction interventions, token targeting, adaptive interaction-aware policy, CWE-specific risk control, validation, and provenance.
 - [Explainable vulnerability analysis](explain.md) — evidence-separated JSON and human-readable explanations, source-to-sink paths, SAE associations, and counterfactual limitations.
+- [Repository-aware repair](repair.md) — bounded multi-file context with import relationships, AST/CFG/DFG summaries, tests, configuration, and security utility metadata.
 - [Architecture decision records](adr/README.md) — recorded decisions and future ADR conventions.
 
 Documents distinguish the implemented HTTP/file-inspection, source-preprocessing,

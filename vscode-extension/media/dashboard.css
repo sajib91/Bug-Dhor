@@ -314,6 +314,30 @@ a:hover {
   list-style: none;
 }
 
+.repair-candidate {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+}
+
+.repair-diff {
+  background: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--vscode-panel-border);
+  color: var(--vscode-editor-foreground);
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 .evidence-record {
   display: flex;
   flex-direction: column;

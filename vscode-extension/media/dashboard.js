@@ -306,6 +306,7 @@
       steering: isRecord(source.steering) ? source.steering : {},
       explanations: arrayOfRecords(source.explanations),
       repairs: arrayOfRecords(source.repairs),
+      repairHistory: arrayOfRecords(source.repairHistory),
       verification: isRecord(source.verification) ? source.verification : {},
       reports: arrayOfRecords(source.reports),
       settings: isRecord(source.settings) ? source.settings : {}
@@ -1746,6 +1747,73 @@
         body.appendChild(renderStringList(repair.riskNotes, 'policy-list'));
       }
 
+      const candidates = Array.isArray(repair.candidates)
+        ? arrayOfRecords(repair.candidates)
+        : repair.patch
+          ? [{ candidateId: 'selected', patch: repair.patch }]
+          : [];
+      if (candidates.length > 0) {
+        body.appendChild(el('h4', 'subheading', 'Repair candidates'));
+        for (const candidate of candidates) {
+          const candidateCard = el('div', 'repair-candidate');
+          candidateCard.appendChild(
+            definitionList(
+              [
+                ['Candidate', candidate.candidateId],
+                ['Verification', candidate.verificationStatus ?? repair.verificationStatus ?? 'Not run'],
+                ['Security improvement', candidate.securityImprovement ?? 'Unavailable'],
+                ['Functional tests', candidate.functionalTestPassRate ?? 'Unavailable'],
+                ['Regression tests', candidate.regressionTestsPassed ?? 'Unavailable']
+              ],
+              'No candidate metadata was supplied.'
+            )
+          );
+          if (typeof candidate.patch === 'string') {
+            const diff = el('pre', 'repair-diff', candidate.patch);
+            candidateCard.appendChild(diff);
+          }
+          const controls = el('div', 'button-row');
+          const preview = el('button', 'button button--ghost', 'View inline diff');
+          preview.type = 'button';
+          preview.addEventListener('click', () =>
+            sendMessage({
+              type: 'viewRepairDiff',
+              repairId: repair.id,
+              candidateId: candidate.candidateId
+            })
+          );
+          controls.appendChild(preview);
+          if (repair.status === 'proposed') {
+            const accept = el('button', 'button button--primary', 'Accept patch');
+            accept.type = 'button';
+            accept.addEventListener('click', () =>
+              sendMessage({
+                type: 'acceptRepair',
+                repairId: repair.id,
+                candidateId: candidate.candidateId
+              })
+            );
+            controls.appendChild(accept);
+            const reject = el('button', 'button button--ghost', 'Reject patch');
+            reject.type = 'button';
+            reject.addEventListener('click', () =>
+              sendMessage({ type: 'rejectRepair', repairId: repair.id })
+            );
+            controls.appendChild(reject);
+          }
+          if (repair.status === 'accepted') {
+            const restore = el('button', 'button button--ghost', 'Restore original code');
+            restore.type = 'button';
+            restore.addEventListener('click', () =>
+              sendMessage({ type: 'restoreRepair', repairId: repair.id })
+            );
+            controls.appendChild(restore);
+          }
+          candidateCard.appendChild(controls);
+          body.appendChild(candidateCard);
+        }
+      }
+
       body.appendChild(
         el(
           'p',
@@ -1758,6 +1826,13 @@
       article.appendChild(header);
       article.appendChild(body);
       section.appendChild(article);
+    }
+
+    if (state.repairHistory.length > 0) {
+      const history = el('details', 'technical-details');
+      history.appendChild(el('summary', 'technical-details__summary', 'Repair history'));
+      history.appendChild(renderEvidenceRecords(state.repairHistory, 'No repair history recorded.'));
+      section.appendChild(history);
     }
 
     return section;

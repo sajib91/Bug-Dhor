@@ -70,6 +70,7 @@ from craftsec.core.pipeline import (
     combine_stage_results,
 )
 from craftsec.core.settings import Settings
+from craftsec.repair.context import RepositoryContextBuilder
 
 DEFAULT_STAGE_DEFINITIONS: dict[str, tuple[str, str]] = {
     "static_evidence": (
@@ -370,6 +371,10 @@ class Orchestrator:
         snapshot = self._inspect(request)
         if request.finding.document_uri and request.finding.document_uri != snapshot.uri:
             raise ValidationAppError("The finding location does not match the inspected file.")
+        repository_context = RepositoryContextBuilder(self.settings).build(
+            request.workspace_root,
+            request.file_path,
+        )
         execution = self._execute(
             "repair_generate",
             request_id,
@@ -378,6 +383,7 @@ class Orchestrator:
                 request.language_id,
                 finding=request.finding.model_dump(mode="json"),
                 snapshotHash=request.snapshot_hash,
+                repositoryContext=repository_context.to_dict(),
             ),
         )
         combined = self._with_snapshot(self._snapshot_result(snapshot), execution)

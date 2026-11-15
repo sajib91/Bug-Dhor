@@ -27,10 +27,36 @@ function createFakeVscode(options = {}) {
   const executedCommands = [];
   const openedDocuments = [];
   const shownDocuments = [];
+  const appliedEdits = [];
+  let documentText = options.documentText ?? 'const value = 1;\n';
+  let documentVersion = options.documentVersion ?? 1;
+  const document = {
+    uri: createUri('/workspace/src/app.js'),
+    version: documentVersion,
+    getText() {
+      return documentText;
+    },
+    positionAt(offset) {
+      const prefix = documentText.slice(0, offset);
+      const lines = prefix.split('\n');
+      return new Position(lines.length - 1, lines.at(-1).length);
+    }
+  };
+  class WorkspaceEdit {
+    constructor() {
+      this.edits = [];
+    }
+    replace(uri, range, text) {
+      this.edits.push({ uri, range, text });
+    }
+  }
 
   const vscode = {
     ViewColumn: { One: 1 },
     Uri: {
+      parse(value) {
+        return createUri(value.replace(/^file:\/\//, ''));
+      },
       joinPath(base, ...parts) {
         const separator = base.path.endsWith('/') ? '' : '/';
         return createUri(`${base.path}${separator}${parts.join('/')}`);
@@ -39,6 +65,7 @@ function createFakeVscode(options = {}) {
         return createUri(filePath);
       }
     },
+    WorkspaceEdit,
     window: {
       createWebviewPanel(viewType, title, column, panelOptions) {
         const panel = createFakePanel({ options: panelOptions, viewType, title, column });
@@ -47,14 +74,34 @@ function createFakeVscode(options = {}) {
       },
       async showTextDocument(document, options) {
         shownDocuments.push({ document, options });
+      },
+      async showWarningMessage(message, modalOptions, action) {
+        if (typeof options.approval === 'function') {
+          return options.approval(message, action);
+        }
+        return options.approval ?? undefined;
       }
     },
     workspace: {
       workspaceFolders: [{ uri: createUri('/workspace') }],
       async openTextDocument(uri) {
-        const document = { uri };
-        openedDocuments.push(document);
-        return document;
+        if (uri?.path === document.uri.path) {
+          openedDocuments.push(document);
+          return document;
+        }
+        const opened = { uri };
+        openedDocuments.push(opened);
+        return opened;
+      },
+      async applyEdit(edit) {
+        appliedEdits.push(edit);
+        const replacement = edit.edits[0];
+        if (replacement) {
+          documentText = replacement.text;
+          documentVersion += 1;
+          document.version = documentVersion;
+        }
+        return options.applyEditResult ?? true;
       }
     },
     Position,
@@ -71,7 +118,20 @@ function createFakeVscode(options = {}) {
     }
   };
 
-  return { vscode, createdPanels, executedCommands, openedDocuments, shownDocuments };
+  return {
+    vscode,
+    createdPanels,
+    executedCommands,
+    openedDocuments,
+    shownDocuments,
+    appliedEdits,
+    document,
+    setDocumentText(text) {
+      documentText = text;
+      documentVersion += 1;
+      document.version = documentVersion;
+    }
+  };
 }
 
 class Position {
@@ -212,6 +272,37 @@ function createHarness(options = {}) {
   return { ...fake, logger, stateCalls, controller };
 }
 
+const REPAIR_PATCH =
+  '--- a/src/app.js\n' +
+  '+++ b/src/app.js\n' +
+  '@@ -1,1 +1,1 @@\n' +
+  '-const value = 1;\n' +
+  '+const value = 2;\n';
+
+function repairResponse(patch = REPAIR_PATCH) {
+  return {
+    result: {
+      analysisAvailable: true,
+      patch,
+      metadata: {
+        repairId: 'repair-1',
+        modelId: 'test-model',
+        verificationStatus: 'not-run'
+      }
+    }
+  };
+}
+
+function repairRequest() {
+  return {
+    documentUri: 'file:///workspace/src/app.js',
+    filePath: '/workspace/src/app.js',
+    workspaceFolder: '/workspace',
+    languageId: 'javascript',
+    finding: { findingId: 'finding-1' }
+  };
+}
+
 test('dashboard panel opens once with local-resource and script options', () => {
   const harness = createHarness();
 
@@ -233,6 +324,64 @@ test('dashboard panel opens once with local-resource and script options', () => 
   assert.equal(panel.messageHandlerCount(), 1);
 
   harness.controller.dispose();
+});
+
+test('repair approval applies a single-file patch and keeps verification separate', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  await harness.controller.recordRepairResult(repairResponse(), repairRequest());
+
+  await harness.controller.acceptRepair({ repairId: 'repair-1', candidateId: 'selected' });
+
+  assert.equal(harness.appliedEdits.length, 1);
+  assert.equal(harness.document.getText(), 'const value = 2;\n');
+  assert.equal(harness.controller.repairRecords.get('repair-1').status, 'accepted');
+  assert.equal(
+    harness.controller.repairRecords.get('repair-1').verificationStatus,
+    'not-run'
+  );
+});
+
+test('repair acceptance rejects stale document content', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  await harness.controller.recordRepairResult(repairResponse(), repairRequest());
+  harness.setDocumentText('const value = 9;\n');
+  await harness.controller.acceptRepair({ repairId: 'repair-1' });
+
+  assert.equal(harness.appliedEdits.length, 0);
+  assert.equal(harness.controller.repairRecords.get('repair-1').status, 'stale');
+});
+
+test('repair rejection does not modify the source', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: undefined
+  });
+  await harness.controller.recordRepairResult(repairResponse(), repairRequest());
+  await harness.controller.acceptRepair({ repairId: 'repair-1' });
+
+  assert.equal(harness.appliedEdits.length, 0);
+  assert.equal(harness.document.getText(), 'const value = 1;\n');
+});
+
+test('restore requires approval and restores the captured original', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  await harness.controller.recordRepairResult(repairResponse(), repairRequest());
+  await harness.controller.acceptRepair({ repairId: 'repair-1' });
+  harness.vscode.window.showWarningMessage = async () => 'Restore Original';
+
+  await harness.controller.restoreRepair({ repairId: 'repair-1' });
+
+  assert.equal(harness.document.getText(), 'const value = 1;\n');
+  assert.equal(harness.controller.repairRecords.get('repair-1').status, 'restored');
 });
 
 test('opening an existing dashboard reveals the same panel', () => {

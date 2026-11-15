@@ -1,7 +1,10 @@
 'use strict';
 
+const crypto = require('node:crypto');
+const path = require('node:path');
 const { COMMAND_DEFINITIONS } = require('../commands/definitions');
 const { isFileUriWithinFolders } = require('../security/paths');
+const { applyUnifiedPatch, patchFiles } = require('../repair/patchApplication');
 const { createNonce } = require('./csp');
 const { createDashboardHtml } = require('./dashboardHtml');
 const { createEmptyDashboardState } = require('./dashboardModel');
@@ -9,6 +12,10 @@ const { createEmptyDashboardState } = require('./dashboardModel');
 const DASHBOARD_VIEW_TYPE = 'craftsec.dashboard';
 const DASHBOARD_TITLE = 'CRAFT-Sec Security Dashboard';
 const SETTINGS_QUERY = 'craftsec';
+
+function hashText(text) {
+  return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+}
 
 /**
  * Only engine-backed commands may be triggered from the dashboard. The panel
@@ -48,6 +55,8 @@ class DashboardPanelController {
     this.getState = getState ?? (() => createEmptyDashboardState());
     this.dataMode = 'empty';
     this.liveData = {};
+    this.repairRecords = new Map();
+    this.repairHistory = [];
     /** @type {import('vscode').WebviewPanel | undefined} */
     this.panel = undefined;
     /** @type {object | undefined} */
@@ -148,6 +157,24 @@ class DashboardPanelController {
       case 'openLocation':
         await this.openLocation(message);
         break;
+      case 'viewRepairDiff':
+        await this.viewRepairDiff(message);
+        break;
+      case 'acceptRepair':
+        await this.acceptRepair(message);
+        break;
+      case 'rejectRepair':
+        this.updateRepairStatus(message.repairId, 'rejected');
+        break;
+      case 'restoreRepair':
+        await this.restoreRepair(message);
+        break;
+      case 'viewRepairHistory':
+        this.postNotice(
+          'info',
+          `${this.repairHistory.length} repair history record(s) are available below.`
+        );
+        break;
       default:
         this.logger.debug('Ignored an unknown dashboard message.');
     }
@@ -239,6 +266,230 @@ class DashboardPanelController {
     }
   }
 
+    /**
+     * Capture the exact document baseline associated with a backend proposal.
+     *
+     * @param {Record<string, any>} response
+     * @param {Record<string, any>} request
+     */
+    async recordRepairResult(response, request) {
+      const result = response?.result;
+      if (!result || result.analysisAvailable !== true || typeof result.patch !== 'string') {
+        this.updateLiveState({
+          repairs: [
+            {
+              id: `repair-${Date.now()}`,
+              title: 'Repair proposal unavailable',
+              status: 'unavailable',
+              summary: 'The backend did not produce a reviewable patch.',
+              verificationStatus: 'not-run'
+            }
+          ]
+        });
+        return;
+      }
+
+      const uri = this.vscode.Uri.parse(request.documentUri);
+      const document = await this.vscode.workspace.openTextDocument(uri);
+      const originalText = document.getText();
+      const repairId = result.metadata?.repairId ?? `repair-${Date.now()}`;
+      const candidates = Array.isArray(result.metadata?.candidates)
+        ? result.metadata.candidates
+        : [{ candidateId: 'selected', patch: result.patch }];
+      const record = {
+        id: repairId,
+        uri: request.documentUri,
+        filePath: request.filePath,
+        targetPatchPath: path
+          .relative(request.workspaceFolder, request.filePath)
+          .split(path.sep)
+          .join('/'),
+        languageId: request.languageId,
+        baseVersion: document.version,
+        baseHash: hashText(originalText),
+        originalText,
+        patch: result.patch,
+        candidates,
+        status: 'proposed',
+        verificationStatus: result.metadata?.verificationStatus ?? 'not-run',
+        metadata: result.metadata ?? {},
+        findingId: request.finding?.findingId ?? result.metadata?.findingId ?? null
+      };
+      this.repairRecords.set(repairId, record);
+      this.repairHistory.unshift({
+        id: repairId,
+        status: 'proposed',
+        verificationStatus: record.verificationStatus,
+        timestamp: new Date().toISOString()
+      });
+      this.updateRepairState(record);
+    }
+
+    async viewRepairDiff(message) {
+      const record = this.repairRecords.get(message?.repairId);
+      if (!record) {
+        this.postNotice('warning', 'The requested repair proposal is no longer available.');
+        return;
+      }
+      const candidate = record.candidates.find(
+        (item) => item.candidateId === message.candidateId
+      ) ?? record.candidates[0];
+      if (!candidate || typeof candidate.patch !== 'string') {
+        this.postNotice('warning', 'The selected repair candidate has no patch.');
+        return;
+      }
+      try {
+        const document = await this.vscode.workspace.openTextDocument(
+          this.vscode.Uri.parse(record.uri)
+        );
+        const patchedText = applyUnifiedPatch(document.getText(), candidate.patch);
+        const preview = await this.vscode.workspace.openTextDocument({
+          content: patchedText,
+          language: record.languageId
+        });
+        await this.vscode.commands.executeCommand(
+          'vscode.diff',
+          this.vscode.Uri.parse(record.uri),
+          preview.uri,
+          `CRAFT-Sec Repair Preview: ${record.id}`
+        );
+      } catch (error) {
+        this.postNotice(
+          'warning',
+          `The inline diff is unavailable: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    async acceptRepair(message) {
+      const record = this.repairRecords.get(message?.repairId);
+      if (!record) {
+        this.postNotice('warning', 'The requested repair proposal is no longer available.');
+        return;
+      }
+      const candidate = record.candidates.find(
+        (item) => item.candidateId === message.candidateId
+      ) ?? record.candidates[0];
+      if (!candidate || typeof candidate.patch !== 'string') {
+        this.postNotice('warning', 'The selected repair candidate has no patch.');
+        return;
+      }
+      const approval = await this.vscode.window.showWarningMessage(
+        'Apply this CRAFT-Sec repair patch to the source file?',
+        { modal: true },
+        'Apply Patch'
+      );
+      if (approval !== 'Apply Patch') {
+        return;
+      }
+      const document = await this.vscode.workspace.openTextDocument(
+        this.vscode.Uri.parse(record.uri)
+      );
+      if (
+        document.version !== record.baseVersion ||
+        hashText(document.getText()) !== record.baseHash
+      ) {
+        this.postNotice(
+          'warning',
+          'The source changed after repair generation. The patch was not applied.'
+        );
+        this.updateRepairStatus(record.id, 'stale');
+        return;
+      }
+      const files = patchFiles(candidate.patch);
+      if (files.length !== 1 || files[0] !== record.targetPatchPath) {
+        this.postNotice('warning', 'Only single-file repair patches can be applied safely.');
+        return;
+      }
+      let patchedText;
+      try {
+        patchedText = applyUnifiedPatch(document.getText(), candidate.patch);
+      } catch (error) {
+        this.postNotice('error', `Repair patch could not be applied: ${error.message}`);
+        return;
+      }
+      const edit = new this.vscode.WorkspaceEdit();
+      const end = document.positionAt(document.getText().length);
+      edit.replace(document.uri, new this.vscode.Range(new this.vscode.Position(0, 0), end), patchedText);
+      if (!(await this.vscode.workspace.applyEdit(edit))) {
+        this.postNotice('error', 'VS Code rejected the repair edit.');
+        return;
+      }
+      record.appliedHash = hashText(patchedText);
+      record.appliedVersion = document.version + 1;
+      record.appliedText = patchedText;
+      record.status = 'accepted';
+      record.selectedCandidateId = candidate.candidateId;
+      this.updateRepairState(record);
+      this.postNotice(
+        'info',
+        'Patch applied with approval. Verification status remains separate and unchanged.'
+      );
+    }
+
+    async restoreRepair(message) {
+      const record = this.repairRecords.get(message?.repairId);
+      if (!record || !record.appliedText) {
+        this.postNotice('warning', 'There is no approved patch to restore.');
+        return;
+      }
+      const approval = await this.vscode.window.showWarningMessage(
+        'Restore the original source content captured before this repair?',
+        { modal: true },
+        'Restore Original'
+      );
+      if (approval !== 'Restore Original') {
+        return;
+      }
+      const document = await this.vscode.workspace.openTextDocument(
+        this.vscode.Uri.parse(record.uri)
+      );
+      if (hashText(document.getText()) !== record.appliedHash) {
+        this.postNotice('warning', 'The file changed after the repair. Original content was preserved but not restored.');
+        return;
+      }
+      const edit = new this.vscode.WorkspaceEdit();
+      edit.replace(
+        document.uri,
+        new this.vscode.Range(new this.vscode.Position(0, 0), document.positionAt(document.getText().length)),
+        record.originalText
+      );
+      if (await this.vscode.workspace.applyEdit(edit)) {
+        record.status = 'restored';
+        this.updateRepairState(record);
+        this.postNotice('info', 'Original content restored.');
+      }
+    }
+
+    updateRepairStatus(repairId, status) {
+      const record = this.repairRecords.get(repairId);
+      if (!record) {
+        return;
+      }
+      record.status = status;
+      this.updateRepairState(record);
+    }
+
+    updateRepairState(record) {
+      const visible = {
+        id: record.id,
+        title: `Repair proposal ${record.id}`,
+        findingId: record.findingId,
+        status: record.status,
+        verificationStatus: record.verificationStatus,
+        baseSnapshotId: record.baseHash,
+        generator: record.metadata.modelId ?? 'CRAFT-Sec backend',
+        patch: record.patch,
+        candidates: record.candidates,
+        riskNotes: record.metadata.riskNotes ?? [],
+        rationale: record.metadata.rationale ?? '',
+        filePath: record.filePath
+      };
+      this.updateLiveState({
+        repairs: [visible, ...(this.liveData.repairs ?? []).filter((item) => item.id !== record.id)],
+        repairHistory: this.repairHistory
+      });
+    }
   buildCurrentState() {
     const base = this.getState(this.dataMode);
     if (this.dataMode !== 'empty' || Object.keys(this.liveData).length === 0) {
@@ -296,6 +547,8 @@ class DashboardPanelController {
     this.panel = undefined;
     this.state = undefined;
     this.liveData = {};
+    this.repairRecords.clear();
+    this.repairHistory = [];
     this.disposeListeners();
     this.logger.debug('Closed the CRAFT-Sec security dashboard.');
   }
@@ -317,6 +570,8 @@ class DashboardPanelController {
     this.panel = undefined;
     this.state = undefined;
     this.liveData = {};
+    this.repairRecords.clear();
+    this.repairHistory = [];
     this.disposeListeners();
     if (panel) {
       panel.dispose();

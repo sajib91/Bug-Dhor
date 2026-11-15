@@ -24,14 +24,30 @@ const {
  * }} context
  */
 function registerRepairCommands(context) {
-  const { vscode } = context;
+  const { vscode, dashboard } = context;
+  const recordRepair = (result, request) => {
+    if (typeof dashboard?.recordRepairResult === 'function') {
+      return dashboard.recordRepairResult(result, request);
+    }
+    return undefined;
+  };
 
-  registerEngineCommand(context, getCommandDefinition(COMMANDS.generateSecureCode), () =>
-    createEditorRequest(vscode, requireActiveEditor(vscode))
+  registerEngineCommand(
+    context,
+    getCommandDefinition(COMMANDS.generateSecureCode),
+    () => createEditorRequest(vscode, requireActiveEditor(vscode)),
+    {
+      onResult: recordRepair
+    }
   );
 
-  registerEngineCommand(context, getCommandDefinition(COMMANDS.repairVulnerability), (finding) =>
-    createRepairRequest(vscode, finding)
+  registerEngineCommand(
+    context,
+    getCommandDefinition(COMMANDS.repairVulnerability),
+    (finding) => createRepairRequest(vscode, finding),
+    {
+      onResult: recordRepair
+    }
   );
 
   registerEngineCommand(context, getCommandDefinition(COMMANDS.verifyRepair), () =>
