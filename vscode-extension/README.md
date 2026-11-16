@@ -121,7 +121,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit suite (167 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, and opens the singleton dashboard tab. Tests never download models.
+The unit suite (230 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, and opens the singleton dashboard tab. Tests never download models.
 
 ## Extension Development Host
 
@@ -135,7 +135,15 @@ To run the integration test, use `npm run extension:test:integration`. It prefer
 
 ## Packaging note
 
-The VSIX build uses `vsce package --no-dependencies` because npm workspaces hoist dependencies to the repository root; without this flag, `vsce` would package the entire repository. The current VSIX contains 50 files and about 74.6 KB, including the dashboard, launcher, and diagnostics modules. The current extension does not require `ajv` at runtime, but a bundling step must be added before runtime dependencies are used or the extension is published. The VSIX also lacks a repository URL and license, so it is a development artifact only.
+Build the VSIX from `vscode-extension/` with:
+
+```bash
+npm run package:vsix
+```
+
+The script runs `vsce package --no-dependencies --allow-missing-repository --skip-license`. `--no-dependencies` is required because npm workspaces hoist dependencies to the repository root; without it, `vsce` would package the entire repository. The current VSIX contains 45 files and about 102 KB, including the dashboard, launcher, and diagnostics modules. Tests, placeholders, lockfiles, secrets, local data, model weights, and other development files are excluded by `.vscodeignore`.
+
+The extension has no runtime npm dependency: `ajv` is used only by the unit tests. Add a bundling step before importing a runtime dependency or publishing. The manifest still uses the placeholder publisher `your-publisher-id` and lacks a repository URL and license, so the VSIX is a development artifact only and is not Marketplace-ready. See `docs/release-checklist.md` at the repository root for the full release procedure, versioning policy, backend setup, and clean-install verification.
 
 ## Layout
 

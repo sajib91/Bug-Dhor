@@ -15,8 +15,19 @@
 - [SAE activation steering](steering.md) — disabled-by-default decoder-direction interventions, token targeting, adaptive interaction-aware policy, CWE-specific risk control, validation, and provenance.
 - [Explainable vulnerability analysis](explain.md) — evidence-separated JSON and human-readable explanations, source-to-sink paths, SAE associations, and counterfactual limitations.
 - [Repository-aware repair](repair.md) — bounded multi-file context with import relationships, AST/CFG/DFG summaries, tests, configuration, and security utility metadata.
+- [User guide](user-guide.md) — installation, backend and model setup, scanning/explanation/SAE/counterfactual/generation/repair/verification tutorials, experiment configuration, troubleshooting, privacy, and limitations (implemented vs unavailable stated explicitly).
+- [Research methodology](research-methodology.md) — technical methodology for problem/objectives, SAE, feature identification, counterfactuals, interactions, steering, risk control, evidence fusion, repair, verification, experimental design, metrics, statistics, validity, and limitations.
+- [Implementation mapping](implementation-mapping.md) — maps each methodology area to repository modules and labels implemented, conditional, partial, planned, or unavailable.
+- [Extension release checklist](release-checklist.md) — VSIX packaging, versioning policy, manifest/command/activation checks, webview assets, backend installation and startup, optional remote backend, and clean VS Code installation verification.
+- [Security audit and performance report](SECURITY_AUDIT_AND_PERFORMANCE_REPORT.md) — audit findings, mitigations, available tool/test/benchmark results, and unresolved risks (does not claim security).
+- [Final strict audit](../final-audit.md) — 18-area status audit with code/test/runtime evidence and release blockers.
+- [Research compliance report](../research-compliance-report.md) — paper components, formulas, Algorithms 1–9, metrics, ablations, and reproducibility.
+- [Root release checklist](../release-checklist.md) — authoritative release gates, test status, artifact hashes, and blockers.
 - [Architecture decision records](adr/README.md) — recorded decisions and future ADR conventions.
 
-Documents distinguish the implemented HTTP/file-inspection, source-preprocessing,
-and program-analysis layers from research capabilities that remain unimplemented
-and report themselves as `unavailable`. No empirical results are reported.
+Documents distinguish implemented HTTP/file-inspection, source-preprocessing,
+program-analysis, detection, explainability, repair/verification, SAE,
+counterfactual, steering, and evaluation modules from capabilities that are
+conditional on models, artifacts, analyzers, sandbox, config, or licensed data
+and from stages that still report themselves as `unavailable`. No empirical
+results are reported.

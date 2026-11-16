@@ -1,13 +1,13 @@
 # CRAFT-Sec — Software Architecture
 
-**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, command registration layer, editor-area security dashboard, backend-result diagnostics layer, versioned FastAPI engine API, and live local HTTP transport between the extension and engine exist. File and workspace inspection are implemented; the extension performs health checks, file scans, selection detection requests, and workspace scans against the real backend, including caller-supplied unsaved source text under explicit source-sharing settings. All research analysis stages report explicit `unavailable` statuses. The dashboard renders only supplied state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. No vulnerability detection, SAE feature extraction, counterfactual, steering, repair, or verification capability is implemented.
+**Status:** Phase 0 architecture approved for implementation, with a partial Phase 1 implementation. The extension shell, command registration, dashboard, backend-result diagnostics, versioned FastAPI API, and live local HTTP transport exist. File/workspace inspection, parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification are implemented and integrated. SAE, counterfactual, and activation-steering modules exist but are not wired into the orchestrator; those stages report explicit `unavailable`/`partial` statuses. No trained multi-view detector, calibrated probability, real model/SAE artifact, benchmark run, or Docker-backed execution has been validated. The dashboard renders backend state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results.
 **Version:** 0.1.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
 
 CRAFT-Sec (*Counterfactual Risk Analysis and Feature-aware Steering for Secure Code Generation*) is a local-first system composed of a JavaScript VS Code extension and a Python/FastAPI research engine. It detects vulnerability-relevant evidence, explains it with model-internal and static features, estimates counterfactual feature effects, applies interaction-aware activation steering where the model permits it, proposes repository-aware repairs, and verifies those repairs independently.
 
-This document defines the architecture only. It does not claim that any research component is implemented, validated, or empirically effective.
+This document describes the target architecture and the current implementation boundary. Implementation status is tracked in [`implementation-mapping.md`](implementation-mapping.md), [`final-audit.md`](../final-audit.md), and [`research-compliance-report.md`](../research-compliance-report.md); this document does not claim that every described component is implemented, validated, or empirically effective.
 
 ---
 
@@ -79,6 +79,8 @@ The extension is the only component that writes to the user's workspace. The eng
 ---
 
 ## 4. Monorepo layout
+
+> **Target vs. implemented:** the tree below is the target layout. Entries not present in the current tree are **planned** and must not be cited as implemented. Current files are listed in `security-engine/src/craftsec/`; `features/`, `artifacts/`, `contracts/`, and `ingestion/` are scaffolds containing only `__init__.py`.
 
 ```text
 CRAFT-Sec/
@@ -321,6 +323,8 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | `security/webview.js` (future) | Consolidate nonce, CSP, and message-origin helpers for feature panels | Use `'unsafe-inline'` or remote origins |
 
 ### 5.2 Security engine
+
+> **Note:** the responsibilities table below states intended boundaries. Rows whose listed path does not exist (for example `models/runtime.py`, `features/extractor.py`, `steering/planner.py`, `explain/graph.py`, `verification/verifier.py`) describe **planned** modules, not current code. See the current tree and `docs/implementation-mapping.md` for what exists.
 
 | Module | Responsibilities | Must not |
 |--------|------------------|----------|

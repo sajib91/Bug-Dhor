@@ -1,3 +1,4 @@
+# Development tooling, tests, and generated output
 .vscode/**
 .vscode-test/**
 test/**
@@ -5,3 +6,55 @@ test/**
 eslint.config.js
 node_modules/**
 **/*.map
+coverage/**
+dist/**
+build/**
+
+# Package artifacts (never ship a VSIX inside a VSIX)
+*.vsix
+
+# Repository placeholder files
+.gitkeep
+**/.gitkeep
+
+# Local environment and secrets
+.env
+.env.*
+*.env
+
+# Local data, databases, caches, and logs
+.craftsec-data/**
+.craftsec/**
+artifacts/**
+logs/**
+*.log
+.cache/**
+.ruff_cache/**
+.pytest_cache/**
+__pycache__/**
+*.py[cod]
+*.sqlite
+*.sqlite3
+*.db
+
+# Model weights, checkpoints, and datasets (never bundle large artifacts)
+models/**
+checkpoints/**
+datasets/**
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.h5
+*.bin
+
+# Lockfiles (dependencies are not shipped; see packaging note)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Editor and OS metadata
+.DS_Store
+.idea/**
+*.swp
