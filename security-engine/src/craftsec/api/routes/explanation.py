@@ -6,9 +6,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from craftsec.api.dependencies import get_orchestrator, get_request_id
+from craftsec.api.dependencies import get_job_store, get_orchestrator, get_request_id
 from craftsec.api.routes.common import COMMON_ERROR_RESPONSES
 from craftsec.api.schemas.analysis import ExplanationRequest, ExplanationResponse
+from craftsec.core.jobs import JobStore
 from craftsec.core.orchestrator import Orchestrator
 
 router = APIRouter(prefix="/explanation", tags=["explanation"])
@@ -24,5 +25,6 @@ def analyze_explanation(
     payload: ExplanationRequest,
     orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
     request_id: Annotated[str, Depends(get_request_id)],
+    job_store: Annotated[JobStore, Depends(get_job_store)],
 ) -> ExplanationResponse:
-    return orchestrator.explanation_analyze(payload, request_id)
+    return orchestrator.explanation_analyze(payload, request_id, job_store=job_store)

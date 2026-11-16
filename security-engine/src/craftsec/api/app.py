@@ -25,6 +25,7 @@ from craftsec.config import (
     SERVICE_NAME,
     get_settings,
 )
+from craftsec.core.jobs import JobStore
 from craftsec.core.logging import configure_logging
 from craftsec.core.orchestrator import Orchestrator
 from craftsec.core.settings import Settings
@@ -65,6 +66,10 @@ OPENAPI_TAGS = [
     {
         "name": "verification",
         "description": "Independent security and functional verification.",
+    },
+    {
+        "name": "jobs",
+        "description": "Tracked operation status, progress, cancellation, and persisted results.",
     },
 ]
 
@@ -113,6 +118,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.orchestrator = orchestrator or Orchestrator(settings)
+    app.state.job_store = JobStore(settings.data_dir)
     app.state.started_at = time.monotonic()
 
     # Middleware order: the last added runs first. Request context is outermost

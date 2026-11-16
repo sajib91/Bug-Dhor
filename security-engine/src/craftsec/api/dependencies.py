@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from craftsec.core.jobs import JobStore
 from craftsec.core.orchestrator import Orchestrator
 from craftsec.core.settings import Settings
 
@@ -18,3 +19,7 @@ def get_settings(request: Request) -> Settings:
 
 def get_request_id(request: Request) -> str:
     return str(getattr(request.state, "request_id", "-"))
+
+
+def get_job_store(request: Request) -> JobStore:
+    return request.app.state.job_store

@@ -1,0 +1,597 @@
+{
+  "steps": [
+    {
+      "name": "health",
+      "ok": true,
+      "result": {
+        "service": "craftsec-engine",
+        "status": "ok",
+        "version": "0.1.0",
+        "apiVersion": "v1",
+        "timestamp": "2026-11-16T05:54:09.896958Z",
+        "uptimeSeconds": 0.008010958088561893,
+        "capabilities": {
+          "features_extract": false,
+          "counterfactual_analyze": false,
+          "prevention_steer": false,
+          "repair_generate": true,
+          "verification_run": true,
+          "scan_file": true,
+          "scan_workspace": true,
+          "detection_analyze": true,
+          "explanation_analyze": true
+        },
+        "sandboxBackend": "docker"
+      }
+    },
+    {
+      "name": "scan_file_vulnerable_sql",
+      "ok": true,
+      "result": {
+        "operation": "scan_file",
+        "status": "partial",
+        "apiVersion": "v1",
+        "requestId": "b128af02cd1b404dbcfd8fac5c1dffaa",
+        "stages": [
+          {
+            "stage": "file_snapshot",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "size": 289,
+              "sha256": "88ad6028a13ab61f8ab0af8399d3ac438bc4a5cad90d0247a90316e45c78ddbd",
+              "languageId": "python"
+            }
+          },
+          {
+            "stage": "preprocessing",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "files": 1,
+              "parsed": 1
+            }
+          },
+          {
+            "stage": "program_analysis",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "files": 1,
+              "programAnalysis": 1,
+              "taint": 1
+            }
+          },
+          {
+            "stage": "static_evidence",
+            "status": "unavailable",
+            "reasonCode": "E_TOOL_MISSING",
+            "detail": "Configured executable 'semgrep' was not found or is not executable.; Configured executable 'bandit' was not found or is not executable.",
+            "warnings": [
+              "semgrep was unavailable: Configured executable 'semgrep' was not found or is not executable.",
+              "bandit was unavailable: Configured executable 'bandit' was not found or is not executable."
+            ],
+            "data": {
+              "toolStatuses": {
+                "semgrep": "unavailable",
+                "bandit": "unavailable"
+              },
+              "findingCount": 0
+            }
+          },
+          {
+            "stage": "detection",
+            "status": "partial",
+            "reasonCode": "E_DETECTOR_ERROR",
+            "detail": "TypeError: DetectionEngine.detect() got an unexpected keyword argument 'document_uri'",
+            "warnings": [],
+            "data": {}
+          }
+        ],
+        "warnings": [
+          "semgrep was unavailable: Configured executable 'semgrep' was not found or is not executable.",
+          "bandit was unavailable: Configured executable 'bandit' was not found or is not executable.",
+          "detection error: TypeError"
+        ],
+        "result": null,
+        "findings": [],
+        "scope": {
+          "uris": [
+            "file:///Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/security-engine/tests/integration/samples/vulnerable_sql.py"
+          ]
+        },
+        "filesScanned": 1,
+        "analysisAvailable": true,
+        "file": {
+          "path": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/security-engine/tests/integration/samples/vulnerable_sql.py",
+          "uri": "file:///Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/security-engine/tests/integration/samples/vulnerable_sql.py",
+          "size": 289,
+          "sha256": "88ad6028a13ab61f8ab0af8399d3ac438bc4a5cad90d0247a90316e45c78ddbd",
+          "languageId": "python"
+        }
+      }
+    },
+    {
+      "name": "scan_file_secure_sql",
+      "ok": true,
+      "result": {
+        "operation": "scan_file",
+        "status": "partial",
+        "apiVersion": "v1",
+        "requestId": "9d821deba9da431482dbf06863d22e4a",
+        "stages": [
+          {
+            "stage": "file_snapshot",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "size": 253,
+              "sha256": "adb6986f3292dcbcf22b2fdcba88e1828355399101aa4080c3eba078bd68895e",
+              "languageId": "python"
+            }
+          },
+          {
+            "stage": "preprocessing",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "files": 1,
+              "parsed": 1
+            }
+          },
+          {
+            "stage": "program_analysis",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "files": 1,
+              "programAnalysis": 1,
+              "taint": 1
+            }
+          },
+          {
+            "stage": "static_evidence",
+            "status": "unavailable",
+            "reasonCode": "E_TOOL_MISSING",
+            "detail": "Configured executable 'semgrep' was not found or is not executable.; Configured executable 'bandit' was not found or is not executable.",
+            "warnings": [
+              "semgrep was unavailable: Configured executable 'semgrep' was not found or is not executable.",
+              "bandit was unavailable: Configured executable 'bandit' was not found or is not executable."
+            ],
+            "data": {
+              "toolStatuses": {
+                "semgrep": "unavailable",
+                "bandit": "unavailable"
+              },
+              "findingCount": 0
+            }
+          },
+          {
+            "stage": "detection",
+            "status": "partial",
+            "reasonCode": "E_DETECTOR_ERROR",
+            "detail": "TypeError: DetectionEngine.detect() got an unexpected keyword argument 'document_uri'",
+            "warnings": [],
+            "data": {}
+          }
+        ],
+        "warnings": [
+          "semgrep was unavailable: Configured executable 'semgrep' was not found or is not executable.",
+          "bandit was unavailable: Configured executable 'bandit' was not found or is not executable.",
+          "detection error: TypeError"
+        ],
+        "result": null,
+        "findings": [],
+        "scope": {
+          "uris": [
+            "file:///Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/security-engine/tests/integration/samples/secure_sql.py"
+          ]
+        },
+        "filesScanned": 1,
+        "analysisAvailable": true,
+        "file": {
+          "path": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/security-engine/tests/integration/samples/secure_sql.py",
+          "uri": "file:///Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/security-engine/tests/integration/samples/secure_sql.py",
+          "size": 253,
+          "sha256": "adb6986f3292dcbcf22b2fdcba88e1828355399101aa4080c3eba078bd68895e",
+          "languageId": "python"
+        }
+      }
+    },
+    {
+      "name": "detection_analyze_vulnerable_js",
+      "ok": true,
+      "result": {
+        "operation": "detection_analyze",
+        "status": "partial",
+        "apiVersion": "v1",
+        "requestId": "b1aa7284070b4e6288d41676a0fcd854",
+        "stages": [
+          {
+            "stage": "file_snapshot",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "size": 263,
+              "sha256": "dd88c91d8dfa98a34b8e23ad265b28d8d8eb5943b66dcd266575f391b0400dce",
+              "languageId": "javascript"
+            }
+          },
+          {
+            "stage": "preprocessing",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "files": 1,
+              "parsed": 1
+            }
+          },
+          {
+            "stage": "program_analysis",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "files": 1,
+              "programAnalysis": 1,
+              "taint": 1
+            }
+          },
+          {
+            "stage": "static_evidence",
+            "status": "unavailable",
+            "reasonCode": "E_TOOL_MISSING",
+            "detail": "Configured executable 'semgrep' was not found or is not executable.; Configured executable 'bandit' was not found or is not executable.",
+            "warnings": [
+              "semgrep was unavailable: Configured executable 'semgrep' was not found or is not executable.",
+              "bandit was unavailable: Configured executable 'bandit' was not found or is not executable."
+            ],
+            "data": {
+              "toolStatuses": {
+                "semgrep": "unavailable",
+                "bandit": "unavailable"
+              },
+              "findingCount": 0
+            }
+          },
+          {
+            "stage": "detection",
+            "status": "partial",
+            "reasonCode": "E_DETECTOR_ERROR",
+            "detail": "TypeError: DetectionEngine.detect() got an unexpected keyword argument 'document_uri'",
+            "warnings": [],
+            "data": {}
+          }
+        ],
+        "warnings": [
+          "semgrep was unavailable: Configured executable 'semgrep' was not found or is not executable.",
+          "bandit was unavailable: Configured executable 'bandit' was not found or is not executable.",
+          "detection error: TypeError"
+        ],
+        "result": {
+          "analysisAvailable": true,
+          "findings": [],
+          "evidenceSources": [],
+          "scoreKind": null
+        }
+      }
+    },
+    {
+      "name": "explanation_analyze_skipped_no_finding",
+      "ok": true,
+      "result": {
+        "skipped": true,
+        "reason": "no finding produced by scan"
+      }
+    },
+    {
+      "name": "features_extract_unavailable",
+      "ok": true,
+      "result": {
+        "operation": "features_extract",
+        "status": "partial",
+        "apiVersion": "v1",
+        "requestId": "8fec9f508e924c13b2c974e4a68f362d",
+        "stages": [
+          {
+            "stage": "file_snapshot",
+            "status": "ok",
+            "reasonCode": null,
+            "detail": null,
+            "warnings": [],
+            "data": {
+              "size": 289,
+              "sha256": "88ad6028a13ab61f8ab0af8399d3ac438bc4a5cad90d0247a90316e45c78ddbd",
+              "languageId": "python"
+            }
+          },
+          {
+            "stage": "model_capture",
+            "status": "unavailable",
+            "reasonCode": "E_MODEL_UNAVAILABLE",
+            "detail": "No model runtime or activation capture is configured.",
+            "warnings": [],
+            "data": {}
+          },
+          {
+            "stage": "sae_features",
+            "status": "unavailable",
+            "reasonCode": "E_SAE_UNAVAILABLE",
+            "detail": "No compatible SAE artifact is registered.",
+            "warnings": [],
+            "data": {}
+          },
+          {
+            "stage": "feature_aggregation",
+            "status": "unavailable",
+            "reasonCode": "E_FEATURE_UNAVAILABLE",
+            "detail": "No feature aggregation implementation is available.",
+            "warnings": [],
+            "data": {}
+          }
+        ],
+        "warnings": [],
+        "result": {
+          "analysisAvailable": false,
+          "saeArtifactId": null,
+          "features": [],
+          "coverage": null,
+          "aggregation": "max"
+        }
+      }
+    },
+    {
+      "name": "counterfactual_unavailable",
+      "ok": true,
+      "result": {
+        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "title": "Request validation failed",
+        "status": 422,
+        "code": "E_VALIDATION",
+        "detail": "One or more request fields are invalid.",
+        "instance": "/api/v1/counterfactual/analyze",
+        "retryable": false,
+        "requestId": "9ca9a70dcda246c796807aa55e818f3c",
+        "details": {
+          "errors": [
+            {
+              "location": [
+                "body",
+                "findingId"
+              ],
+              "message": "Field required",
+              "type": "missing"
+            },
+            {
+              "location": [
+                "body",
+                "interventions",
+                "0",
+                "kind"
+              ],
+              "message": "Field required",
+              "type": "missing"
+            },
+            {
+              "location": [
+                "body",
+                "interventions",
+                "0",
+                "featureIndices"
+              ],
+              "message": "Field required",
+              "type": "missing"
+            },
+            {
+              "location": [
+                "body",
+                "interventions",
+                "0",
+                "featureIndex"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            },
+            {
+              "location": [
+                "body",
+                "interventions",
+                "0",
+                "value"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "prevention_unavailable",
+      "ok": true,
+      "result": {
+        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "title": "Request validation failed",
+        "status": 422,
+        "code": "E_VALIDATION",
+        "detail": "One or more request fields are invalid.",
+        "instance": "/api/v1/prevention/steer",
+        "retryable": false,
+        "requestId": "c6dc9f8a3e894bf9814a982fdb55bec7",
+        "details": {
+          "errors": [
+            {
+              "location": [
+                "body",
+                "targetMetric"
+              ],
+              "message": "Field required",
+              "type": "missing"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "verification_run_static_only",
+      "ok": true,
+      "result": {
+        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "title": "Request validation failed",
+        "status": 422,
+        "code": "E_VALIDATION",
+        "detail": "One or more request fields are invalid.",
+        "instance": "/api/v1/verification/run",
+        "retryable": false,
+        "requestId": "fefaeeeb8c7c4b3eb87e92c57bbeae43",
+        "details": {
+          "errors": [
+            {
+              "location": [
+                "body"
+              ],
+              "message": "Value error, provide a repairId, patch, or patchedSource",
+              "type": "value_error"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "repair_generate_with_patch",
+      "ok": true,
+      "result": {
+        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "title": "Request validation failed",
+        "status": 422,
+        "code": "E_VALIDATION",
+        "detail": "One or more request fields are invalid.",
+        "instance": "/api/v1/repair/generate",
+        "retryable": false,
+        "requestId": "c67b12b2337243309d71134563d24638",
+        "details": {
+          "errors": [
+            {
+              "location": [
+                "body",
+                "finding",
+                "findingId"
+              ],
+              "message": "Field required",
+              "type": "missing"
+            },
+            {
+              "location": [
+                "body",
+                "finding",
+                "range"
+              ],
+              "message": "Field required",
+              "type": "missing"
+            },
+            {
+              "location": [
+                "body",
+                "finding",
+                "id"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            },
+            {
+              "location": [
+                "body",
+                "finding",
+                "message"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            },
+            {
+              "location": [
+                "body",
+                "finding",
+                "severity"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            },
+            {
+              "location": [
+                "body",
+                "finding",
+                "location"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            },
+            {
+              "location": [
+                "body",
+                "finding",
+                "evidence"
+              ],
+              "message": "Extra inputs are not permitted",
+              "type": "extra_forbidden"
+            },
+            {
+              "location": [
+                "body",
+                "patch"
+              ],
+              "message": "Input should be a valid string",
+              "type": "string_type"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "jobs_endpoints_shape",
+      "ok": true,
+      "result": {
+        "type": "https://craftsec.local/errors/E_NOT_FOUND",
+        "title": "Resource not found",
+        "status": 404,
+        "code": "E_NOT_FOUND",
+        "detail": "Job not found.",
+        "instance": "/api/v1/jobs/nonexistent-job",
+        "retryable": false,
+        "requestId": "9c655af30a5240a09b84310cacd82f79",
+        "details": null
+      }
+    },
+    {
+      "name": "result_persistence_dir",
+      "ok": true,
+      "result": {
+        "dataDir": "/var/folders/2l/bbcttp_514v5yslfrv3x7dlh0000gn/T/craftsec-int-t7v0_9kx",
+        "resultsExists": true,
+        "resultFiles": [
+          "detection_analyze-b1aa7284070b4e6288d41676a0fcd854.json",
+          "features_extract-8fec9f508e924c13b2c974e4a68f362d.json",
+          "scan_file-9d821deba9da431482dbf06863d22e4a.json",
+          "scan_file-b128af02cd1b404dbcfd8fac5c1dffaa.json"
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

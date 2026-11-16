@@ -10,6 +10,7 @@ from craftsec.api.routes import (
     explanation,
     features,
     health,
+    jobs,
     prevention,
     repair,
     scan,
@@ -27,5 +28,6 @@ api_router.include_router(counterfactual.router)
 api_router.include_router(prevention.router)
 api_router.include_router(repair.router)
 api_router.include_router(verification.router)
+api_router.include_router(jobs.router)
 
 __all__ = ["api_router"]
