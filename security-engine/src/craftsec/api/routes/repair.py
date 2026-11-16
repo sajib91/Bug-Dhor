@@ -1,4 +1,8 @@
-"""Repair proposal endpoint. Patches are never applied by the engine."""
+"""Repair workflow endpoint.
+
+Runs the integrated repair verification workflow. Patches are never applied by
+the engine; explicit user approval and client-side application are required.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +21,7 @@ router = APIRouter(prefix="/repair", tags=["repair"])
 @router.post(
     "/generate",
     response_model=RepairResponse,
-    summary="Generate a repository-aware repair proposal for explicit review",
+    summary="Generate/verify a repair candidate through the integrated security and functional workflow",
     responses=COMMON_ERROR_RESPONSES,
 )
 def generate_repair(

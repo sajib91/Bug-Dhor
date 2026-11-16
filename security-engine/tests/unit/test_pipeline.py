@@ -144,7 +144,7 @@ def test_orchestrator_capabilities_require_every_operation_stage() -> None:
     assert capabilities["scan_workspace"] is True
     assert capabilities["detection_analyze"] is True
     assert capabilities["explanation_analyze"] is False
-    assert capabilities["verification_run"] is False
+    assert capabilities["verification_run"] is True
 
 
 def test_orchestrator_rejects_mismatched_stage_keys() -> None:

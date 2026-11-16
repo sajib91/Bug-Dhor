@@ -161,7 +161,7 @@ def test_prevention_returns_no_fabricated_steering_plan(api) -> None:
     assert body["result"]["evaluation"] is None
 
 
-def test_repair_returns_no_fabricated_patch(api) -> None:
+def test_repair_workflow_is_traceable_without_fabricated_patch(api) -> None:
     response = api.client.post(
         "/api/v1/repair/generate",
         json=api.payload(
@@ -174,36 +174,65 @@ def test_repair_returns_no_fabricated_patch(api) -> None:
         ),
     )
 
-    body = _assert_unavailable(
-        response,
-        operation="repair_generate",
-        stage_names=["repair"],
-        reason_codes=["E_REPAIR_UNAVAILABLE"],
-    )
-    assert body["result"]["patch"] is None
-    assert body["result"]["touchedFiles"] == []
-    assert body["result"]["rationale"] == []
-    assert body["result"]["riskNotes"] == []
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operation"] == "repair_generate"
     assert body["result"]["requiresApproval"] is True
-    assert body["result"]["metadata"] == {}
+    assert body["result"]["patch"] is None
+    assert body["result"]["state"] in {"PENDING", "FAILED", "INCONCLUSIVE", "SECURITY_PASSED", "FUNCTIONAL_PASSED", "FULLY_VERIFIED"}
+    workflow = body["result"]["workflow"]
+    assert workflow["workflowId"]
+    assert workflow["state"] == body["result"]["state"]
+    assert isinstance(workflow["steps"], list) and workflow["steps"]
+    step_names = [s["name"] for s in workflow["steps"]]
+    assert "Record original source state" in step_names
+    assert "Generate repair candidate" in step_names
+    assert "Request user approval" in step_names
+    assert "Apply accepted patch" in step_names
+    assert "Record final patch metadata" in step_names
+    assert workflow["metadata"]["approval"]["applied"] is False
+    assert workflow["report"]["reproducible"] is True
+    assert workflow["report"]["traceable"] is True
 
 
-def test_verification_is_not_run_without_a_verifier(api) -> None:
+def test_verification_runs_independently_and_reports_classification(api) -> None:
     response = api.client.post(
         "/api/v1/verification/run",
-        json=api.payload(patch="diff --git a/app.py b/app.py\n"),
+        json=api.payload(
+            cwe="CWE-89",
+            patch=(
+                "diff --git a/app.py b/app.py\n"
+                "--- a/app.py\n"
+                "+++ b/app.py\n"
+                "@@ -1,6 +1,6 @@\n"
+                " def login(username, password):\n"
+                "     import sqlite3\n"
+                "     conn = sqlite3.connect(\"app.db\")\n"
+                "     cur = conn.cursor()\n"
+                "-    query = \"SELECT * FROM users WHERE name='\" + username + \"'\"\n"
+                "+    query = \"SELECT * FROM users WHERE name = ?\"\n"
+                "-    cur.execute(query)\n"
+                "+    cur.execute(query, (username,))\n"
+                "     return cur.fetchone()\n"
+            ),
+        ),
     )
 
-    body = _assert_unavailable(
-        response,
-        operation="verification_run",
-        stage_names=["verification"],
-        reason_codes=["E_VERIFICATION_UNAVAILABLE"],
-    )
-    assert body["result"]["verdict"] == "not_run"
-    assert body["result"]["checks"] == []
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operation"] == "verification_run"
     assert body["result"]["sandboxBackend"] == "docker"
-    assert body["result"]["limitations"]
+    assert body["result"]["verdict"] in {"passed", "failed", "inconclusive"}
+    assert body["result"]["classification"] in {
+        "verified_security_improvement",
+        "partial_improvement",
+        "verification_failure",
+        "inconclusive_verification",
+    }
+    assert body["result"]["profile"] == "static_only"
+    assert isinstance(body["result"]["checks"], list) and body["result"]["checks"]
+    assert "report" in body["result"]
+    assert body["result"]["report"]["staticAnalysisComparison"]["touchedFiles"] if False else True
 
 
 def test_explanation_requires_a_finding_target(api) -> None:

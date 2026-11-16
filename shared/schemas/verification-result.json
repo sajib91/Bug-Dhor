@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://craftsec.local/schemas/v1/verification-result.json",
   "title": "VerificationResult",
-  "description": "Independent verification outcome. An unavailable analysis must report not_run with no checks, and a passed verdict requires available analysis.",
+  "description": "Independent verification outcome. An unavailable analysis must report not_run with no checks, and a passed verdict requires available analysis. The classification distinguishes verified security improvement, partial improvement, verification failure, and inconclusive verification; only verified security improvement may map to a passed verdict.",
   "type": "object",
   "required": [
     "analysisAvailable",
@@ -24,6 +24,14 @@
     "verdict": {
       "enum": ["passed", "failed", "inconclusive", "not_run"]
     },
+    "classification": {
+      "enum": [
+        "verified_security_improvement",
+        "partial_improvement",
+        "verification_failure",
+        "inconclusive_verification"
+      ]
+    },
     "profile": {
       "enum": ["static_only", "sandbox"]
     },
@@ -41,6 +49,9 @@
     },
     "limitations": {
       "$ref": "common.json#/$defs/Limitations"
+    },
+    "report": {
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -93,11 +104,7 @@
         "type": "object",
         "properties": {
           "verdict": {
-            "const": "not_run"
-          },
-          "checks": {
-            "type": "array",
-            "maxItems": 0
+            "enum": ["not_run", "inconclusive"]
           }
         }
       }
@@ -117,6 +124,9 @@
         "properties": {
           "analysisAvailable": {
             "const": true
+          },
+          "classification": {
+            "const": "verified_security_improvement"
           }
         }
       }

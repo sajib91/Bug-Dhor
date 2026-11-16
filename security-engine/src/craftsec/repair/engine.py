@@ -328,7 +328,7 @@ class RepairEngine:
         )
 
 def normalize_patch(raw: str) -> str | None:
-    """Extract a strict unified diff and normalize line endings."""
+    """Extract a unified diff and normalize line endings."""
     if not isinstance(raw, str):
         return None
     text = raw.replace("\r\n", "\n").strip()
@@ -338,9 +338,18 @@ def normalize_patch(raw: str) -> str | None:
     if "--- " not in text or "+++ " not in text or "@@ " not in text:
         return None
     lines = text.splitlines()
-    if not lines[0].startswith("--- ") or not any(line.startswith("+++ ") for line in lines):
+    # Accept git-style headers (diff --git, index, etc.) before the first file header.
+    start = None
+    for idx, line in enumerate(lines):
+        if line.startswith("--- "):
+            start = idx
+            break
+    if start is None:
         return None
-    return "\n".join(lines) + "\n"
+    if not any(line.startswith("+++ ") for line in lines[start:]):
+        return None
+    normalized = lines[start:]
+    return "\n".join(normalized) + "\n"
 
 
 def patch_paths(patch: str) -> tuple[str, ...]:

@@ -1,6 +1,17 @@
-"""CRAFT-Sec sandbox package.
+"""Isolated execution backends and resource policy."""
 
-Isolated execution backends and resource policy.
+from .executor import (
+    ExecutionConsent,
+    ExecutionRequest,
+    ExecutionResult,
+    IsolatedExecutor,
+    SandboxUnavailableError,
+)
 
-Status: package scaffold only. No runtime behavior is implemented yet.
-"""
+__all__ = [
+    "ExecutionConsent",
+    "ExecutionRequest",
+    "ExecutionResult",
+    "IsolatedExecutor",
+    "SandboxUnavailableError",
+]

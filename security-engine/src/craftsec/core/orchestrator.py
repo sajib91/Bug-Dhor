@@ -71,6 +71,9 @@ from craftsec.core.pipeline import (
 )
 from craftsec.core.settings import Settings
 from craftsec.repair.context import RepositoryContextBuilder
+from craftsec.repair.workflow import RepairWorkflow
+from craftsec.sandbox.executor import ExecutionConsent
+from craftsec.verification.engine import IndependentVerificationEngine
 
 DEFAULT_STAGE_DEFINITIONS: dict[str, tuple[str, str]] = {
     "static_evidence": (
@@ -132,6 +135,41 @@ OPERATION_STAGES: dict[str, tuple[str, ...]] = {
 }
 
 
+class _VerificationStage:
+    name = "verification"
+    available = True
+
+    def __init__(self, sandbox_backend: str) -> None:
+        self._engine = IndependentVerificationEngine(sandbox_backend=sandbox_backend)
+
+    def run(self, context: StageContext) -> StageResult:
+        payload = dict(context.payload)
+        outcome = self._engine.verify(
+            original_source=str(payload.get("sourceText") or ""),
+            file_path=str(payload.get("filePath") or ""),
+            language_id=payload.get("languageId"),
+            patch=payload.get("patch"),
+            patched_source=payload.get("patchedSource"),
+            repair_id=payload.get("repairId"),
+            cwe=payload.get("cwe"),
+            finding_id=payload.get("findingId"),
+            profile=str(payload.get("profile") or "static_only"),
+            run_execution=bool(payload.get("runExecution")),
+        )
+        result = outcome.to_result(payload.get("repairId"))
+        status = StageStatus.OK if outcome.analysis_available else StageStatus.PARTIAL
+        reason = None if outcome.analysis_available else "E_VERIFICATION_INCONCLUSIVE"
+        detail = None if outcome.analysis_available else outcome.classification
+        return StageResult(
+            stage=self.name,
+            status=status,
+            reason_code=reason,
+            detail=detail,
+            warnings=list(outcome.limitations),
+            data={"verificationResult": result},
+        )
+
+
 class Orchestrator:
     """Select a pipeline for each operation and build typed responses."""
 
@@ -146,6 +184,14 @@ class Orchestrator:
             name: UnavailableStage(name=name, reason_code=code, detail=detail)
             for name, (code, detail) in DEFAULT_STAGE_DEFINITIONS.items()
         }
+        self.stages["verification"] = _VerificationStage(self.settings.sandbox_backend)
+        # Repair workflow is implemented (generation may be unavailable without a model adapter,
+        # but verification/validation workflow is available).
+        self.stages["repair"] = type(
+            "_RepairStage",
+            (),
+            {"name": "repair", "available": True, "run": lambda self, ctx: StageResult(stage="repair", status=StageStatus.OK)},
+        )()
         if stages:
             for name, stage in stages.items():
                 if stage.name != name:
@@ -375,27 +421,68 @@ class Orchestrator:
             request.workspace_root,
             request.file_path,
         )
-        execution = self._execute(
-            "repair_generate",
-            request_id,
-            self._payload(
-                snapshot,
-                request.language_id,
-                finding=request.finding.model_dump(mode="json"),
-                snapshotHash=request.snapshot_hash,
-                repositoryContext=repository_context.to_dict(),
-            ),
+        consent_model = getattr(request, "execution_consent", None)
+        consent = ExecutionConsent(
+            granted=bool(getattr(consent_model, "granted", False)),
+            allow_network=bool(getattr(consent_model, "allow_network", False)),
+            allow_privileged=bool(getattr(consent_model, "allow_privileged", False)),
+            allow_destructive=bool(getattr(consent_model, "allow_destructive", False)),
+            source=str(getattr(consent_model, "source", "user")),
         )
-        combined = self._with_snapshot(self._snapshot_result(snapshot), execution)
+        workflow = RepairWorkflow(sandbox_backend=self.settings.sandbox_backend)
+        record = workflow.run(
+            workspace_root=request.workspace_root,
+            file_path=request.file_path,
+            original_source=snapshot.text,
+            language_id=request.language_id or snapshot.language_id,
+            cwe=request.finding.cwe,
+            finding_id=request.finding.finding_id,
+            patch=getattr(request, "patch", None),
+            generate=bool(getattr(request, "generate", False)),
+            repository_context=repository_context,
+            finding=request.finding.model_dump(mode="json"),
+            execution_consent=consent,
+            functional_enabled=bool(getattr(request, "run_functional_tests", True)),
+            test_timeout_seconds=float(getattr(request, "test_timeout_seconds", 120.0)),
+            project_test_command=getattr(request, "project_test_command", None),
+        )
+        workflow_dict = record.to_dict()
+        analysis_available = bool(
+            (record.security or {}).get("analysisAvailable")
+            or (record.functional or {}).get("executed")
+            or record.state in {"SECURITY_PASSED", "FUNCTIONAL_PASSED", "FULLY_VERIFIED", "FAILED"}
+        )
+        execution = PipelineExecution(
+            status=PipelineStatus.COMPLETED if analysis_available else PipelineStatus.PARTIAL,
+            stages=[
+                self._snapshot_result(snapshot),
+                StageResult(
+                    stage="repair",
+                    status=StageStatus.OK if analysis_available else StageStatus.PARTIAL,
+                    reason_code=None if analysis_available else "E_REPAIR_WORKFLOW_INCONCLUSIVE",
+                    detail=record.state,
+                    data={"workflowState": record.state},
+                ),
+            ],
+            warnings=[],
+        )
+        combined = combine_stage_results(execution.stages)
+        candidate = record.candidate or {}
         return RepairResponse(
             **self._base_fields("repair_generate", request_id, combined),
             result=RepairResult(
-                analysis_available=self._analysis_available(execution),
-                patch=None,
-                touched_files=[],
-                rationale=[],
-                risk_notes=[],
-                metadata={},
+                analysis_available=analysis_available,
+                state=record.state,
+                patch=candidate.get("patch"),
+                touched_files=candidate.get("touchedFiles", []),
+                rationale=[
+                    f"Integrated workflow state: {record.state}.",
+                    "Patch is a proposal only; explicit user approval is required before application.",
+                ],
+                risk_notes=list((record.security or {}).get("limitations", []))[:10],
+                requires_approval=True,
+                metadata=record.metadata,
+                workflow=workflow_dict,
             ),
         )
 
@@ -411,25 +498,37 @@ class Orchestrator:
             self._payload(
                 snapshot,
                 request.language_id,
+                sourceText=snapshot.text,
                 repairId=request.repair_id,
-                hasPatch=request.patch is not None,
+                patch=request.patch,
+                patchedSource=request.patched_source,
+                cwe=request.cwe,
+                findingId=request.finding_id,
                 profile=request.profile,
                 runExecution=request.run_execution,
                 sandboxBackend=self.settings.sandbox_backend,
             ),
         )
         combined = self._with_snapshot(self._snapshot_result(snapshot), execution)
+        stage_result = next((s for s in execution.stages if s.stage == "verification"), None)
+        data = stage_result.data.get("verificationResult") if stage_result else None
+        if not isinstance(data, dict):
+            data = {
+                "analysisAvailable": False,
+                "repairId": request.repair_id,
+                "verdict": "inconclusive",
+                "classification": "inconclusive_verification",
+                "profile": request.profile,
+                "checks": [],
+                "sandboxBackend": self.settings.sandbox_backend,
+                "limitations": [
+                    "Independent verification did not produce a result payload."
+                ],
+                "report": {},
+            }
         return VerificationResponse(
             **self._base_fields("verification_run", request_id, combined),
-            result=VerificationResult(
-                analysis_available=self._analysis_available(execution),
-                verdict="not_run",
-                checks=[],
-                sandbox_backend=self.settings.sandbox_backend,
-                limitations=[
-                    "Verification is not run when no verifier or adequate sandbox is available."
-                ],
-            ),
+            result=VerificationResult(**data),
         )
 
     def _snapshot(self, root: Path, request: Any) -> FileSnapshot:

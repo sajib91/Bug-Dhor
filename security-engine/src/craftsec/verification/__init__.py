@@ -1,6 +1,19 @@
-"""CRAFT-Sec verification package.
+"""CRAFT-Sec independent verification package."""
 
-Independent security and functional verification of repairs.
+from craftsec.verification.engine import (
+    INCONCLUSIVE_VERIFICATION,
+    PARTIAL_IMPROVEMENT,
+    VERIFICATION_FAILURE,
+    VERIFIED_SECURITY_IMPROVEMENT,
+    IndependentVerificationEngine,
+    VerificationOutcome,
+)
 
-Status: package scaffold only. No runtime behavior is implemented yet.
-"""
+__all__ = [
+    "INCONCLUSIVE_VERIFICATION",
+    "IndependentVerificationEngine",
+    "PARTIAL_IMPROVEMENT",
+    "VERIFICATION_FAILURE",
+    "VERIFIED_SECURITY_IMPROVEMENT",
+    "VerificationOutcome",
+]

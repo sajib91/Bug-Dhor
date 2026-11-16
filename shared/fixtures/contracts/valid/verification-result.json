@@ -2,6 +2,7 @@
   "analysisAvailable": true,
   "repairId": "repair-0001",
   "verdict": "passed",
+  "classification": "verified_security_improvement",
   "profile": "static_only",
   "sandboxBackend": "none",
   "checks": [
@@ -29,5 +30,14 @@
   "limitations": [
     "Functional tests were not run in the static-only profile.",
     "A passed static check is not a proof of security."
-  ]
+  ],
+  "report": {
+    "classification": "verified_security_improvement",
+    "staticAnalysisComparison": {
+      "available": true,
+      "beforeCount": 1,
+      "afterCount": 0,
+      "newFindings": []
+    }
+  }
 }

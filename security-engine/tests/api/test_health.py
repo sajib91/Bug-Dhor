@@ -46,7 +46,13 @@ def test_health_reports_service_and_no_enabled_research_capabilities(api) -> Non
     assert body["uptimeSeconds"] >= 0
     assert body["timestamp"].endswith("+00:00") or body["timestamp"].endswith("Z")
     assert set(body["capabilities"]) == EXPECTED_CAPABILITIES
-    assert all(value is False for value in body["capabilities"].values())
+    assert body["capabilities"]["verification_run"] is True
+    assert body["capabilities"]["repair_generate"] is True
+    assert all(
+        value is False
+        for name, value in body["capabilities"].items()
+        if name not in {"verification_run", "repair_generate"}
+    )
 
 
 def test_health_reflects_only_the_stages_that_are_available(tmp_path: Path) -> None:
@@ -66,7 +72,7 @@ def test_health_reflects_only_the_stages_that_are_available(tmp_path: Path) -> N
     assert capabilities["scan_workspace"] is True
     assert capabilities["detection_analyze"] is True
     assert capabilities["features_extract"] is False
-    assert capabilities["verification_run"] is False
+    assert capabilities["verification_run"] is True
 
 
 def test_health_never_contains_configured_secret(tmp_path: Path) -> None:
