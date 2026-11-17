@@ -22,7 +22,7 @@ from typing import Any
 
 import torch
 
-from craftsec.sae.association import FeatureDictionary
+from craftsec.sae.association import FeatureDictionary, association_selectivity
 
 OutcomeRunner = Callable[[Mapping[int, float], int], float]
 
@@ -130,19 +130,31 @@ def preselect_features(
     max_features: int,
     cwe: str | None = None,
 ) -> tuple[int, ...]:
-    """Select features by measured selectivity before subset generation."""
+    """Select features by measured selectivity before subset generation.
+
+    When ``cwe`` is supplied, ranking uses that CWE's own association.  If the
+    CWE subset lacks a two-class contrast, the feature's overall selectivity is
+    used as a documented fallback.
+    """
     if max_features < 1:
         raise ValueError("max_features must be positive")
     candidates = [
-        entry
-        for entry in dictionary.entries
-        if cwe is None or cwe in entry.cwe_associations
+        entry for entry in dictionary.entries if cwe is None or cwe in entry.cwe_associations
     ]
+
+    def score(entry):
+        if cwe is None:
+            return abs(entry.selectivity or 0.0)
+        cwe_selectivity = association_selectivity(entry.cwe_associations[cwe])
+        if cwe_selectivity is None:
+            cwe_selectivity = entry.selectivity
+        return abs(cwe_selectivity or 0.0)
+
     return tuple(
         entry.feature_index
         for entry in sorted(
             candidates,
-            key=lambda entry: (-(abs(entry.selectivity or 0.0)), entry.feature_index),
+            key=lambda entry: (-score(entry), entry.feature_index),
         )[:max_features]
     )
 
@@ -242,9 +254,7 @@ class HigherOrderInteractionEngine:
                     (feature, self.metadata.intervention_value) for feature in active
                 )
                 key = tuple(interventions)
-                if budget is not None and key not in {
-                    cached_key for cached_key, _ in cache
-                }:
+                if budget is not None and key not in {cached_key for cached_key, _ in cache}:
                     if observed_cells + self.metadata.repetitions > budget:
                         break
                 outcomes = []
@@ -311,10 +321,7 @@ def estimate_higher_order(
             "unavailable with fewer than two replicates per cell; no significance test",
         )
     standard_error = math.sqrt(
-        sum(
-            variance / len(cells[key])
-            for variance, key in zip(variances, required, strict=True)
-        )
+        sum(variance / len(cells[key]) for variance, key in zip(variances, required, strict=True))
     )
     return HigherOrderEstimate(
         contrast,
@@ -336,9 +343,7 @@ def rank_higher_order(
         sorted(
             results,
             key=lambda result: (
-                -abs(result.estimate.contrast)
-                if absolute
-                else -result.estimate.contrast,
+                -abs(result.estimate.contrast) if absolute else -result.estimate.contrast,
                 result.subset.order,
                 result.subset.features,
             ),

@@ -108,7 +108,11 @@ def test_steering_is_disabled_by_default_without_running_an_intervention() -> No
         experiment_id="disabled-test",
     )
 
-    result = engine.run("safe code", SteeringSpec(feature_indices=(0,)))
+    result = engine.run(
+        "safe code",
+        SteeringSpec(feature_indices=(0,)),
+        generation=GenerationConfig(max_new_tokens=1),
+    )
 
     assert result.comparison.steered is None
     assert result.comparison.output_changed is None

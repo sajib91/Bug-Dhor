@@ -1,0 +1,130 @@
+{
+  "all_passed": true,
+  "created_at_utc": "2026-11-17T06:06:42.457273+00:00",
+  "estimand": "Delta(S) = sum_{T subset S} (-1)^(|S|-|T|) Y(T) on the declared outcome scale, where Y(T) is the outcome under the simultaneous intervention that sets every feature in T to its active state.",
+  "experiment": "synthetic_counterfactual_mathematics_validation",
+  "higher_order_estimand": "sum_{T subset S} (-1)^(|S|-|T|) Y(T) (inclusion-exclusion / Mobius)",
+  "pairwise_estimand": "Y(1,1) - Y(1,0) - Y(0,1) + Y(0,0)",
+  "scenarios": {
+    "ablation_binary_states": {
+      "expected_contrast": 4.0,
+      "observed_contrast": 4.0,
+      "passed": true
+    },
+    "additive_null": {
+      "expected_contrast": 0.0,
+      "observed_contrast": 0.0,
+      "passed": true
+    },
+    "baseline_and_constant_shift": {
+      "baseline_values": [
+        10.0,
+        12.0,
+        14.0
+      ],
+      "expected_contrast": 5.0,
+      "observed_contrast": 5.0,
+      "passed": true
+    },
+    "bootstrap_coverage": {
+      "empirical_coverage": 0.954,
+      "mean_interval_width": 0.5420232395263663,
+      "nominal_confidence": 0.95,
+      "note": "Coverage is for the declared paired contrast with i.i.d. unit noise. It is not a guarantee under dependent or misspecified sampling.",
+      "replications": 1000,
+      "true_contrast": 2.0
+    },
+    "bootstrap_finite_sample_coverage": {
+      "nominal_confidence": 0.95,
+      "note": "Percentile bootstrap intervals undercover in small samples.  The real-model run uses 24 evaluation units, so intervals are descriptive and should be read together with the normal-approximation interval.",
+      "results": {
+        "n_120": {
+          "empirical_zero_containment": 0.946,
+          "n_units": 120,
+          "replications": 1000
+        },
+        "n_24": {
+          "empirical_zero_containment": 0.927,
+          "n_units": 24,
+          "replications": 1000
+        },
+        "n_240": {
+          "empirical_zero_containment": 0.955,
+          "n_units": 240,
+          "replications": 1000
+        },
+        "n_60": {
+          "empirical_zero_containment": 0.925,
+          "n_units": 60,
+          "replications": 1000
+        }
+      }
+    },
+    "bootstrap_null_containment": {
+      "empirical_zero_containment": 0.925,
+      "nominal_confidence": 0.95,
+      "replications": 1000,
+      "true_contrast": 0.0
+    },
+    "bootstrap_reproducibility": {
+      "first": [
+        4.0,
+        1.5811388300841895,
+        1.8,
+        7.0
+      ],
+      "paired_standard_error": 1.5811388300841895,
+      "passed": true,
+      "second": [
+        4.0,
+        1.5811388300841895,
+        1.8,
+        7.0
+      ]
+    },
+    "confounding_paired_vs_unpaired": {
+      "paired_contrast": 0.0,
+      "passed": true,
+      "unpaired_spurious_contrast": -10.0
+    },
+    "direction_under_negation": {
+      "negative_contrast": -2.0,
+      "passed": true,
+      "positive_contrast": 2.0
+    },
+    "higher_order_inclusion_exclusion": {
+      "expected_contrast": 7.0,
+      "observed_contrast": 7.0,
+      "passed": true
+    },
+    "joint_simultaneous": {
+      "expected_joint_mean": 3.0,
+      "joint_mean": 3.0,
+      "passed": true
+    },
+    "off_target_change": {
+      "expected_contrast": 4.0,
+      "observed_contrast": 4.0,
+      "passed": true
+    },
+    "outcome_scale_dependence": {
+      "expected_logit_contrast": 2.0,
+      "logit_scale_contrast": 2.000000000000001,
+      "passed": true,
+      "probability_scale_contrast": 0.34919763276493787
+    },
+    "stability_summary": {
+      "passed": true,
+      "stable": {
+        "all_intervals_overlap": true,
+        "same_sign": true,
+        "sign_consistency": 1.0
+      },
+      "unstable": {
+        "all_intervals_overlap": false,
+        "same_sign": false,
+        "sign_consistency": 0.75
+      }
+    }
+  }
+}

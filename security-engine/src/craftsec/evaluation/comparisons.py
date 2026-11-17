@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping, Sequence
 
 from .statistics import (
+    _is_missing,
     apply_multiple_comparison_correction,
     bootstrap_ci,
     cliffs_delta,
@@ -84,7 +85,7 @@ def cross_model_comparison(
                 for pid, row in table.items():
                     a = row.get(ma)
                     b = row.get(mb)
-                    if a is None or b is None:
+                    if _is_missing(a) or _is_missing(b):
                         missing += 1
                         continue
                     va.append(a); vb.append(b)
@@ -110,8 +111,8 @@ def cross_model_comparison(
         for j in range(i + 1, len(models)):
             ma, mb = models[i], models[j]
             va, vb = grouped[ma], grouped[mb]
-            valid_a = [v for v in va if v is not None]
-            valid_b = [v for v in vb if v is not None]
+            valid_a = [v for v in va if not _is_missing(v)]
+            valid_b = [v for v in vb if not _is_missing(v)]
             ci_a = bootstrap_ci(va, ci_level=ci_level, n_boot=n_boot, seed=seed).to_dict()
             ci_b = bootstrap_ci(vb, ci_level=ci_level, n_boot=n_boot, seed=seed + 1).to_dict()
             mwu = mann_whitney_u(va, vb)

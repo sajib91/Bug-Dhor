@@ -188,7 +188,11 @@ class ActivationSteeringEngine:
 
         self._seed()
         generation_config = generation or GenerationConfig()
-        generation_kwargs = generation_config.to_generation_kwargs()
+        generation_kwargs = dict(generation_config.to_generation_kwargs())
+        # Baseline and steered conditions must share one decoding path.  With a
+        # KV cache a forward hook can fire only on the prefill pass, so the two
+        # conditions would not be comparable.  Disable it for both.
+        generation_kwargs["use_cache"] = False
         baseline = self._generate(prompt, generation_kwargs)
         tokenizer_id = str(getattr(self.adapter.tokenizer, "name_or_path", self.adapter.model_id))
         tokenizer_version = self._tokenizer_version()
@@ -238,9 +242,6 @@ class ActivationSteeringEngine:
         }
         try:
             steered_kwargs = dict(generation_kwargs)
-            # Full sequences are required so token positions remain meaningful
-            # when Transformers generation uses a KV cache.
-            steered_kwargs["use_cache"] = False
             with self._steering_hook(spec, validation_state, deltas):
                 steered = self._generate(prompt, steered_kwargs)
         except ModelCompatibilityError:

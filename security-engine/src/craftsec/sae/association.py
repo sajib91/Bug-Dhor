@@ -82,7 +82,13 @@ class FeatureStability:
 
 @dataclass(frozen=True, slots=True)
 class CrossDatasetMetric:
-    """Out-of-dataset precision and recall for an activation association."""
+    """Out-of-dataset precision and recall for an activation association.
+
+    ``active_precision`` and ``active_recall`` are measured on the validation
+    dataset.  The train/validation direction fields record whether the feature's
+    measured association direction transfers; they are not inferred from the
+    validation metrics alone.
+    """
 
     feature_index: int
     train_dataset: str
@@ -91,6 +97,9 @@ class CrossDatasetMetric:
     active_precision: float | None
     active_recall: float | None
     validation_sample_count: int
+    train_association_direction: str | None = None
+    validation_association_direction: str | None = None
+    direction_agrees: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,7 +280,12 @@ def _association(
     )
 
 
-def _selectivity(association: FeatureAssociation) -> float | None:
+def association_selectivity(association: FeatureAssociation) -> float | None:
+    """Return the vulnerable-minus-secure activation-frequency difference.
+
+    ``None`` is returned when either class is absent, because a one-class
+    subset cannot support a contrast.
+    """
     if (
         association.vulnerable_activation_frequency is None
         or association.secure_activation_frequency is None
@@ -280,23 +294,33 @@ def _selectivity(association: FeatureAssociation) -> float | None:
     return association.vulnerable_activation_frequency - association.secure_activation_frequency
 
 
+def _selectivity(association: FeatureAssociation) -> float | None:
+    return association_selectivity(association)
+
+
 def _stability(
     samples: Sequence[FeatureSample],
     feature_index: int,
     threshold: float,
 ) -> FeatureStability:
     differences: dict[str, float] = {}
+    both_classes = 0
     for dataset in sorted({sample.label.dataset_id for sample in samples}):
         subset = [sample for sample in samples if sample.label.dataset_id == dataset]
+        if {sample.label.vulnerable for sample in subset} == {True, False}:
+            both_classes += 1
         association = _association(subset, feature_index, threshold)
         if association.mean_activation_difference is not None:
             differences[dataset] = association.mean_activation_difference
     signs = [difference > 0 for difference in differences.values() if difference != 0]
-    reference = signs[0] if signs else None
-    consistency = (
-        sum(sign == reference for sign in signs) / len(signs) if reference is not None else None
-    )
-    return FeatureStability(differences, consistency, len(signs))
+    if signs:
+        positives = sum(signs)
+        negatives = len(signs) - positives
+        # Majority direction; ties are resolved against consistency (0.5).
+        consistency = max(positives, negatives) / len(signs)
+    else:
+        consistency = None
+    return FeatureStability(differences, consistency, both_classes)
 
 
 def _cross_dataset_metrics(
@@ -316,7 +340,10 @@ def _cross_dataset_metrics(
             for feature_index in range(samples[0].features.shape[0]):
                 train_association = _association(train, feature_index, threshold)
                 validation_association = _association(validation, feature_index, threshold)
-                if train_association.association_direction is None:
+                if (
+                    train_association.association_direction is None
+                    or validation_association.association_direction is None
+                ):
                     continue
                 metrics.append(
                     CrossDatasetMetric(
@@ -327,6 +354,12 @@ def _cross_dataset_metrics(
                         active_precision=validation_association.active_precision,
                         active_recall=validation_association.active_recall,
                         validation_sample_count=len(validation),
+                        train_association_direction=train_association.association_direction,
+                        validation_association_direction=validation_association.association_direction,
+                        direction_agrees=(
+                            train_association.association_direction
+                            == validation_association.association_direction
+                        ),
                     )
                 )
     return tuple(metrics)
@@ -342,6 +375,7 @@ __all__ = [
     "FeatureSample",
     "FeatureStability",
     "analyze_features",
+    "association_selectivity",
     "extract_feature_samples",
     "samples_from_token_features",
 ]

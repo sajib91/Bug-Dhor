@@ -61,7 +61,7 @@ class SparseAutoencoder(nn.Module):
         with torch.inference_mode():
             latents = self.encode(activations)
         if threshold is not None:
-            latents = torch.where(latents.abs() >= threshold, latents, torch.zeros_like(latents))
+            latents = torch.where(latents.abs() > threshold, latents, torch.zeros_like(latents))
         return latents
 
     def _validate_input(self, activations: Tensor) -> None:

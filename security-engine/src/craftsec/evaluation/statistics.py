@@ -15,18 +15,50 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
+def _is_missing(value: Any) -> bool:
+    """Return True for None, NaN, infinities, and non-convertible values."""
+    if value is None:
+        return True
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return True
+    return not math.isfinite(numeric)
+
+
 def _to_float_list(values: Sequence[Any]) -> tuple[list[float], int]:
     out: list[float] = []
     missing = 0
     for v in values:
-        if v is None or (isinstance(v, float) and math.isnan(v)):
+        if _is_missing(v):
             missing += 1
             continue
-        try:
-            out.append(float(v))
-        except Exception:
-            missing += 1
+        out.append(float(v))
     return out, missing
+
+
+def _aligned_pairs(
+    values_a: Sequence[Any], values_b: Sequence[Any]
+) -> tuple[list[tuple[float, float]], int]:
+    """Drop unpaired, NaN, and non-finite observations from aligned inputs.
+
+    Pairing requires one-to-one alignment.  A length mismatch is an error rather
+    than a silent truncation; a misaligned paired test would otherwise compare
+    unrelated units.
+    """
+    if len(values_a) != len(values_b):
+        raise ValueError(
+            "paired inputs must have equal length; "
+            f"got {len(values_a)} and {len(values_b)}"
+        )
+    pairs: list[tuple[float, float]] = []
+    missing = 0
+    for a, b in zip(values_a, values_b, strict=True):
+        if _is_missing(a) or _is_missing(b):
+            missing += 1
+            continue
+        pairs.append((float(a), float(b)))
+    return pairs, missing
 
 
 def _mean(xs: Sequence[float]) -> float | None:
@@ -132,53 +164,55 @@ def bootstrap_ci(
     seed: int = 0,
     cluster_ids: Sequence[Any] | None = None,
 ) -> EstimateResult:
-    xs, missing = _to_float_list(values)
-    n = len(xs)
-    if n == 0:
-        return EstimateResult("bootstrap_ci", None, None, None, ci_level, "bootstrap", 0, missing, notes=["No valid observations."])
-    if cluster_ids is not None and len(cluster_ids) != len(values):
-        cluster_ids = None
     rng = random.Random(seed)
     stats: list[float] = []
     if cluster_ids is not None:
-        # cluster bootstrap: resample clusters with replacement
-        # align valid values with their clusters
-        valid_pairs = []
-        miss2 = 0
-        for v, cid in zip(values, cluster_ids):
-            if v is None or (isinstance(v, float) and math.isnan(v)):
-                miss2 += 1
+        if len(cluster_ids) != len(values):
+            raise ValueError(
+                "cluster_ids must align one-to-one with values; "
+                f"got {len(cluster_ids)} and {len(values)}"
+            )
+        # A cluster label of None means the observation cannot be assigned to a
+        # cluster.  Such observations are excluded, not silently pooled.
+        valid_pairs: list[tuple[float, Any]] = []
+        missing = 0
+        for value, cluster_id in zip(values, cluster_ids, strict=True):
+            if _is_missing(value) or cluster_id is None:
+                missing += 1
                 continue
-            try:
-                valid_pairs.append((float(v), cid))
-            except Exception:
-                miss2 += 1
+            valid_pairs.append((float(value), cluster_id))
         clusters: dict[Any, list[float]] = defaultdict(list)
-        for val, cid in valid_pairs:
-            clusters[cid].append(val)
+        for value, cluster_id in valid_pairs:
+            clusters[cluster_id].append(value)
         keys = list(clusters.keys())
+        n = len(valid_pairs)
         if not keys:
             return EstimateResult("bootstrap_ci", None, None, None, ci_level, "cluster_bootstrap", 0, missing, notes=["No valid clustered observations."])
         for _ in range(n_boot):
             sample_keys = [rng.choice(keys) for _ in range(len(keys))]
             sample = [v for k in sample_keys for v in clusters[k]]
             st = statistic(sample)
-            if st is not None and not (isinstance(st, float) and math.isnan(st)):
+            if not _is_missing(st):
                 stats.append(float(st))
         method = "cluster_bootstrap_percentile"
         notes = ["Cluster bootstrap used to account for within-cluster dependence (e.g. files within repositories/projects)."]
         n_eff = len(keys)
+        xs = [value for value, _ in valid_pairs]
     else:
+        xs, missing = _to_float_list(values)
+        n = len(xs)
+        if n == 0:
+            return EstimateResult("bootstrap_ci", None, None, None, ci_level, "bootstrap", 0, missing, notes=["No valid observations."])
         for _ in range(n_boot):
             sample = [rng.choice(xs) for _ in range(n)]
             st = statistic(sample)
-            if st is not None and not (isinstance(st, float) and math.isnan(st)):
+            if not _is_missing(st):
                 stats.append(float(st))
         method = "bootstrap_percentile"
         notes = ["Bootstrap over observations; if observations share repositories/projects, provide cluster_ids for cluster bootstrap."]
         n_eff = n
     est = statistic(xs)
-    if not stats or est is None:
+    if not stats or est is None or _is_missing(est):
         return EstimateResult("bootstrap_ci", est, None, None, ci_level, method, n, missing, notes=notes + ["Bootstrap failed to produce estimates."])
     stats.sort()
     alpha = (1.0 - ci_level) / 2.0
@@ -206,16 +240,7 @@ def _rankdata(values: Sequence[float]) -> list[float]:
 
 
 def paired_permutation_test(x: Sequence[Any], y: Sequence[Any], *, n_perm: int = 5000, seed: int = 0) -> dict[str, Any]:
-    pairs = []
-    missing = 0
-    for a, b in zip(x, y):
-        if a is None or b is None:
-            missing += 1
-            continue
-        try:
-            pairs.append((float(a), float(b)))
-        except Exception:
-            missing += 1
+    pairs, missing = _aligned_pairs(x, y)
     n = len(pairs)
     if n < 2:
         return {"test": "paired_permutation", "p_value": None, "statistic": None, "n": n, "missing": missing, "reason": "insufficient_paired_observations"}
@@ -235,19 +260,8 @@ def paired_permutation_test(x: Sequence[Any], y: Sequence[Any], *, n_perm: int =
 
 def wilcoxon_signed_rank(x: Sequence[Any], y: Sequence[Any]) -> dict[str, Any]:
     # Normal approximation with tie correction; returns None p-value if too small/degenerate.
-    diffs = []
-    missing = 0
-    for a, b in zip(x, y):
-        if a is None or b is None:
-            missing += 1
-            continue
-        try:
-            d = float(a) - float(b)
-        except Exception:
-            missing += 1
-            continue
-        if d != 0:
-            diffs.append(d)
+    pairs, missing = _aligned_pairs(x, y)
+    diffs = [a - b for a, b in pairs if a - b != 0]
     n = len(diffs)
     if n < 1:
         return {"test": "wilcoxon_signed_rank", "p_value": None, "statistic": None, "n": n, "missing": missing, "reason": "no_nonzero_differences"}
@@ -357,24 +371,24 @@ def student_t_cdf(t: float, df: float) -> float:
 
 
 def paired_t_test(x: Sequence[Any], y: Sequence[Any]) -> dict[str, Any]:
-    pairs = []
-    missing = 0
-    for a, b in zip(x, y):
-        if a is None or b is None:
-            missing += 1
-            continue
-        try:
-            pairs.append((float(a), float(b)))
-        except Exception:
-            missing += 1
+    pairs, missing = _aligned_pairs(x, y)
     n = len(pairs)
     if n < 2:
         return {"test": "paired_t", "p_value": None, "statistic": None, "df": None, "n": n, "missing": missing, "reason": "insufficient_paired_observations"}
     diffs = [a - b for a, b in pairs]
     mean_d = _mean(diffs)
     sd = _std(diffs)
-    if mean_d is None or sd is None or sd == 0:
-        return {"test": "paired_t", "p_value": None if sd != 0 else 1.0, "statistic": 0.0 if sd == 0 else None, "df": n - 1, "n": n, "missing": missing, "reason": "zero_variance" if sd == 0 else "undefined"}
+    if mean_d is None or sd is None:
+        return {"test": "paired_t", "p_value": None, "statistic": None, "df": n - 1, "n": n, "missing": missing, "reason": "undefined"}
+    if sd == 0:
+        # A constant nonzero difference has an infinite t statistic and a
+        # two-sided p-value of 0.  A constant zero difference gives no evidence
+        # against the null, but the test is degenerate, so the p-value is left
+        # undefined rather than reported as exactly 1.0.
+        if mean_d == 0:
+            return {"test": "paired_t", "p_value": None, "statistic": None, "df": n - 1, "n": n, "missing": missing, "reason": "zero_variance_no_difference"}
+        sign = 1.0 if mean_d > 0 else -1.0
+        return {"test": "paired_t", "p_value": 0.0, "statistic": sign * math.inf, "df": n - 1, "mean_diff": mean_d, "n": n, "missing": missing, "method": "student_t_two_sided", "reason": "zero_variance_nonzero_mean"}
     t = mean_d / (sd / math.sqrt(n))
     df = n - 1
     try:
@@ -386,16 +400,8 @@ def paired_t_test(x: Sequence[Any], y: Sequence[Any]) -> dict[str, Any]:
 
 
 def cohens_d_paired(x: Sequence[Any], y: Sequence[Any]) -> dict[str, Any]:
-    diffs = []
-    missing = 0
-    for a, b in zip(x, y):
-        if a is None or b is None:
-            missing += 1
-            continue
-        try:
-            diffs.append(float(a) - float(b))
-        except Exception:
-            missing += 1
+    pairs, missing = _aligned_pairs(x, y)
+    diffs = [a - b for a, b in pairs]
     n = len(diffs)
     if n < 2:
         return {"effect": "cohens_d_paired", "value": None, "n": n, "missing": missing, "reason": "insufficient_paired_observations"}
@@ -423,16 +429,8 @@ def cliffs_delta(x: Sequence[Any], y: Sequence[Any]) -> dict[str, Any]:
 
 
 def mean_difference_ci(x: Sequence[Any], y: Sequence[Any], *, ci_level: float = 0.95) -> EstimateResult:
-    diffs = []
-    missing = 0
-    for a, b in zip(x, y):
-        if a is None or b is None:
-            missing += 1
-            continue
-        try:
-            diffs.append(float(a) - float(b))
-        except Exception:
-            missing += 1
+    pairs, missing = _aligned_pairs(x, y)
+    diffs = [a - b for a, b in pairs]
     n = len(diffs)
     if n < 2:
         return EstimateResult("mean_difference", _mean(diffs), None, None, ci_level, "t_interval", n, missing, notes=["Insufficient paired observations for CI."])
@@ -476,9 +474,9 @@ def _approx_norm_ppf(p: float) -> float:
 
 
 def holm_bonferroni(p_values: Sequence[float | None], alpha: float = 0.05) -> list[dict[str, Any]]:
-    indexed = [(i, p) for i, p in enumerate(p_values) if p is not None]
+    indexed = [(i, float(p)) for i, p in enumerate(p_values) if not _is_missing(p)]
     m = len(indexed)
-    result: list[dict[str, Any]] = [{"index": i, "p_value": p, "adjusted_p_value": None, "reject": None} for i, p in enumerate(p_values)]
+    result: list[dict[str, Any]] = [{"index": i, "p_value": None if _is_missing(p) else float(p), "adjusted_p_value": None, "reject": None} for i, p in enumerate(p_values)]
     if m == 0:
         return result
     indexed.sort(key=lambda x: x[1])
@@ -493,9 +491,9 @@ def holm_bonferroni(p_values: Sequence[float | None], alpha: float = 0.05) -> li
 
 
 def benjamini_hochberg(p_values: Sequence[float | None], alpha: float = 0.05) -> list[dict[str, Any]]:
-    indexed = [(i, p) for i, p in enumerate(p_values) if p is not None]
+    indexed = [(i, float(p)) for i, p in enumerate(p_values) if not _is_missing(p)]
     m = len(indexed)
-    result: list[dict[str, Any]] = [{"index": i, "p_value": p, "adjusted_p_value": None, "reject": None} for i, p in enumerate(p_values)]
+    result: list[dict[str, Any]] = [{"index": i, "p_value": None if _is_missing(p) else float(p), "adjusted_p_value": None, "reject": None} for i, p in enumerate(p_values)]
     if m == 0:
         return result
     indexed.sort(key=lambda x: x[1])
@@ -561,45 +559,41 @@ def paired_comparison(
     cluster_ids: Sequence[Any] | None = None,
     alpha: float = 0.05,
 ) -> PairedComparisonResult:
-    # values_a - values_b convention for difference? we report a-b
-    diffs_raw = []
-    xs_a, ma = _to_float_list(values_a)
-    xs_b, mb = _to_float_list(values_b)
-    # paired over aligned positions
-    diffs = []
-    missing = 0
-    aligned_clusters = [] if cluster_ids is not None else None
-    for idx, (a, b) in enumerate(zip(values_a, values_b)):
-        if a is None or b is None:
-            missing += 1
-            continue
-        try:
-            d = float(a) - float(b)
-            diffs.append(d)
-            if aligned_clusters is not None and cluster_ids is not None and idx < len(cluster_ids):
-                aligned_clusters.append(cluster_ids[idx])
-        except Exception:
-            missing += 1
+    # Differences use the a - b convention throughout.
+    pairs, missing = _aligned_pairs(values_a, values_b)
+    diffs = [a - b for a, b in pairs]
     n = len(diffs)
+    aligned_clusters: list[Any] | None = None
+    if cluster_ids is not None:
+        if len(cluster_ids) != len(values_a):
+            raise ValueError(
+                "cluster_ids must align one-to-one with values_a; "
+                f"got {len(cluster_ids)} and {len(values_a)}"
+            )
+        aligned_clusters = [
+            cid
+            for a, b, cid in zip(values_a, values_b, cluster_ids, strict=True)
+            if not (_is_missing(a) or _is_missing(b))
+        ]
+    xs_a = [a for a, _ in pairs]
+    xs_b = [b for _, b in pairs]
     assumptions = [c.to_dict() for c in check_paired_assumptions(diffs)]
-    if aligned_clusters is not None and len(aligned_clusters) != n:
-        aligned_clusters = None
-    ci = mean_difference_ci([d for d in diffs], [0.0] * len(diffs), ci_level=ci_level).to_dict() if n else {"estimate": None}
-    # direct diff CI
+    # Direct diff CI via bootstrap (cluster-aware when cluster ids are supplied).
     diff_ci = bootstrap_ci(diffs, ci_level=ci_level, n_boot=n_boot, seed=seed, cluster_ids=aligned_clusters).to_dict()
-    # also compute simple diff CI from diffs
     if n >= 2:
         m = _mean(diffs)
         s = _std(diffs)
         if m is not None and s is not None:
             z = _approx_norm_ppf((1 + ci_level) / 2)
             ci = {"estimate": m, "ci_low": m - z * s / math.sqrt(n), "ci_high": m + z * s / math.sqrt(n), "ci_level": ci_level, "method": "normal_approx_on_differences", "n": n, "missing": missing}
+        else:
+            ci = {"estimate": m, "ci_low": None, "ci_high": None, "ci_level": ci_level, "method": "insufficient", "n": n, "missing": missing}
     else:
         ci = {"estimate": _mean(diffs), "ci_low": None, "ci_high": None, "ci_level": ci_level, "method": "insufficient", "n": n, "missing": missing}
-    t_res = paired_t_test(values_a, values_b)
-    w_res = wilcoxon_signed_rank(values_a, values_b)
-    p_res = paired_permutation_test(values_a, values_b, n_perm=n_perm, seed=seed)
-    d_res = cohens_d_paired(values_a, values_b)
+    t_res = paired_t_test(xs_a, xs_b)
+    w_res = wilcoxon_signed_rank(xs_a, xs_b)
+    p_res = paired_permutation_test(xs_a, xs_b, n_perm=n_perm, seed=seed)
+    d_res = cohens_d_paired(xs_a, xs_b)
     sig = "insufficient_data"
     if p_res.get("p_value") is not None:
         sig = "statistically_significant" if p_res["p_value"] <= alpha else "not_statistically_significant"

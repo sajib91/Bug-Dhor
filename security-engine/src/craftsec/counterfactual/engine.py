@@ -74,7 +74,13 @@ class CounterfactualMetadata:
 
 @dataclass(frozen=True, slots=True)
 class ActivationMeasurement:
-    """Baseline and post-intervention feature values."""
+    """Baseline and *realized* post-intervention feature values.
+
+    ``intervention_values`` are re-encoded from the modified hidden states at
+    the intervention layer.  They are measurements, not the requested target
+    values stored in :class:`CounterfactualMetadata`; the encoder/decoder pair
+    is not an exact inverse, so the two can differ.
+    """
 
     baseline_values: tuple[float, ...]
     intervention_values: tuple[float, ...]
@@ -137,7 +143,17 @@ class CounterfactualEngine:
         self.sae_checkpoint = sae_checkpoint
         self.experiment_id = experiment_id
         self.seed = seed
+        modules = dict(adapter.model.named_modules())
+        if layer not in modules:
+            raise ModelCompatibilityError(f"intervention layer {layer!r} was not found")
+        hidden_size = getattr(getattr(adapter.model, "config", None), "hidden_size", None)
+        if hidden_size is not None and int(hidden_size) != sae.config.input_dim:
+            raise ModelCompatibilityError(
+                "SAE input dimension does not match model hidden size "
+                f"({sae.config.input_dim} != {hidden_size})"
+            )
         self.sae.to(adapter.device)
+        self.sae.eval()
 
     def run(
         self,
@@ -150,7 +166,12 @@ class CounterfactualEngine:
     ) -> CounterfactualResult:
         self._seed()
         generation_config = generation or GenerationConfig()
-        generation_kwargs = generation_config.to_generation_kwargs()
+        generation_kwargs = dict(generation_config.to_generation_kwargs())
+        # The same decoding path must be used for baseline and intervention.
+        # With a KV cache the intervention hook can fire only on the prefill
+        # pass, so causal masking and forward-hook coverage would differ
+        # between conditions.  Disable the cache for both.
+        generation_kwargs["use_cache"] = False
         baseline_activation = self._measure_activation(prompt, spec.feature_index)
         if baseline_activation.shape[-1] != self.sae.config.input_dim:
             raise ModelCompatibilityError("SAE input dimension does not match model layer width")
@@ -163,17 +184,20 @@ class CounterfactualEngine:
         baseline = self._generate(prompt, generation_kwargs)
         baseline_risk = self._evaluate(baseline.text, risk_evaluator, true_vulnerable)
 
+        realized_values: list[torch.Tensor] = []
         with self._intervention_hook(
             spec,
             target_positions,
             sequence_length=baseline_activation.shape[1],
+            realized=realized_values,
         ):
             intervention = self._generate(prompt, generation_kwargs)
         intervention_risk = self._evaluate(intervention.text, risk_evaluator, true_vulnerable)
-        intervention_values = torch.full_like(
-            baseline_values,
-            spec.target_value,
-        )
+        if not realized_values:
+            raise ModelInferenceError(
+                "intervention hook did not produce a realized activation measurement"
+            )
+        intervention_values = realized_values[0]
         measurement = ActivationMeasurement(
             baseline_values=tuple(float(value) for value in baseline_values.cpu()),
             intervention_values=tuple(float(value) for value in intervention_values.cpu()),
@@ -247,11 +271,13 @@ class CounterfactualEngine:
         target_positions: tuple[int, ...],
         *,
         sequence_length: int,
+        realized: list[torch.Tensor],
     ):
         modules = dict(self.adapter.model.named_modules())
         module = modules.get(self.layer)
         if module is None:
             raise ModelCompatibilityError(f"intervention layer {self.layer!r} was not found")
+
         def intervene(_module: Any, _inputs: Any, output: Any) -> Any:
             hidden = output[0] if isinstance(output, (tuple, list)) else output
             if not hasattr(hidden, "ndim") or hidden.ndim != 3:
@@ -265,8 +291,10 @@ class CounterfactualEngine:
             )
             if not positions:
                 return output
-            decoder_direction = self.sae.decoder.weight[:, spec.feature_index].detach().to(
-                hidden.device, hidden.dtype
+            decoder_direction = (
+                self.sae.decoder.weight[:, spec.feature_index]
+                .detach()
+                .to(hidden.device, hidden.dtype)
             )
             baseline_latent = self.sae.feature_activations(
                 hidden.reshape(-1, hidden.shape[-1])
@@ -276,6 +304,16 @@ class CounterfactualEngine:
             ).unsqueeze(-1) * decoder_direction
             modified = hidden.clone()
             modified[:, positions, :] = modified[:, positions, :] + delta
+            if not realized:
+                # Re-encode the modified hidden states to record what the SAE
+                # actually reads after the intervention.  The requested target
+                # value is not assumed to equal the realized latent.
+                realized_latent = self.sae.feature_activations(
+                    modified.reshape(-1, modified.shape[-1])
+                ).reshape(modified.shape[0], modified.shape[1], -1)
+                realized.append(
+                    realized_latent[0, positions, spec.feature_index].detach().cpu()
+                )
             if isinstance(output, tuple):
                 return (modified, *output[1:])
             if isinstance(output, list):

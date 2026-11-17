@@ -35,6 +35,19 @@ from craftsec.counterfactual.pairwise import (
     select_association_pairs,
     select_feature_pairs,
 )
+from craftsec.counterfactual.validation import (
+    BootstrapContrast,
+    StabilitySummary,
+    bootstrap_mean_interval,
+    estimate_factorial_contrast,
+    estimate_higher_order_contrast,
+    estimate_pairwise_contrast,
+    factorial_unit_contrasts,
+    interaction_on_scale,
+    logit,
+    sigmoid,
+    stability_summary,
+)
 
 __all__ = [
     "ActivationMeasurement",
@@ -66,4 +79,15 @@ __all__ = [
     "select_association_pairs",
     "select_feature_pairs",
     "complexity_report",
+    "BootstrapContrast",
+    "StabilitySummary",
+    "bootstrap_mean_interval",
+    "estimate_factorial_contrast",
+    "estimate_higher_order_contrast",
+    "estimate_pairwise_contrast",
+    "factorial_unit_contrasts",
+    "interaction_on_scale",
+    "logit",
+    "sigmoid",
+    "stability_summary",
 ]

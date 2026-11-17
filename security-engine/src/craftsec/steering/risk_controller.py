@@ -411,8 +411,11 @@ def _interaction_contrast(interaction: Any) -> float | None:
     if isinstance(interaction, Mapping):
         value = interaction.get("contrast")
         return float(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
-    estimate = getattr(interaction, "estimate", None)
-    value = getattr(estimate, "contrast", None)
+    # Some records expose the contrast directly; others wrap it in an estimate.
+    value = getattr(interaction, "contrast", None)
+    if value is None:
+        estimate = getattr(interaction, "estimate", None)
+        value = getattr(estimate, "contrast", None)
     return float(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
 
 

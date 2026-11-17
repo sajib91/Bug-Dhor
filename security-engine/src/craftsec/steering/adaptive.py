@@ -275,7 +275,10 @@ class AdaptiveSteeringPolicy:
         if self.config.direction_mode == "negative":
             return -1.0
         difference = association.mean_activation_difference
-        return -1.0 if difference is not None and difference > 0 else 1.0
+        if difference is None or difference == 0:
+            # No measured direction; do not invent an arbitrary steering sign.
+            return 0.0
+        return -1.0 if difference > 0 else 1.0
 
     def _interaction_contributions(
         self, selected: Sequence[int], cwe: str | None
@@ -353,7 +356,7 @@ class AdaptiveSteeringPolicy:
                     feature
                     for feature in selected
                     if abs(activation_map[position].get(feature, 0.0))
-                    >= self.config.activation_threshold
+                    > self.config.activation_threshold
                 )
                 if activation_map is not None
                 else tuple(selected)

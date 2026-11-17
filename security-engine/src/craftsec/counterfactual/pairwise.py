@@ -16,7 +16,7 @@ from typing import Any
 
 import torch
 
-from craftsec.sae.association import FeatureDictionary
+from craftsec.sae.association import FeatureDictionary, association_selectivity
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,15 +123,26 @@ def select_association_pairs(
     top_k: int,
     cwe: str | None = None,
 ) -> tuple[FeaturePair, ...]:
-    """Select pairs from measured association evidence, ranked by selectivity."""
+    """Select pairs from measured association evidence, ranked by selectivity.
+
+    When ``cwe`` is supplied, ranking uses that CWE's own association.  If the
+    CWE subset lacks a two-class contrast, the feature's overall selectivity is
+    used as a documented fallback rather than ranking it as zero evidence.
+    """
     if top_k < 2:
         raise ValueError("top_k must be at least 2")
     candidates = []
     for entry in dictionary.entries:
-        if cwe is not None and cwe not in entry.cwe_associations:
-            continue
-        score = abs(entry.selectivity or 0.0)
-        candidates.append((score, entry.feature_index))
+        if cwe is not None:
+            cwe_association = entry.cwe_associations.get(cwe)
+            if cwe_association is None:
+                continue
+            score = association_selectivity(cwe_association)
+            if score is None:
+                score = entry.selectivity
+        else:
+            score = entry.selectivity
+        candidates.append((abs(score or 0.0), entry.feature_index))
     candidates.sort(key=lambda item: (-item[0], item[1]))
     return tuple(
         FeaturePair(a, b, cwe=cwe)
@@ -258,10 +269,7 @@ def estimate_interaction(
             uncertainty_method="unavailable with fewer than two replicates per cell",
         )
     standard_error = math.sqrt(
-        sum(
-            variance / len(cell.outcomes)
-            for variance, cell in zip(variances, cells, strict=True)
-        )
+        sum(variance / len(cell.outcomes) for variance, cell in zip(variances, cells, strict=True))
     )
     return InteractionEstimate(
         contrast=contrast,
@@ -288,9 +296,7 @@ def rank_interactions(
         sorted(
             results,
             key=lambda result: (
-                -abs(result.estimate.contrast)
-                if absolute
-                else -result.estimate.contrast,
+                -abs(result.estimate.contrast) if absolute else -result.estimate.contrast,
                 result.pair.ordered,
             ),
         )

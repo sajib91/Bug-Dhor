@@ -11,6 +11,7 @@ from craftsec.counterfactual import (  # noqa: E402
     RiskOutcome,
 )
 from craftsec.models.config import GenerationConfig  # noqa: E402
+from craftsec.models.errors import ModelCompatibilityError  # noqa: E402
 from craftsec.sae import SAEConfig, SparseAutoencoder  # noqa: E402
 
 
@@ -102,8 +103,14 @@ def test_counterfactual_preserves_settings_and_separates_output_from_truth() -> 
     )
 
     assert result.metadata.generation_kwargs["max_new_tokens"] == 1
+    assert result.metadata.generation_kwargs["use_cache"] is False
     assert result.metadata.seed == 11
-    assert result.activation.intervention_mean == 0.0
+    # The recorded post-intervention values are re-encoded measurements, not the
+    # requested ablation target, so they are not assumed to be exactly zero.
+    assert result.activation.feature_delta == pytest.approx(
+        result.activation.intervention_mean - result.activation.baseline_mean
+    )
+    assert all(value == value for value in result.activation.intervention_values)
     assert result.comparison.baseline_risk.true_vulnerable is False
     assert result.comparison.intervention_risk.true_vulnerable is False
     assert result.comparison.true_vulnerability_status_unchanged
@@ -123,3 +130,22 @@ def test_modify_requires_value_and_invalid_feature_is_rejected() -> None:
     )
     with pytest.raises(ValueError, match="feature_index"):
         engine.run("x", CounterfactualSpec(feature_index=2, mode="ablate"))
+
+
+def test_invalid_layer_and_incompatible_sae_are_rejected() -> None:
+    with pytest.raises(ModelCompatibilityError, match="intervention layer"):
+        CounterfactualEngine(
+            TinyAdapter(),
+            SparseAutoencoder(SAEConfig(input_dim=8, latent_dim=2)),
+            layer="transformer.h.99",
+            sae_checkpoint="sae.pt",
+            experiment_id="test",
+        )
+    with pytest.raises(ModelCompatibilityError, match="hidden size"):
+        CounterfactualEngine(
+            TinyAdapter(),
+            SparseAutoencoder(SAEConfig(input_dim=7, latent_dim=2)),
+            layer="transformer.h.0",
+            sae_checkpoint="sae.pt",
+            experiment_id="test",
+        )
