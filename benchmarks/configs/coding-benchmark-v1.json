@@ -1,0 +1,154 @@
+{
+  "name": "Bug Dhor realistic AI-assisted coding benchmark",
+  "version": "1.0.0",
+  "datasetCard": "../datasets/coding-tasks-v1.json",
+  "modelBinding": {
+    "bindingId": "primary",
+    "providerKind": "local-hugging-face",
+    "modelId": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "registryKey": "qwen2.5-coder-7b-instruct",
+    "revision": null,
+    "resolvedRevision": null,
+    "exactVersionRecordedAtRuntime": true
+  },
+  "tasks": [
+    "auth-001.json",
+    "rest-api-001.json",
+    "database-query-001.json",
+    "file-upload-001.json",
+    "input-processing-001.json",
+    "command-execution-001.json",
+    "web-app-001.json",
+    "authorization-001.json",
+    "cryptography-001.json",
+    "repository-modification-001.json"
+  ],
+  "conditions": [
+    {
+      "id": "E0",
+      "name": "Original AI-generated code",
+      "experimentGroup": "E0",
+      "promptSuffix": "",
+      "features": []
+    },
+    {
+      "id": "E1",
+      "name": "Security-prompted generation",
+      "experimentGroup": "E1",
+      "promptSuffix": " Write the code defensively and avoid common implementation mistakes that could allow untrusted input to affect privileged operations.",
+      "features": ["secure_prompt"]
+    },
+    {
+      "id": "E2",
+      "name": "AI generation plus static analysis",
+      "experimentGroup": "E2",
+      "promptSuffix": "",
+      "features": ["static_analysis"]
+    },
+    {
+      "id": "E3",
+      "name": "AI generation plus single-feature steering",
+      "experimentGroup": "E3",
+      "promptSuffix": "",
+      "features": ["single_feature_steering"]
+    },
+    {
+      "id": "E4",
+      "name": "AI generation plus multi-feature analysis",
+      "experimentGroup": "E4",
+      "promptSuffix": "",
+      "features": ["sae_feature_analysis", "unified_risk"]
+    },
+    {
+      "id": "E5",
+      "name": "AI generation plus interaction-aware steering",
+      "experimentGroup": "E5",
+      "promptSuffix": "",
+      "features": ["counterfactual_interaction_analysis", "interaction_aware_steering"]
+    },
+    {
+      "id": "E6",
+      "name": "Automated proposal-only repair",
+      "experimentGroup": "E6",
+      "promptSuffix": "",
+      "features": ["automated_repair"]
+    },
+    {
+      "id": "E7",
+      "name": "Full Bug Dhor workflow",
+      "experimentGroup": "E8",
+      "promptSuffix": "",
+      "features": [
+        "secure_prompt",
+        "static_analysis",
+        "program_analysis",
+        "sae_feature_analysis",
+        "counterfactual_interaction_analysis",
+        "unified_risk",
+        "adaptive_decision",
+        "interaction_aware_steering",
+        "automated_repair",
+        "independent_verification"
+      ]
+    }
+  ],
+  "metrics": [
+    "vulnerability_detection_precision",
+    "vulnerability_detection_recall",
+    "false_positive_rate",
+    "cwe_classification_accuracy",
+    "vulnerability_localization_exact_match",
+    "vulnerability_localization_line_precision",
+    "vulnerability_localization_line_recall",
+    "verified_repair_success_rate",
+    "functional_test_pass_rate",
+    "security_regression_rate",
+    "analysis_latency_ms",
+    "computational_overhead_ms"
+  ],
+  "runtime": {
+    "providerConfiguredByEnv": [
+      "BUGDHOR_BENCHMARK_MODEL_PATH",
+      "BUGDHOR_BENCHMARK_MODEL_REVISION"
+    ],
+    "sandboxConfiguredByEnv": [
+      "BUGDHOR_BENCHMARK_SANDBOX_PROFILE"
+    ],
+    "executor": "registered_by_host"
+  },
+  "controls": {
+    "splitStrategy": "repository_level",
+    "trials": 3,
+    "seeds": [11, 23, 37],
+    "groundTruthHiddenFromPrompt": true,
+    "oracleLabelsUsedOnlyForScoring": true,
+    "independentVerificationRequired": true,
+    "sandboxRequiredForExecutionScoring": true,
+    "functionalScoringWithoutSandbox": "not_run",
+    "repeatedTrialsRequired": true
+  },
+  "analyzers": {
+    "detector": "bugdhor.core.orchestrator.scan",
+    "detectorVersion": "0.1.0",
+    "rulePackHash": null,
+    "repairVersion": "0.1.0",
+    "verificationVersion": "0.1.0"
+  },
+  "evidenceRequirements": [
+    "original_prompt",
+    "original_generated_code",
+    "detector_raw_output",
+    "repair_proposal",
+    "functional_test_output",
+    "independent_verification_output",
+    "model_metadata",
+    "config_hash"
+  ],
+  "_documentation": {
+    "purpose": "Pinned protocol for a future executed benchmark. No results are bundled with this config.",
+    "conditionMapping": "E7 is the user-facing full-workflow condition and maps to the existing E8 experiment group to avoid changing the published E0-E8 registry.",
+    "noLeakage": "Task prompts are stored separately from groundTruth. The harness refuses to run when a prompt contains a forbidden ground-truth term.",
+    "noFabrication": "Every metric is null and marked measured=false until a real provider run produces the required evidence.",
+    "sandbox": "Execution-based functional and verification scores stay not_run without an explicitly configured sandbox."
+  }
+}

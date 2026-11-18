@@ -56,6 +56,8 @@ research/experiments/runs/
 research/experiments/exports/
 benchmarks/datasets/*
 !benchmarks/datasets/.gitkeep
+# Keep the benchmark dataset card trackable; data blobs stay ignored.
+!benchmarks/datasets/coding-tasks-v1.json
 benchmarks/results/*
 !benchmarks/results/.gitkeep
 

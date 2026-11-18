@@ -510,6 +510,7 @@ Evaluation datasets must be licensed, versioned, and hashed. If a dataset cannot
 | LIM-RISK-02 | No labelled security dataset or validated calibration artifact ships; default weights are a neutral prior, not experimental findings | `bugdhor.risk`, `research/configs/risk/*` | Placeholder dataset config + acceptance gates + config hash |
 | LIM-RISK-03 | Dependency-group assumptions may be wrong for a given codebase; SAE/counterfactual evidence is low-strength and non-causal | `bugdhor.risk` | Declared groups + reliability weights + excluded-evidence reasons + hypothesis claim kind |
 | LIM-DEC-01 | Advisory decisions are not optimal decisions; adaptive ranking uses declared preferences and is not learned | `bugdhor.decision` | Objective string + utility basis + trace + `docs/adaptive-decision-policy.md` |
+| LIM-COMPAT-01 | Local 0.5B checkpoints used in compatibility probes are research targets, not registered production adapters | Model compatibility testing | Capability report target IDs, runtime field, and `docs/model-compatibility-testing.md` |
 
 Each limitation ID must appear in the relevant module's documentation and, where user-visible, in the UI.
 

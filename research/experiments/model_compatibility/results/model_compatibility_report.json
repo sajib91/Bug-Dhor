@@ -1,0 +1,1291 @@
+{
+  "assistantIntegrations": [
+    {
+      "declaredCapabilities": {
+        "A": "supported",
+        "B": "not-supported",
+        "C": "not-supported",
+        "D": "not-supported",
+        "E": "not-supported",
+        "F": "not-supported"
+      },
+      "discoveredCapabilities": [],
+      "evidence": {
+        "missingEnvVarNames": [],
+        "requiresHost": true
+      },
+      "label": "VS Code editor monitoring",
+      "providerKind": "editor",
+      "reason": "no VS Code host is available to the CLI runner",
+      "status": "unavailable",
+      "targetId": "assistant-editor"
+    },
+    {
+      "declaredCapabilities": {
+        "A": "editor-fallback",
+        "B": "conditional",
+        "C": "conditional",
+        "D": "not-supported",
+        "E": "not-supported",
+        "F": "not-supported"
+      },
+      "discoveredCapabilities": [],
+      "evidence": {
+        "missingEnvVarNames": [],
+        "requiresHost": true
+      },
+      "label": "VS Code Language Model API",
+      "providerKind": "vscode-language-model",
+      "reason": "no VS Code host is available to the CLI runner",
+      "status": "unavailable",
+      "targetId": "assistant-vscode-language-model"
+    },
+    {
+      "declaredCapabilities": {
+        "A": "editor-fallback",
+        "B": "conditional",
+        "C": "conditional",
+        "D": "not-supported",
+        "E": "not-supported",
+        "F": "not-supported"
+      },
+      "discoveredCapabilities": [],
+      "evidence": {
+        "missingEnvVarNames": [
+          "BUGDHOR_LLM_API_KEY",
+          "BUGDHOR_BENCHMARK_ENDPOINT"
+        ],
+        "requiresHost": true
+      },
+      "label": "OpenAI-compatible endpoint",
+      "providerKind": "openai-compatible",
+      "reason": "no VS Code host is available to the CLI runner; missing BUGDHOR_LLM_API_KEY, BUGDHOR_BENCHMARK_ENDPOINT",
+      "status": "unavailable",
+      "targetId": "assistant-openai-compatible"
+    },
+    {
+      "declaredCapabilities": {
+        "A": "editor-fallback",
+        "B": "conditional",
+        "C": "conditional",
+        "D": "conditional",
+        "E": "conditional",
+        "F": "conditional"
+      },
+      "discoveredCapabilities": [],
+      "evidence": {
+        "missingEnvVarNames": [
+          "BUGDHOR_BENCHMARK_MODEL_PATH"
+        ],
+        "requiresHost": true
+      },
+      "label": "Direct local Hugging Face model",
+      "providerKind": "local-hugging-face",
+      "reason": "no VS Code host is available to the CLI runner; missing BUGDHOR_BENCHMARK_MODEL_PATH",
+      "status": "unavailable",
+      "targetId": "assistant-local-hugging-face"
+    },
+    {
+      "declaredCapabilities": {
+        "A": "editor-fallback",
+        "B": "conditional",
+        "C": "conditional",
+        "D": "conditional",
+        "E": "conditional",
+        "F": "conditional"
+      },
+      "discoveredCapabilities": [],
+      "evidence": {
+        "missingEnvVarNames": [
+          "BUGDHOR_BENCHMARK_EXTENSION_MANIFEST"
+        ],
+        "requiresHost": true
+      },
+      "label": "Official extension-specific API",
+      "providerKind": "extension-api",
+      "reason": "no VS Code host is available to the CLI runner; missing BUGDHOR_BENCHMARK_EXTENSION_MANIFEST",
+      "status": "unavailable",
+      "targetId": "assistant-extension-api"
+    }
+  ],
+  "claimBoundary": "Only capabilities with concrete probe evidence are reported as supported. Generation fluency is not security accuracy; model-internal effects are not real-world causal effects; hosted providers expose no internals.",
+  "configHash": "10b8282eac8a9c104fd8bdfb0b936078f3f2021e0868fcdc92c31472e8d1d540",
+  "environment": {
+    "cpuCount": 10,
+    "cudaAvailable": false,
+    "declaredDevice": "cpu",
+    "declaredDtype": "float32",
+    "machine": "arm64",
+    "mpsAvailable": true,
+    "platform": "macOS-26.3.1-arm64-arm-64bit",
+    "pythonVersion": "3.11.14",
+    "torchVersion": "2.15.0",
+    "transformersVersion": "5.22.2"
+  },
+  "generatedAt": "2026-11-18T09:01:49.486957Z",
+  "gitCommit": "332814d7f8a14d285c17e30ff4dba8b98db24448",
+  "limitations": [
+    "LIM-SAE-01: SAE features are tied to one model revision, layer, and hook point.",
+    "LIM-CF-01: activation interventions are off-distribution and may be invalid.",
+    "LIM-CF-03: model-internal effects are not real-world causal effects.",
+    "LIM-STEER-01: steering may degrade capability or fluency.",
+    "LIM-REPRO-01: hardware/library nondeterminism limits exact reproduction.",
+    "LIM-ENV-01: hosted providers expose no model internals.",
+    "LIM-COMPAT-01: local 0.5B checkpoints are research probes and are not registered production adapters."
+  ],
+  "models": [
+    {
+      "activationAccess": "unavailable",
+      "architecture": null,
+      "availableLayers": null,
+      "checkpointIdentifier": "meta-llama/Llama-3.1-8B-Instruct",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation"
+      ],
+      "hardwareRequirements": {},
+      "inferenceLimitations": [
+        "registered checkpoint_not_present in local Hugging Face cache"
+      ],
+      "name": "Llama 3.1 8B Instruct",
+      "probes": [
+        {
+          "capability": "code_generation",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "code_analysis",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "secure_code_generation",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "activation_extraction",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "sae_compatibility",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "counterfactual_intervention",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "activation_steering",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "token_level_intervention",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "output_reproducibility",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "hardware_inference_limits",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        }
+      ],
+      "providerIdentifier": null,
+      "revision": null,
+      "runtime": "bugdhor_adapter",
+      "saeCompatibility": "unavailable",
+      "steeringCompatibility": "unavailable",
+      "targetId": "registered-llama-3.1-8b-instruct",
+      "tokenizer": null,
+      "version": null
+    },
+    {
+      "activationAccess": "unavailable",
+      "architecture": null,
+      "availableLayers": null,
+      "checkpointIdentifier": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation"
+      ],
+      "hardwareRequirements": {},
+      "inferenceLimitations": [
+        "registered checkpoint_not_present in local Hugging Face cache"
+      ],
+      "name": "Qwen2.5-Coder 7B Instruct",
+      "probes": [
+        {
+          "capability": "code_generation",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "code_analysis",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "secure_code_generation",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "activation_extraction",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "sae_compatibility",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "counterfactual_intervention",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "activation_steering",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "token_level_intervention",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "output_reproducibility",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "hardware_inference_limits",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        }
+      ],
+      "providerIdentifier": null,
+      "revision": null,
+      "runtime": "bugdhor_adapter",
+      "saeCompatibility": "unavailable",
+      "steeringCompatibility": "unavailable",
+      "targetId": "registered-qwen2.5-coder-7b-instruct",
+      "tokenizer": null,
+      "version": null
+    },
+    {
+      "activationAccess": "unavailable",
+      "architecture": null,
+      "availableLayers": null,
+      "checkpointIdentifier": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation"
+      ],
+      "hardwareRequirements": {},
+      "inferenceLimitations": [
+        "registered checkpoint_not_present in local Hugging Face cache"
+      ],
+      "name": "DeepSeek-Coder 6.7B Instruct",
+      "probes": [
+        {
+          "capability": "code_generation",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "code_analysis",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "secure_code_generation",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "activation_extraction",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "sae_compatibility",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "counterfactual_intervention",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "activation_steering",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "token_level_intervention",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "output_reproducibility",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        },
+        {
+          "capability": "hardware_inference_limits",
+          "claimKind": null,
+          "evidence": {},
+          "limitations": [],
+          "reason": "registered checkpoint_not_present in local Hugging Face cache",
+          "status": "unavailable"
+        }
+      ],
+      "providerIdentifier": null,
+      "revision": null,
+      "runtime": "bugdhor_adapter",
+      "saeCompatibility": "unavailable",
+      "steeringCompatibility": "unavailable",
+      "targetId": "registered-deepseek-coder-6.7b-instruct",
+      "tokenizer": null,
+      "version": null
+    },
+    {
+      "activationAccess": "supported",
+      "architecture": "Qwen2ForCausalLM",
+      "availableLayers": [
+        "model.layers.0",
+        "model.layers.1",
+        "model.layers.2",
+        "model.layers.3",
+        "model.layers.4",
+        "model.layers.5",
+        "model.layers.6",
+        "model.layers.7",
+        "model.layers.8",
+        "model.layers.9",
+        "model.layers.10",
+        "model.layers.11",
+        "model.layers.12",
+        "model.layers.13",
+        "model.layers.14",
+        "model.layers.15",
+        "model.layers.16",
+        "model.layers.17",
+        "model.layers.18",
+        "model.layers.19",
+        "model.layers.20",
+        "model.layers.21",
+        "model.layers.22",
+        "model.layers.23"
+      ],
+      "checkpointIdentifier": "Qwen/Qwen2.5-Coder-0.5B",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation",
+        "activation_extraction"
+      ],
+      "hardwareRequirements": {
+        "architecture": [
+          "Qwen2ForCausalLM"
+        ],
+        "cudaAvailable": false,
+        "declaredDevice": "cpu",
+        "discoveredLayerCount": 24,
+        "discoveredLayers": [
+          "model.layers.0",
+          "model.layers.1",
+          "model.layers.2",
+          "model.layers.3",
+          "model.layers.4",
+          "model.layers.5",
+          "model.layers.6",
+          "model.layers.7",
+          "model.layers.8",
+          "model.layers.9",
+          "model.layers.10",
+          "model.layers.11",
+          "model.layers.12",
+          "model.layers.13",
+          "model.layers.14",
+          "model.layers.15",
+          "model.layers.16",
+          "model.layers.17",
+          "model.layers.18",
+          "model.layers.19",
+          "model.layers.20",
+          "model.layers.21",
+          "model.layers.22",
+          "model.layers.23"
+        ],
+        "hiddenSize": 896,
+        "loadMs": 2081.63,
+        "modelBytes": 999586167,
+        "mpsAvailable": true,
+        "observedDevice": "cpu",
+        "observedDtype": "float32",
+        "peakRssMb": 1657.3,
+        "selectedLayer": "model.layers.4",
+        "tokenizerClass": "Qwen2Tokenizer",
+        "torchVersion": "2.15.0"
+      },
+      "inferenceLimitations": [
+        "Generation probes measure output production, not code correctness or security.",
+        "SAE features are tied to one model revision, layer, and hook point.",
+        "Counterfactual and steering effects are model-internal, not real-world causal effects.",
+        "Hosted providers expose no model internals and are not probed by this module."
+      ],
+      "name": "Qwen2.5-Coder 0.5B",
+      "probes": [
+        {
+          "capability": "code_generation",
+          "claimKind": "observation",
+          "evidence": {
+            "elapsedMs": 2341.11,
+            "generatedTokens": 64,
+            "parsedJson": null,
+            "preview": " The function should also remove any leading or trailing whitespace from the input text. The function should handle any non-alphanumeric characters and non-ASCII characters, and should not modify the original text. The function should also ",
+            "promptTokens": 31,
+            "textSha256": "b611bab878a5875e480c508895ea9863f5c00ded8b30f7846d8c0fd6d6b49aa1"
+          },
+          "limitations": [
+            "Text production does not establish code correctness, security, or semantic quality."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "code_analysis",
+          "claimKind": "observation",
+          "evidence": {
+            "elapsedMs": 2064.66,
+            "generatedTokens": 64,
+            "parsedJson": false,
+            "preview": " def is_safe(path): with open(path) as f: return f.read() == read(path) def main(): print(is_safe('test.txt')) print(is_safe('test2.txt')) print(is_safe('test3.txt')) print(is_safe('test4.txt')) print(is_safe('test5.txt')) print(is",
+            "promptTokens": 31,
+            "textSha256": "5844cf8aa60a9e819b1d34ee603c719d89006890501abdeae66f5a829d8c5412"
+          },
+          "limitations": [
+            "Text production does not establish code correctness, security, or semantic quality."
+          ],
+          "reason": "generated text was not valid JSON; format compliance is not established",
+          "status": "partial"
+        },
+        {
+          "capability": "secure_code_generation",
+          "claimKind": "observation",
+          "evidence": {
+            "elapsedMs": 2037.52,
+            "generatedTokens": 64,
+            "parsedJson": null,
+            "preview": " The function should also handle the case where the file is not found and return an appropriate error message. The function should also handle the case where the file is not readable and return an appropriate error message. The function sho",
+            "promptTokens": 37,
+            "textSha256": "c6ce2e4df53ef34f5fbf7a10ac4839c8dc62f3fb475e4a815403c2bd65d3b72d"
+          },
+          "limitations": [
+            "Text production does not establish code correctness, security, or semantic quality."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "activation_extraction",
+          "claimKind": "observation",
+          "evidence": {
+            "device": "cpu",
+            "dtype": "float32",
+            "layer": "model.layers.4",
+            "provenance": {
+              "batch_size": 1,
+              "device": "cpu",
+              "dtype": "torch.float32",
+              "hidden_size": 896,
+              "layer_names": [
+                "model.layers.4"
+              ],
+              "model_id": "Qwen/Qwen2.5-Coder-0.5B",
+              "model_version": "8123ea2e9354afb7ffcc6c8641d1b2f5ecf18301",
+              "tokenizer_id": "/Users/md.khayrulislamsajib/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots/8123ea2e9354afb7ffcc6c8641d1b2f5ecf18301",
+              "tokenizer_version": "unknown"
+            },
+            "requiresGrad": false,
+            "shape": [
+              1,
+              31,
+              896
+            ]
+          },
+          "limitations": [
+            "Activation presence does not imply semantic feature validity."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "sae_compatibility",
+          "claimKind": "computed",
+          "evidence": {
+            "artifactId": "qwen05b-base-layer4",
+            "configHash": "505c04af9a2a72f51dcb0f71a455111ed096ce4a13f67de5e7f1452c760e4f12",
+            "declaredHookPoint": "residual_stream",
+            "decoderShape": [
+              896,
+              1792
+            ],
+            "finiteDecoder": true,
+            "hiddenSize": 896,
+            "inputDim": 896,
+            "latentDim": 1792,
+            "path": "/Users/md.khayrulislamsajib/Downloads/Bug-Dhor/research/experiments/counterfactual_validation/artifacts/base_layer4.pt",
+            "sha256": "3335632d561f63a16da2d3cccfc22cb34c863e2c6eb57c3318a2f85fa2a3b50f"
+          },
+          "limitations": [
+            "Checkpoint validation covers config hash, input dimension, and finite weights.",
+            "Hook point is declared by the config; the checkpoint format does not embed it.",
+            "LIM-SAE-01: features are tied to one model revision, layer, and hook."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "counterfactual_intervention",
+          "claimKind": "hypothesis",
+          "evidence": {
+            "baselineValues": [
+              0.0
+            ],
+            "experimentId": "compat-local-qwen2.5-coder-0.5b-base",
+            "featureDelta": 0.0,
+            "featureIndex": 0,
+            "interventionValues": [
+              0.0
+            ],
+            "layer": "model.layers.4",
+            "mode": "ablate",
+            "outputChanged": false,
+            "targetPositions": [
+              0
+            ]
+          },
+          "limitations": [
+            "LIM-CF-01",
+            "LIM-CF-03"
+          ],
+          "reason": "Controlled activation comparison only; no causal claim.",
+          "status": "supported"
+        },
+        {
+          "capability": "token_level_intervention",
+          "claimKind": "computed",
+          "evidence": {
+            "baselineValues": [
+              0.0
+            ],
+            "interventionValues": [
+              0.0
+            ],
+            "measuredValues": 1,
+            "recordedPositions": [
+              0
+            ],
+            "requestedPositions": [
+              0
+            ]
+          },
+          "limitations": [
+            "HTTP schemas do not expose arbitrary token positions."
+          ],
+          "reason": "Position-indexed intervention with measured post-intervention values.",
+          "status": "supported"
+        },
+        {
+          "capability": "activation_steering",
+          "claimKind": "hypothesis",
+          "evidence": {
+            "activationDeltas": [
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669,
+              0.4199439287185669
+            ],
+            "compatible": true,
+            "enabled": true,
+            "finite": true,
+            "layer": "model.layers.4",
+            "maxDeltaNorm": 0.4199439287185669,
+            "outputChanged": false,
+            "shapeValid": true
+          },
+          "limitations": [
+            "LIM-STEER-01",
+            "LIM-STEER-02"
+          ],
+          "reason": "Steering changes output behavior; it does not establish a security gain.",
+          "status": "supported"
+        },
+        {
+          "capability": "output_reproducibility",
+          "claimKind": "observation",
+          "evidence": {
+            "determinismTier": "seeded",
+            "device": "cpu",
+            "doSample": false,
+            "identical": true,
+            "outputHashes": [
+              "b611bab878a5875e480c508895ea9863f5c00ded8b30f7846d8c0fd6d6b49aa1",
+              "b611bab878a5875e480c508895ea9863f5c00ded8b30f7846d8c0fd6d6b49aa1"
+            ]
+          },
+          "limitations": [
+            "This result does not establish determinism on other hardware or library versions."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "hardware_inference_limits",
+          "claimKind": "observation",
+          "evidence": {
+            "architecture": [
+              "Qwen2ForCausalLM"
+            ],
+            "cudaAvailable": false,
+            "declaredDevice": "cpu",
+            "discoveredLayerCount": 24,
+            "discoveredLayers": [
+              "model.layers.0",
+              "model.layers.1",
+              "model.layers.2",
+              "model.layers.3",
+              "model.layers.4",
+              "model.layers.5",
+              "model.layers.6",
+              "model.layers.7",
+              "model.layers.8",
+              "model.layers.9",
+              "model.layers.10",
+              "model.layers.11",
+              "model.layers.12",
+              "model.layers.13",
+              "model.layers.14",
+              "model.layers.15",
+              "model.layers.16",
+              "model.layers.17",
+              "model.layers.18",
+              "model.layers.19",
+              "model.layers.20",
+              "model.layers.21",
+              "model.layers.22",
+              "model.layers.23"
+            ],
+            "hiddenSize": 896,
+            "loadMs": 2081.63,
+            "modelBytes": 999586167,
+            "mpsAvailable": true,
+            "observedDevice": "cpu",
+            "observedDtype": "float32",
+            "peakRssMb": 1657.3,
+            "selectedLayer": "model.layers.4",
+            "tokenizerClass": "Qwen2Tokenizer",
+            "torchVersion": "2.15.0"
+          },
+          "limitations": [
+            "Production DevicePreference has no MPS option; these direct probes use CPU.",
+            "gpu_concurrency is configured but not enforced by the production runtime."
+          ],
+          "reason": "Measured from the loaded checkpoint and host runtime.",
+          "status": "supported"
+        }
+      ],
+      "providerIdentifier": null,
+      "revision": "8123ea2e9354afb7ffcc6c8641d1b2f5ecf18301",
+      "runtime": "transformers_direct",
+      "saeCompatibility": "supported",
+      "steeringCompatibility": "supported",
+      "targetId": "local-qwen2.5-coder-0.5b-base",
+      "tokenizer": "Qwen2Tokenizer",
+      "version": null
+    },
+    {
+      "activationAccess": "supported",
+      "architecture": "Qwen2ForCausalLM",
+      "availableLayers": [
+        "model.layers.0",
+        "model.layers.1",
+        "model.layers.2",
+        "model.layers.3",
+        "model.layers.4",
+        "model.layers.5",
+        "model.layers.6",
+        "model.layers.7",
+        "model.layers.8",
+        "model.layers.9",
+        "model.layers.10",
+        "model.layers.11",
+        "model.layers.12",
+        "model.layers.13",
+        "model.layers.14",
+        "model.layers.15",
+        "model.layers.16",
+        "model.layers.17",
+        "model.layers.18",
+        "model.layers.19",
+        "model.layers.20",
+        "model.layers.21",
+        "model.layers.22",
+        "model.layers.23"
+      ],
+      "checkpointIdentifier": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation",
+        "activation_extraction"
+      ],
+      "hardwareRequirements": {
+        "architecture": [
+          "Qwen2ForCausalLM"
+        ],
+        "cudaAvailable": false,
+        "declaredDevice": "cpu",
+        "discoveredLayerCount": 24,
+        "discoveredLayers": [
+          "model.layers.0",
+          "model.layers.1",
+          "model.layers.2",
+          "model.layers.3",
+          "model.layers.4",
+          "model.layers.5",
+          "model.layers.6",
+          "model.layers.7",
+          "model.layers.8",
+          "model.layers.9",
+          "model.layers.10",
+          "model.layers.11",
+          "model.layers.12",
+          "model.layers.13",
+          "model.layers.14",
+          "model.layers.15",
+          "model.layers.16",
+          "model.layers.17",
+          "model.layers.18",
+          "model.layers.19",
+          "model.layers.20",
+          "model.layers.21",
+          "model.layers.22",
+          "model.layers.23"
+        ],
+        "hiddenSize": 896,
+        "loadMs": 1083.51,
+        "modelBytes": 999586348,
+        "mpsAvailable": true,
+        "observedDevice": "cpu",
+        "observedDtype": "float32",
+        "peakRssMb": 2682.27,
+        "selectedLayer": "model.layers.4",
+        "tokenizerClass": "Qwen2Tokenizer",
+        "torchVersion": "2.15.0"
+      },
+      "inferenceLimitations": [
+        "Generation probes measure output production, not code correctness or security.",
+        "SAE features are tied to one model revision, layer, and hook point.",
+        "Counterfactual and steering effects are model-internal, not real-world causal effects.",
+        "Hosted providers expose no model internals and are not probed by this module."
+      ],
+      "name": "Qwen2.5-Coder 0.5B Instruct",
+      "probes": [
+        {
+          "capability": "code_generation",
+          "claimKind": "observation",
+          "evidence": {
+            "elapsedMs": 2203.95,
+            "generatedTokens": 64,
+            "parsedJson": null,
+            "preview": " Here's an example:\n\n```python\ndef slugify(text):\n    \"\"\"\n    Convert text to lowercase and replace sequences of non-alphanumeric characters with a single hyphen.\n    \n    Args:\n    text (str): The input string to be slugified.\n    \n    Ret",
+            "promptTokens": 31,
+            "textSha256": "9d7a550e9a0a0c2f1e4dbabbeb426954a46f275790f4ed014a3ceace7053ea3b"
+          },
+          "limitations": [
+            "Text production does not establish code correctness, security, or semantic quality."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "code_analysis",
+          "claimKind": "observation",
+          "evidence": {
+            "elapsedMs": 2030.52,
+            "generatedTokens": 64,
+            "parsedJson": false,
+            "preview": " is_safe = True if path.is_file() else False if path.is_dir() else False if path.exists() else False if path.is_symlink() else False if path.is_executable() else False if path.is_regular() else False if path.is_block_device() else False if ",
+            "promptTokens": 31,
+            "textSha256": "92846b5d4fc5999b92a874e9720a827c2951adf9e152a01ba279d897d443b306"
+          },
+          "limitations": [
+            "Text production does not establish code correctness, security, or semantic quality."
+          ],
+          "reason": "generated text was not valid JSON; format compliance is not established",
+          "status": "partial"
+        },
+        {
+          "capability": "secure_code_generation",
+          "claimKind": "observation",
+          "evidence": {
+            "elapsedMs": 2048.95,
+            "generatedTokens": 64,
+            "parsedJson": null,
+            "preview": " Here's an example of how you might implement this:\n\n```python\nimport os\n\ndef read_text(path):\n    if not os.path.exists(path):\n        raise ValueError(\"Path does not exist\")\n    with open(path, 'r', encoding='utf-8') as file:\n        retu",
+            "promptTokens": 37,
+            "textSha256": "f01009a50c6c861de206179a43fd0fc5439b02140ef671fd983247dc93dfcb4a"
+          },
+          "limitations": [
+            "Text production does not establish code correctness, security, or semantic quality."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "activation_extraction",
+          "claimKind": "observation",
+          "evidence": {
+            "device": "cpu",
+            "dtype": "float32",
+            "layer": "model.layers.4",
+            "provenance": {
+              "batch_size": 1,
+              "device": "cpu",
+              "dtype": "torch.float32",
+              "hidden_size": 896,
+              "layer_names": [
+                "model.layers.4"
+              ],
+              "model_id": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+              "model_version": "ea3f2471cf1b1f0db85067f1ef93848e38e88c25",
+              "tokenizer_id": "/Users/md.khayrulislamsajib/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B-Instruct/snapshots/ea3f2471cf1b1f0db85067f1ef93848e38e88c25",
+              "tokenizer_version": "unknown"
+            },
+            "requiresGrad": false,
+            "shape": [
+              1,
+              31,
+              896
+            ]
+          },
+          "limitations": [
+            "Activation presence does not imply semantic feature validity."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "sae_compatibility",
+          "claimKind": "computed",
+          "evidence": {
+            "artifactId": "qwen05b-instruct-layer4",
+            "configHash": "505c04af9a2a72f51dcb0f71a455111ed096ce4a13f67de5e7f1452c760e4f12",
+            "declaredHookPoint": "residual_stream",
+            "decoderShape": [
+              896,
+              1792
+            ],
+            "finiteDecoder": true,
+            "hiddenSize": 896,
+            "inputDim": 896,
+            "latentDim": 1792,
+            "path": "/Users/md.khayrulislamsajib/Downloads/Bug-Dhor/research/experiments/counterfactual_validation/artifacts/instruct_layer4.pt",
+            "sha256": "647f93b9fcca16a82c13ad350a8b686fa121f3c98488a3b9533ea64b93a0aa41"
+          },
+          "limitations": [
+            "Checkpoint validation covers config hash, input dimension, and finite weights.",
+            "Hook point is declared by the config; the checkpoint format does not embed it.",
+            "LIM-SAE-01: features are tied to one model revision, layer, and hook."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "counterfactual_intervention",
+          "claimKind": "hypothesis",
+          "evidence": {
+            "baselineValues": [
+              58.012046813964844
+            ],
+            "experimentId": "compat-local-qwen2.5-coder-0.5b-instruct",
+            "featureDelta": -0.3980903625488281,
+            "featureIndex": 0,
+            "interventionValues": [
+              57.613956451416016
+            ],
+            "layer": "model.layers.4",
+            "mode": "ablate",
+            "outputChanged": false,
+            "targetPositions": [
+              0
+            ]
+          },
+          "limitations": [
+            "LIM-CF-01",
+            "LIM-CF-03"
+          ],
+          "reason": "Controlled activation comparison only; no causal claim.",
+          "status": "supported"
+        },
+        {
+          "capability": "token_level_intervention",
+          "claimKind": "computed",
+          "evidence": {
+            "baselineValues": [
+              58.012046813964844
+            ],
+            "interventionValues": [
+              57.613956451416016
+            ],
+            "measuredValues": 1,
+            "recordedPositions": [
+              0
+            ],
+            "requestedPositions": [
+              0
+            ]
+          },
+          "limitations": [
+            "HTTP schemas do not expose arbitrary token positions."
+          ],
+          "reason": "Position-indexed intervention with measured post-intervention values.",
+          "status": "supported"
+        },
+        {
+          "capability": "activation_steering",
+          "claimKind": "hypothesis",
+          "evidence": {
+            "activationDeltas": [
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338,
+              0.20604649186134338
+            ],
+            "compatible": true,
+            "enabled": true,
+            "finite": true,
+            "layer": "model.layers.4",
+            "maxDeltaNorm": 0.20604649186134338,
+            "outputChanged": false,
+            "shapeValid": true
+          },
+          "limitations": [
+            "LIM-STEER-01",
+            "LIM-STEER-02"
+          ],
+          "reason": "Steering changes output behavior; it does not establish a security gain.",
+          "status": "supported"
+        },
+        {
+          "capability": "output_reproducibility",
+          "claimKind": "observation",
+          "evidence": {
+            "determinismTier": "seeded",
+            "device": "cpu",
+            "doSample": false,
+            "identical": true,
+            "outputHashes": [
+              "9d7a550e9a0a0c2f1e4dbabbeb426954a46f275790f4ed014a3ceace7053ea3b",
+              "9d7a550e9a0a0c2f1e4dbabbeb426954a46f275790f4ed014a3ceace7053ea3b"
+            ]
+          },
+          "limitations": [
+            "This result does not establish determinism on other hardware or library versions."
+          ],
+          "reason": null,
+          "status": "supported"
+        },
+        {
+          "capability": "hardware_inference_limits",
+          "claimKind": "observation",
+          "evidence": {
+            "architecture": [
+              "Qwen2ForCausalLM"
+            ],
+            "cudaAvailable": false,
+            "declaredDevice": "cpu",
+            "discoveredLayerCount": 24,
+            "discoveredLayers": [
+              "model.layers.0",
+              "model.layers.1",
+              "model.layers.2",
+              "model.layers.3",
+              "model.layers.4",
+              "model.layers.5",
+              "model.layers.6",
+              "model.layers.7",
+              "model.layers.8",
+              "model.layers.9",
+              "model.layers.10",
+              "model.layers.11",
+              "model.layers.12",
+              "model.layers.13",
+              "model.layers.14",
+              "model.layers.15",
+              "model.layers.16",
+              "model.layers.17",
+              "model.layers.18",
+              "model.layers.19",
+              "model.layers.20",
+              "model.layers.21",
+              "model.layers.22",
+              "model.layers.23"
+            ],
+            "hiddenSize": 896,
+            "loadMs": 1083.51,
+            "modelBytes": 999586348,
+            "mpsAvailable": true,
+            "observedDevice": "cpu",
+            "observedDtype": "float32",
+            "peakRssMb": 2682.27,
+            "selectedLayer": "model.layers.4",
+            "tokenizerClass": "Qwen2Tokenizer",
+            "torchVersion": "2.15.0"
+          },
+          "limitations": [
+            "Production DevicePreference has no MPS option; these direct probes use CPU.",
+            "gpu_concurrency is configured but not enforced by the production runtime."
+          ],
+          "reason": "Measured from the loaded checkpoint and host runtime.",
+          "status": "supported"
+        }
+      ],
+      "providerIdentifier": null,
+      "revision": "ea3f2471cf1b1f0db85067f1ef93848e38e88c25",
+      "runtime": "transformers_direct",
+      "saeCompatibility": "supported",
+      "steeringCompatibility": "supported",
+      "targetId": "local-qwen2.5-coder-0.5b-instruct",
+      "tokenizer": "Qwen2Tokenizer",
+      "version": null
+    }
+  ],
+  "schemaVersion": "1.0.0"
+}

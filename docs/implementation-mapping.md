@@ -224,6 +224,17 @@ See [unified risk engine](unified-risk-engine.md) and [adaptive decision policy]
 | No guaranteed semantics/causality/security | SAE/counterfactual/steering/repair/verification docs and APIs | **Implemented** (guardrails/contracts) | Must be reflected in outputs and usage. |
 | Unexecuted benchmarks in repo docs | `research/evaluation/README.md`, reports | **Current state** | No fabricated benchmark metrics/results. |
 
+## 20. Compatibility testing and realistic coding benchmark
+
+| Element | Implementation | Status | Notes |
+|---|---|---|---|
+| Model capability probes | `security-engine/src/bugdhor/models/compatibility.py`, `compatibility_probes.py` | **Implemented** | Ten independent probes for local Transformers checkpoints; declared capabilities are never treated as observed. |
+| Compatibility matrix runner and report | `research/configs/models/compatibility-matrix.json`, `research/experiments/model_compatibility/run_compatibility_matrix.py` | **Executed** | Committed JSON/Markdown report contains actual evidence; registered checkpoints and hosted providers are `unavailable`. |
+| Assistant integration probes | `run_compatibility_matrix.py` | **Unavailable in CLI** | Requires a VS Code host or configured endpoint/model path/manifest; only declared A-F capabilities are shown. |
+| Realistic coding task bundle | `benchmarks/configs/coding-benchmark-v1.json`, `benchmarks/tasks/*.json`, `benchmarks/datasets/coding-tasks-v1.json` | **Defined** | Ten scenarios; prompts are separated from ground truth and verified against forbidden terms. |
+| Benchmark harness | `benchmarks/harness/run_coding_benchmark.py` | **Executed as readiness bundle** | Validates contract/hashes and writes `not_run` outcomes; no fabricated model, repair, or verification results. |
+| Benchmark execution | n/a | **Not run** | Needs an exact production model revision, pinned rule pack, sandbox, and registered executor. |
+
 ---
 
 ## Cross-cutting interface map
@@ -239,6 +250,8 @@ See [unified risk engine](unified-risk-engine.md) and [adaptive decision policy]
 | Jobs/status/progress/result/cancel | `core/jobs.py`, `api/routes/jobs.py` | Clients/tools | **Implemented** |
 | Diagnostics/hover/quick-fix data | Validated backend scan results | VS Code diagnostics providers | **Implemented** |
 | Experiment manifests/exports/reports | `experiments/*`, `evaluation/*` | Researchers/tools | **Implemented (conditional)** |
+| Model compatibility report | `models/compatibility*`, compatibility runner | Researchers/tools | **Executed for local research checkpoints** |
+| Coding benchmark readiness bundle | `benchmarks/harness/*`, `benchmarks/tasks/*` | Researchers/tools | **not_run** until a real executor and sandbox exist |
 
 ## Maintenance note
 

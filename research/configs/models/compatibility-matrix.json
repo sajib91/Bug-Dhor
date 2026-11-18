@@ -1,0 +1,162 @@
+{
+  "name": "Bug Dhor model and assistant compatibility matrix",
+  "version": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "environment": {
+    "device": "cpu",
+    "dtype": "float32",
+    "localFilesOnly": true,
+    "maxMemoryGb": 16,
+    "notes": "Observed host is Apple M4 with 16 GB RAM and MPS available; production adapter device policy does not expose MPS."
+  },
+  "prompts": {
+    "codeGeneration": "Write a Python function slugify(text) that lowercases text and replaces runs of non-alphanumeric characters with a single hyphen. Return only the function.",
+    "codeAnalysis": "Read this Python snippet and reply with exactly one JSON object with keys is_safe and reason. Snippet: def read(path): return open(path).read()",
+    "secureCodeGeneration": "Write a Python function read_text(path) that reads a UTF-8 text file using only the standard library and raises ValueError for a path outside /tmp/data. Return only the function."
+  },
+  "generation": {
+    "maxNewTokens": 64,
+    "doSample": false,
+    "seed": 17,
+    "repetitions": 2
+  },
+  "modelTargets": [
+    {
+      "targetId": "registered-llama-3.1-8b-instruct",
+      "runtime": "bugdhor_adapter",
+      "name": "Llama 3.1 8B Instruct",
+      "registryKey": "llama-3.1-8b-instruct",
+      "checkpointIdentifier": "meta-llama/Llama-3.1-8B-Instruct",
+      "revision": null,
+      "declaredCapabilities": ["code_generation", "code_analysis", "secure_code_generation"]
+    },
+    {
+      "targetId": "registered-qwen2.5-coder-7b-instruct",
+      "runtime": "bugdhor_adapter",
+      "name": "Qwen2.5-Coder 7B Instruct",
+      "registryKey": "qwen2.5-coder-7b-instruct",
+      "checkpointIdentifier": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "revision": null,
+      "declaredCapabilities": ["code_generation", "code_analysis", "secure_code_generation"]
+    },
+    {
+      "targetId": "registered-deepseek-coder-6.7b-instruct",
+      "runtime": "bugdhor_adapter",
+      "name": "DeepSeek-Coder 6.7B Instruct",
+      "registryKey": "deepseek-coder-6.7b-instruct",
+      "checkpointIdentifier": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "revision": null,
+      "declaredCapabilities": ["code_generation", "code_analysis", "secure_code_generation"]
+    },
+    {
+      "targetId": "local-qwen2.5-coder-0.5b-base",
+      "runtime": "transformers_direct",
+      "name": "Qwen2.5-Coder 0.5B",
+      "checkpointIdentifier": "Qwen/Qwen2.5-Coder-0.5B",
+      "revision": "8123ea2e9354afb7ffcc6c8641d1b2f5ecf18301",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation",
+        "activation_extraction"
+      ],
+      "saeArtifacts": [
+        {
+          "artifactId": "qwen05b-base-layer4",
+          "path": "../../../research/experiments/counterfactual_validation/artifacts/base_layer4.pt",
+          "layer": 4,
+          "hookPoint": "residual_stream"
+        }
+      ],
+      "counterfactual": {
+        "enabled": true,
+        "layer": 4,
+        "featureIndex": 0
+      }
+    },
+    {
+      "targetId": "local-qwen2.5-coder-0.5b-instruct",
+      "runtime": "transformers_direct",
+      "name": "Qwen2.5-Coder 0.5B Instruct",
+      "checkpointIdentifier": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "revision": "ea3f2471cf1b1f0db85067f1ef93848e38e88c25",
+      "declaredCapabilities": [
+        "code_generation",
+        "code_analysis",
+        "secure_code_generation",
+        "activation_extraction"
+      ],
+      "saeArtifacts": [
+        {
+          "artifactId": "qwen05b-instruct-layer4",
+          "path": "../../../research/experiments/counterfactual_validation/artifacts/instruct_layer4.pt",
+          "layer": 4,
+          "hookPoint": "residual_stream"
+        }
+      ],
+      "counterfactual": {
+        "enabled": true,
+        "layer": 4,
+        "featureIndex": 0
+      }
+    }
+  ],
+  "assistantTargets": [
+    {
+      "targetId": "assistant-editor",
+      "providerKind": "editor",
+      "label": "VS Code editor monitoring",
+      "declaredCapabilities": {"A": "supported", "B": "not-supported", "C": "not-supported", "D": "not-supported", "E": "not-supported", "F": "not-supported"},
+      "requiresHost": true,
+      "requiresEnv": []
+    },
+    {
+      "targetId": "assistant-vscode-language-model",
+      "providerKind": "vscode-language-model",
+      "label": "VS Code Language Model API",
+      "declaredCapabilities": {"A": "editor-fallback", "B": "conditional", "C": "conditional", "D": "not-supported", "E": "not-supported", "F": "not-supported"},
+      "requiresHost": true,
+      "requiresEnv": []
+    },
+    {
+      "targetId": "assistant-openai-compatible",
+      "providerKind": "openai-compatible",
+      "label": "OpenAI-compatible endpoint",
+      "declaredCapabilities": {"A": "editor-fallback", "B": "conditional", "C": "conditional", "D": "not-supported", "E": "not-supported", "F": "not-supported"},
+      "requiresHost": true,
+      "requiresEnv": ["BUGDHOR_LLM_API_KEY", "BUGDHOR_BENCHMARK_ENDPOINT"]
+    },
+    {
+      "targetId": "assistant-local-hugging-face",
+      "providerKind": "local-hugging-face",
+      "label": "Direct local Hugging Face model",
+      "declaredCapabilities": {"A": "editor-fallback", "B": "conditional", "C": "conditional", "D": "conditional", "E": "conditional", "F": "conditional"},
+      "requiresHost": true,
+      "requiresEnv": ["BUGDHOR_BENCHMARK_MODEL_PATH"]
+    },
+    {
+      "targetId": "assistant-extension-api",
+      "providerKind": "extension-api",
+      "label": "Official extension-specific API",
+      "declaredCapabilities": {"A": "editor-fallback", "B": "conditional", "C": "conditional", "D": "conditional", "E": "conditional", "F": "conditional"},
+      "requiresHost": true,
+      "requiresEnv": ["BUGDHOR_BENCHMARK_EXTENSION_MANIFEST"]
+    }
+  ],
+  "limitations": [
+    "LIM-SAE-01: SAE features are tied to one model revision, layer, and hook point.",
+    "LIM-CF-01: activation interventions are off-distribution and may be invalid.",
+    "LIM-CF-03: model-internal effects are not real-world causal effects.",
+    "LIM-STEER-01: steering may degrade capability or fluency.",
+    "LIM-REPRO-01: hardware/library nondeterminism limits exact reproduction.",
+    "LIM-ENV-01: hosted providers expose no model internals.",
+    "LIM-COMPAT-01: local 0.5B checkpoints are research probes and are not registered production adapters."
+  ],
+  "_documentation": {
+    "purpose": "Pinned targets for evidence-backed compatibility probes. No capability is granted by this file.",
+    "checkpointRevisions": "Revisions are the exact local Hugging Face snapshot SHAs observed on 2026-11-18.",
+    "artifactPaths": "SAE paths are repository-relative and point to research artifacts, not a registered production SAE manifest.",
+    "secrets": "Only environment variable names are stored; values are never written to reports.",
+    "noDownload": "The runner must use local files only and must not download checkpoints."
+  }
+}

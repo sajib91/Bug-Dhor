@@ -199,6 +199,27 @@ limitations.
   implemented yet; the contract test suites validate schemas and fixtures
   independently in each runtime.
 
+## Model compatibility and benchmark limitations
+
+- `LIM-COMPAT-01` — The locally cached `Qwen/Qwen2.5-Coder-0.5B` and
+  `Qwen/Qwen2.5-Coder-0.5B-Instruct` checkpoints used in model compatibility
+  probes are research targets, not registered production adapters. Their observed
+  capabilities do not transfer to the registered checkpoints, which remain
+  `unavailable` until provisioned and probed. See
+  [`docs/model-compatibility-testing.md`](../docs/model-compatibility-testing.md)
+  and the committed compatibility report under
+  `research/experiments/model_compatibility/results/`.
+- Code-generation probes establish text production only, not code correctness or
+  security. SAE, counterfactual, and steering results are artifact-, revision-,
+  layer-, and host-specific and carry `computed`/`hypothesis` claim kinds, never
+  real-world causal or security claims. The HTTP `/features/extract`,
+  `/counterfactual/analyze`, and `/prevention/steer` routes remain stubs and are
+  not evidence.
+- The realistic coding benchmark in `benchmarks/` is defined but **not executed**.
+  Its readiness bundle reports `status: not_run` with `null` metrics until an
+  exact production model revision, pinned analyzer rule pack, sandbox profile,
+  and registered executor exist. No benchmark result is published.
+
 ## Non-negotiable constraints
 
 - Missing capabilities are reported as unavailable and are never simulated.

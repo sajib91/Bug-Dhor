@@ -14,6 +14,15 @@ from bugdhor.models.activations import (
     LayerDiscovery,
 )
 from bugdhor.models.adapter import Activation, InferenceResult, ModelAdapter
+from bugdhor.models.compatibility import (
+    AssistantCapability,
+    AssistantIntegrationCard,
+    Capability,
+    CapabilityProbe,
+    CompatibilityReport,
+    ModelCapabilityCard,
+    ProbeStatus,
+)
 from bugdhor.models.config import (
     SUPPORTED_MODELS,
     DevicePreference,
@@ -39,6 +48,11 @@ __all__ = [
     "ActivationCollector",
     "ActivationMetadata",
     "ActivationStore",
+    "AssistantCapability",
+    "AssistantIntegrationCard",
+    "Capability",
+    "CapabilityProbe",
+    "CompatibilityReport",
     "DevicePreference",
     "GenerationConfig",
     "HuggingFaceAdapter",
@@ -49,6 +63,7 @@ __all__ = [
     "LayerDiscovery",
     "LoadedModel",
     "ModelAdapter",
+    "ModelCapabilityCard",
     "ModelCompatibilityError",
     "ModelConfig",
     "ModelDependencyError",
@@ -57,5 +72,6 @@ __all__ = [
     "ModelManager",
     "ModelRuntimeError",
     "ModelSpec",
+    "ProbeStatus",
     "resolve_device",
 ]
