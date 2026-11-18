@@ -15,7 +15,8 @@ const COMMANDS = Object.freeze({
   generateSecureCode: 'bugdhor.generateSecureCode',
   repairVulnerability: 'bugdhor.repairVulnerability',
   verifyRepair: 'bugdhor.verifyRepair',
-  openSecurityDashboard: 'bugdhor.openSecurityDashboard'
+  openSecurityDashboard: 'bugdhor.openSecurityDashboard',
+  showAssistantCapabilities: 'bugdhor.showAssistantCapabilities'
 });
 
 module.exports = { CONTAINER_ID, VIEW_ID, COMMANDS };

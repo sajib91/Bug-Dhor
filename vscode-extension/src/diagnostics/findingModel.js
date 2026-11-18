@@ -25,6 +25,7 @@
  *     },
  *     evidence?: string,
  *     explanation?: string,
+ *     verificationStatus?: 'confirmed' | 'potential',
  *     sourceReferences?: [{
  *       label: string,
  *       url?: string,                       // http: or https:
@@ -296,6 +297,22 @@ function normalizeSourceReference(value, index) {
 
 /**
  * @param {unknown} value
+ * @returns {'confirmed' | 'potential' | undefined}
+ */
+function normalizeVerificationStatus(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (value !== 'confirmed' && value !== 'potential') {
+    throw new FindingValidationError(
+      "verificationStatus must be 'confirmed' or 'potential' when supplied."
+    );
+  }
+  return value;
+}
+
+/**
+ * @param {unknown} value
  * @returns {{ eligible: boolean, description?: string } | undefined}
  */
 function normalizeRepair(value) {
@@ -327,6 +344,7 @@ function normalizeRepair(value) {
  *   range: ReturnType<typeof normalizeRange>,
  *   evidence?: string,
  *   explanation?: string,
+ *   verificationStatus?: 'confirmed' | 'potential',
  *   sourceReferences: ReturnType<typeof normalizeSourceReference>[],
  *   repair?: { eligible: boolean, description?: string },
  *   repairEligible: boolean
@@ -356,6 +374,7 @@ function normalizeFinding(rawFinding) {
 
   const evidence = optionalString(rawFinding.evidence, 'evidence');
   const explanation = optionalString(rawFinding.explanation, 'explanation');
+  const verificationStatus = normalizeVerificationStatus(rawFinding.verificationStatus);
 
   let sourceReferences = [];
   if (rawFinding.sourceReferences !== undefined && rawFinding.sourceReferences !== null) {
@@ -378,6 +397,7 @@ function normalizeFinding(rawFinding) {
     range: location.range,
     ...(evidence === undefined ? {} : { evidence }),
     ...(explanation === undefined ? {} : { explanation }),
+    ...(verificationStatus === undefined ? {} : { verificationStatus }),
     sourceReferences,
     ...(repair === undefined ? {} : { repair }),
     repairEligible: repair?.eligible === true
@@ -515,6 +535,7 @@ module.exports = {
   normalizeFinding,
   normalizeScanResult,
   normalizeSeverity,
+  normalizeVerificationStatus,
   normalizeCwe,
   normalizeFileUri,
   normalizeRange,

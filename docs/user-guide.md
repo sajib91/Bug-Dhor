@@ -232,6 +232,17 @@ Adjust payload to match the current OpenAPI schema (include an auth header if `B
 - **`partial`:** some stages completed, others unavailable/failed or limited (e.g. external static analyzers missing).
 - Findings are evidence-based outputs of the configured engine/rules/analyzers and can include **false positives or false negatives**.
 
+### 8.7 Real-time code change monitoring (VS Code, opt-in)
+
+Bug Dhor can watch Python and JavaScript files while you edit. It is **disabled by default** and is intended as a background aid, not a replacement for an explicit scan.
+
+- Enable it with `bugdhor.monitoring.enabled`. The extension then observes ordinary document edits and saves; it does not assume an AI assistant made them and never claims to identify the model or author responsible.
+- Edits are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) and tracked by document version so rapid changes or pasted blocks produce a single scan of the latest buffer, never one scan per keystroke. A newer edit cancels any superseded request.
+- Analysis is scoped to the enclosing function, the changed lines, or the whole file (`bugdhor.monitoring.analysisScope`). Set `bugdhor.monitoring.onSaveOnly` to analyze only on save. Large files, unsupported languages, and generated paths are skipped.
+- Findings come only from validated backend results and are published to the native **Problems** panel (clearing stale findings); a non-blocking notification appears when findings exist. An unavailable analysis publishes nothing.
+
+**Privacy:** background analysis sends source text **only** when both `bugdhor.monitoring.allowAutomaticSourceSharing` and `bugdhor.privacy.sendSourceText` are enabled. Leave either off and the monitor tracks versions locally but makes no engine call. Reachability/health checks never send source code.
+
 ## 9. Vulnerability explanation tutorial
 
 ### 9.1 What explanation provides (when available)
@@ -404,7 +415,7 @@ No benchmark results are included in this guide; any future results must be trac
 
 - **Local-first defaults:** backend defaults to loopback; do not expose without appropriate network controls, authentication, and hardening.
 - **Optional API auth:** enable `BUGDHOR_API_TOKEN` where required; default deployments may have no auth.
-- **Source sharing:** `bugdhor.privacy.sendSourceText` controls sending active buffer/selection for explicitly invoked file/selection requests; disabling sends paths/ranges so backend reads saved files (subject to backend access). Workspace scans avoid sending file contents per design.
+- **Source sharing:** `bugdhor.privacy.sendSourceText` controls sending active buffer/selection for explicitly invoked file/selection requests; disabling sends paths/ranges so backend reads saved files (subject to backend access). Workspace scans avoid sending file contents per design. Opt-in real-time monitoring (§8.7) additionally requires `bugdhor.monitoring.allowAutomaticSourceSharing` before any changed source text is sent automatically; monitoring itself is off by default.
 - **Sensitive artifacts:** logs, job records, persisted results, caches, and exported bundles may contain sensitive source fragments, paths, or findings; protect storage, access, and retention appropriately.
 - **LLM/prompt injection:** repository content and findings are untrusted inputs; prompt hardening reduces but does not eliminate risk. Treat all generated patches/code as untrusted.
 - **Patch application:** never auto-trust or auto-apply generated diffs; require review and explicit approval.

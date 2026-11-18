@@ -223,6 +223,15 @@ class DiagnosticController {
     const related = [];
     const findingRange = this.toRange(finding.range);
 
+    if (finding.verificationStatus) {
+      related.push(
+        new this.vscode.DiagnosticRelatedInformation(
+          new this.vscode.Location(finding.uri, findingRange),
+          `Verification: ${finding.verificationStatus} (from backend evidence)`
+        )
+      );
+    }
+
     if (finding.evidence) {
       related.push(
         new this.vscode.DiagnosticRelatedInformation(

@@ -10,10 +10,63 @@ const { registerSidebarView } = require('./webviews/sidebarView');
 const { DashboardPanelController } = require('./webviews/dashboardPanel');
 const { buildDashboardState } = require('./webviews/dashboardModel');
 const { registerDiagnostics } = require('./diagnostics');
+const { RealtimeMonitor } = require('./monitoring/realtimeMonitor');
 const { onSettingsChanged, readSettings } = require('./config');
+const { createProviderRegistry, SecurityHooks } = require('./integrations');
 
 /** @type {import('./logging/output').Logger | undefined} */
 let logger;
+
+/**
+ * Map extension settings to the monitoring feature's normalized input shape.
+ *
+ * @returns {object}
+ */
+function getMonitoringSettings() {
+  const settings = readSettings();
+  return {
+    enabled: settings.monitoringEnabled,
+    onSaveOnly: settings.monitoringOnSaveOnly,
+    debounceMs: settings.monitoringDebounceMs,
+    languages: settings.monitoringLanguages,
+    analysisScope: settings.monitoringAnalysisScope,
+    maxFileBytes: settings.monitoringMaxFileBytes,
+    maxChangedLines: settings.monitoringMaxChangedLines,
+    allowAutomaticSourceSharing: settings.monitoringAllowAutomaticSourceSharing,
+    notifyOnFindings: settings.monitoringNotifyOnFindings,
+    excludeGlobs: settings.monitoringExcludeGlobs,
+    sendSourceText: settings.sendSourceText
+  };
+}
+
+/**
+ * Map extension settings to the assistant integration registry input. API keys
+ * are read from the environment by name, never from a persisted setting.
+ *
+ * @returns {object}
+ */
+function getAssistantSettings() {
+  const settings = readSettings();
+  return {
+    provider: settings.assistantProvider,
+    vscodeLanguageModel: {
+      selector: settings.assistantVscodeLanguageModelSelector
+    },
+    openAiCompatible: {
+      endpoint: settings.assistantOpenAiEndpoint,
+      model: settings.assistantOpenAiModel,
+      apiKeyEnvironmentVariable: settings.assistantOpenAiApiKeyEnvironmentVariable
+    },
+    localHuggingFace: {
+      modelPath: settings.assistantLocalModelPath
+    },
+    extensionApi: {
+      manifestPath: settings.assistantExtensionManifestPath
+    },
+    sae: { enabled: settings.assistantSaeEnabled },
+    counterfactual: { enabled: settings.assistantCounterfactualEnabled }
+  };
+}
 
 /**
  * Activate the Bug Dhor extension.
@@ -77,14 +130,39 @@ function activate(context) {
         settings: readSettings()
       })
   });
+  // Assistant integrations are capability-scoped. Provider discovery is
+  // asynchronous but never starts a model, sends source text, or claims
+  // capabilities that were not discovered.
+  const assistantRegistry = createProviderRegistry({
+    vscode,
+    logger,
+    getSettings: getAssistantSettings
+  });
+  const assistantHooks = new SecurityHooks({
+    registry: assistantRegistry,
+    logger,
+    settings: getAssistantSettings()
+  });
+  void assistantRegistry.refresh();
+
   const commandRegistry = registerCommands({
     vscode,
     service,
     logger,
     dashboard,
-    diagnostics: diagnostics.controller
+    diagnostics: diagnostics.controller,
+    assistantRegistry
   });
   const sidebarRegistration = registerSidebarView(context, logger);
+
+  const monitor = new RealtimeMonitor({
+    vscode,
+    service,
+    logger,
+    diagnostics: diagnostics.controller,
+    getSettings: getMonitoringSettings,
+    hooks: assistantHooks
+  }).start();
 
   const settingsSubscription = onSettingsChanged((event) => {
     if (event.affectsConfiguration('bugdhor.logging.level')) {
@@ -103,6 +181,11 @@ function activate(context) {
     ) {
       void checkBackendHealth();
     }
+    monitor.updateSettings(getMonitoringSettings());
+    if (event.affectsConfiguration('bugdhor.assistant')) {
+      assistantHooks.updateSettings(getAssistantSettings());
+      void assistantRegistry.refresh();
+    }
     logger.debug('Bug Dhor settings updated.');
   });
 
@@ -113,7 +196,8 @@ function activate(context) {
     diagnostics,
     sidebarRegistration,
     settingsSubscription,
-    commandRegistry
+    commandRegistry,
+    monitor
   );
 
   if (readSettings().autoStart) {
@@ -126,7 +210,14 @@ function activate(context) {
   void checkBackendHealth();
   logger.info('Bug Dhor activated.');
 
-  return { service, configurationService, checkBackendHealth };
+  return {
+    service,
+    configurationService,
+    checkBackendHealth,
+    monitor,
+    assistantRegistry,
+    assistantHooks
+  };
 }
 
 /**

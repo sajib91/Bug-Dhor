@@ -287,8 +287,14 @@ def build_evidence(
     llm_claims: Sequence[LLMClaim] | None = None,
     config_hash: str | None = None,
     llm_min_confidence: float = 0.35,
+    extra_evidence: Sequence[EvidenceItem] = (),
 ) -> EvidenceBundle:
-    """Run all evidence adapters and combine their records."""
+    """Run all evidence adapters and combine their records.
+
+    ``extra_evidence`` is reserved for optional, explicitly validated stages
+    such as a compatible SAE/counterfactual provider. Each item must carry its
+    own provenance and claim kind; this function does not upgrade its status.
+    """
     file_path = path or parsed.path or "<memory>"
     static_bundle = static_evidence(static, weights=weights, path=file_path)
     llm_bundle = llm_evidence(
@@ -308,6 +314,7 @@ def build_evidence(
         )
     items.extend(static_bundle.items)
     items.extend(llm_bundle.items)
+    items.extend(extra_evidence)
     gaps = list(static_bundle.gaps)
     warnings = list(static_bundle.warnings)
     warnings.extend(llm_bundle.rejected)

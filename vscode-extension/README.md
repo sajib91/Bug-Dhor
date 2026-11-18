@@ -50,6 +50,7 @@ All commands use the `Bug Dhor` category. The extension activates on startup, on
 - Workspace scans send folder name, path, and file-URI metadata only, never file contents.
 - Health checks send no source code.
 - Every response is validated before use. The backend's `partial`/`unavailable` statuses and `analysisAvailable: false` are preserved; they are never converted into a clean scan.
+- Background monitoring is off by default and sends no source text unless `bugdhor.monitoring.allowAutomaticSourceSharing` AND `bugdhor.privacy.sendSourceText` are both enabled.
 
 The publisher is set to the explicit placeholder `your-publisher-id`. Replace it with the real Marketplace publisher ID before publishing; no publisher identity is claimed by this repository.
 
@@ -81,6 +82,18 @@ The scan commands feed successful backend results into a native VS Code `Diagnos
 - **Validation and containment.** Malformed findings are rejected and logged; a malformed result envelope is rejected without clearing existing diagnostics. Findings outside an open workspace folder and non-`file:` URIs are never published. `scope.uris` or the scanned document URI clears stale diagnostics for the covered files.
 - **No detector findings yet.** Scans reach the real backend, but the detector and evidence stages are unimplemented, so responses contain `analysisAvailable: false` and no findings. The extension reports that state explicitly and does not populate diagnostics from a simulated analysis. Providers are tested with backend-shaped fixtures.
 
+## Real-time code change monitoring
+
+When `bugdhor.monitoring.enabled` is set, the extension observes `onDidChangeTextDocument` and `onDidSaveTextDocument` for `file:` documents in the open workspace. Python and JavaScript are supported initially; other language IDs are skipped. Generated directories (for example `node_modules`, `.venv`, `dist`, and `__pycache__`) are excluded by configurable globs.
+
+The monitor tracks document versions and ignores repeated or out-of-order events. Each batch identifies the changed lines, then scopes analysis to the enclosing function (lexically detected for Python and JavaScript), to the changed lines, or to the whole file according to `bugdhor.monitoring.analysisScope`. Wide batches fall back to a bounded file-level scan. Text is read once per debounced batch, and documents above `bugdhor.monitoring.maxFileBytes` are skipped.
+
+Changes are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) so no scan runs per keystroke. At most one request per document is active: a newer edit cancels the superseded request through a cancellation token, and the API client aborts its in-flight HTTP call. Analysis runs off the editor's event path, publishes backend findings to the native Problems panel with the document URI as scope (clearing stale findings), and shows a non-blocking notification when findings exist. Backend results remain the only source of findings; an unavailable analysis publishes nothing.
+
+**Attribution:** every edit is treated as an ordinary document change. The monitor does not assume an AI assistant produced it, does not detect an "AI mode", and does not claim to identify the model or author responsible. A multi-line insertion is described only by its edit shape.
+
+**Privacy:** monitoring is disabled by default. No background request containing source text is sent unless both the explicit `bugdhor.monitoring.allowAutomaticSourceSharing` consent and `bugdhor.privacy.sendSourceText` are enabled. With consent disabled, the monitor tracks versions locally but makes no engine call. Stats exposed on the activation API contain metadata only: no source text, selected text, or code identifiers.
+
 ## Settings
 
 | Setting | Default | Behavior |
@@ -93,6 +106,16 @@ The scan commands feed successful backend results into a native VS Code `Diagnos
 | `bugdhor.backend.autoStart` | `false` | Reserved; enabling it logs a warning because no engine is started |
 | `bugdhor.logging.level` | `info` | Filters messages written to the Bug Dhor output channel |
 | `bugdhor.ui.showStatusBarItem` | `true` | Shows or hides the Bug Dhor status bar item |
+| `bugdhor.monitoring.enabled` | `false` | Enable background monitoring of document changes (off by default) |
+| `bugdhor.monitoring.allowAutomaticSourceSharing` | `false` | Explicit consent to send changed source text automatically; required with `privacy.sendSourceText` |
+| `bugdhor.monitoring.onSaveOnly` | `false` | Analyze only on save instead of after debounced edits |
+| `bugdhor.monitoring.debounceMs` | `750` | Delay before a debounced scan runs (minimum 100 ms) |
+| `bugdhor.monitoring.languages` | `["python", "javascript"]` | Language IDs eligible for monitoring |
+| `bugdhor.monitoring.analysisScope` | `function` | Scope of incremental analysis: `changedLines`, `function`, or `file` |
+| `bugdhor.monitoring.maxFileBytes` | `1048576` | Skip documents larger than this size |
+| `bugdhor.monitoring.maxChangedLines` | `500` | Wider change batches fall back to a file-level scan |
+| `bugdhor.monitoring.excludeGlobs` | generated dirs | Path globs excluded from monitoring (`*`, `**`, `?`) |
+| `bugdhor.monitoring.notifyOnFindings` | `true` | Show a non-blocking notification when findings are published |
 
 The backend must be started separately, for example from `security-engine/`:
 
@@ -121,7 +144,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit suite (230 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, and opens the singleton dashboard tab. Tests never download models.
+The unit suite (257 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
 
 ## Extension Development Host
 

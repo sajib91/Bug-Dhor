@@ -331,10 +331,10 @@ test('registerCommands registers every declared command exactly once', () => {
   const harness = createHarness();
   const expected = [...expectedCommandIds()].sort();
 
-  assert.equal(harness.registry.size, 12);
+  assert.equal(harness.registry.size, 13);
   assert.deepEqual(harness.registry.ids().sort(), expected);
   assert.deepEqual([...harness.handlers.keys()].sort(), expected);
-  assert.equal(harness.registrations.length, 12);
+  assert.equal(harness.registrations.length, 13);
 
   harness.registry.dispose();
 });

@@ -57,6 +57,9 @@ function buildFindingSection(finding) {
   if (finding.ruleId) {
     metadata.push(`**Rule:** ${inlineCode(finding.ruleId)}`);
   }
+  if (finding.verificationStatus) {
+    metadata.push(`**Verification:** ${finding.verificationStatus}`);
+  }
   lines.push(metadata.join(' · '), '');
 
   lines.push('**Explanation**', '');

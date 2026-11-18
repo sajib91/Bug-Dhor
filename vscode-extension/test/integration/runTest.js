@@ -220,6 +220,14 @@ async function main() {
     const backendEnvironment = { ...process.env };
     delete backendEnvironment.BUGDHOR_API_TOKEN;
     delete backendEnvironment.BUGDHOR_ENGINE_TOKEN;
+    // Make the source package importable even when the editable install is
+    // missing (for example after the repository folder is renamed). Preserve
+    // any caller-supplied PYTHONPATH entries.
+    const engineSource = path.join(engineRoot, 'src');
+    const pythonPath = [engineSource, backendEnvironment.PYTHONPATH]
+      .filter(Boolean)
+      .join(path.delimiter);
+    backendEnvironment.PYTHONPATH = pythonPath;
     backendEnvironment.BUGDHOR_WORKSPACE_ROOTS = workspacePath;
     backendEnvironment.BUGDHOR_LOG_LEVEL = 'ERROR';
     backendEnvironment.BUGDHOR_DATA_DIR = dataDir;

@@ -36,6 +36,7 @@ from bugdhor.detection.llm import LLMAnalyzer, LLMClaim, collect_llm_claims
 from bugdhor.detection.models import (
     DetectionCoverage,
     DetectionResult,
+    EvidenceItem,
 )
 from bugdhor.parsing.languages import UnsupportedLanguageError
 from bugdhor.parsing.parser import ParsedSource, parse_source
@@ -74,8 +75,15 @@ class DetectionEngine:
         analysis: ProgramAnalysis | None = None,
         taint: TaintAnalysis | None = None,
         finding_ids: Sequence[str] | None = None,
+        extra_evidence: Sequence[EvidenceItem] = (),
     ) -> DetectionResult:
-        """Detect vulnerabilities in one parsed source file."""
+        """Detect vulnerabilities in one parsed source file.
+
+        ``extra_evidence`` accepts evidence from optional stages that have
+        already been validated by the caller (for example a registered SAE).
+        Unavailable stages must supply no evidence and report their status
+        outside this result.
+        """
         file_path = path or parsed.path or "<memory>"
         warnings: list[str] = []
         gaps: list[str] = []
@@ -116,6 +124,7 @@ class DetectionEngine:
             llm_claims=tuple(claims) if claims or llm_analyzer is not None else None,
             config_hash=self.config.config_hash(),
             llm_min_confidence=self.config.llm_min_confidence,
+            extra_evidence=extra_evidence,
         )
         warnings.extend(bundle.warnings)
         gaps.extend(bundle.gaps)

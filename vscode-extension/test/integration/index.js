@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const path = require('node:path');
 const assert = require('node:assert/strict');
 const vscode = require('vscode');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
@@ -110,8 +111,8 @@ async function run() {
   assert.ok(scan, 'the file scan must return a validated backend response');
   assert.equal(scan.operation, 'scan_file');
   assert.equal(scan.apiVersion, 'v1');
-  assert.equal(scan.analysisAvailable, false, 'analysis is not implemented and must say so');
-  assert.deepEqual(scan.findings, [], 'no finding may be fabricated when analysis is unavailable');
+  assert.equal(scan.analysisAvailable, true, 'the backend must report its analysis state honestly');
+  assert.deepEqual(scan.findings, [], 'benign code must not produce fabricated findings');
   assert.equal(scan.filesScanned, 1);
   assert.equal(
     scan.file.path,
@@ -128,7 +129,7 @@ async function run() {
   assert.equal(
     bugdhorDiagnostics().length,
     0,
-    'an unavailable analysis must not publish diagnostics'
+    'a scan with no findings must not publish diagnostics'
   );
 
   // With source sharing disabled the backend must fall back to the saved file.
@@ -151,25 +152,25 @@ async function run() {
 
   await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Workspace);
 
-  // Workspace scans are metadata-only and still report unavailable analysis.
+  // Workspace scans send metadata only; benign sources yield no findings.
   const workspaceScan = await vscode.commands.executeCommand(COMMANDS.scanWorkspace);
   assert.ok(workspaceScan);
   assert.equal(workspaceScan.operation, 'scan_workspace');
   assert.ok(workspaceScan.filesScanned >= 1);
-  assert.equal(workspaceScan.analysisAvailable, false);
+  assert.equal(workspaceScan.analysisAvailable, true);
   assert.deepEqual(workspaceScan.findings, []);
   assert.ok(
     workspaceScan.scope.uris.every((uri) => uri.startsWith('file:')),
     'workspace scope must contain only file URIs'
   );
 
-  // A selection scan exercises the detection transport and keeps the backend's
-  // explicit unavailable state intact.
+  // A selection scan exercises the detection transport and reports the
+  // backend's analysis state honestly; benign code yields no findings.
   editor.selection = new vscode.Selection(0, 0, 0, 10);
   const selectionScan = await vscode.commands.executeCommand(COMMANDS.scanSelection);
   assert.ok(selectionScan);
   assert.equal(selectionScan.operation, 'detection_analyze');
-  assert.equal(selectionScan.analysisAvailable, false);
+  assert.equal(selectionScan.analysisAvailable, true);
   assert.deepEqual(selectionScan.findings, []);
   assert.deepEqual(selectionScan.scope.uris, [document.uri.toString()]);
 
@@ -206,6 +207,148 @@ async function run() {
     .flatMap((group) => group.tabs)
     .filter((entry) => entry.label === DASHBOARD_TITLE);
   assert.equal(dashboardTabs.length, 1, 'the dashboard panel must be a singleton');
+
+  // ---------------------------------------------------------------------
+  // Real-time monitoring. The monitored files are benign, so these checks
+  // verify scheduling, debouncing, function-level scoping, cancellation,
+  // privacy gating, and that no finding is fabricated for clean code.
+  // ---------------------------------------------------------------------
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function waitForMonitor(predicate, timeoutMs = 10_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (predicate()) {
+        return;
+      }
+      await delay(50);
+    }
+    throw new Error('Timed out waiting for Bug Dhor monitor state.');
+  }
+
+  function completedAnalyses(uri) {
+    return api.monitor
+      .getStats()
+      .analyses.filter((entry) => entry.uri === uri && entry.status === 'completed');
+  }
+
+  async function openMonitoringFile(name, initialText) {
+    const filePath = path.join(workspacePath, name);
+    fs.writeFileSync(filePath, initialText, 'utf8');
+    const document = await vscode.workspace.openTextDocument(filePath);
+    return { document, uri: document.uri.toString() };
+  }
+
+  // WorkspaceEdit fires onDidChangeTextDocument without requiring a visible,
+  // still-open TextEditor, which keeps these scenarios independent of tab churn.
+  function applyInsert(document, newText) {
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(document.uri, new vscode.Position(0, 0), newText);
+    return vscode.workspace.applyEdit(edit);
+  }
+
+  function applyReplace(document, range, newText) {
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(document.uri, range, newText);
+    return vscode.workspace.applyEdit(edit);
+  }
+
+  await configuration.update('monitoring.enabled', true, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('monitoring.debounceMs', 400, vscode.ConfigurationTarget.Workspace);
+  await configuration.update(
+    'monitoring.analysisScope',
+    'function',
+    vscode.ConfigurationTarget.Workspace
+  );
+  await configuration.update(
+    'monitoring.allowAutomaticSourceSharing',
+    true,
+    vscode.ConfigurationTarget.Workspace
+  );
+  assert.equal(api.monitor.getStats().enabled, true);
+
+  // Rapid changes from ordinary editor edits collapse into one scan of the
+  // newest version. No attribution to any model is made or inferred.
+  const rapid = await openMonitoringFile('rapid.py', 'value = 0\n');
+  for (let index = 1; index <= 5; index += 1) {
+    assert.equal(await applyInsert(rapid.document, `# rapid ${index}\n`), true);
+  }
+  await waitForMonitor(() => completedAnalyses(rapid.uri).length === 1);
+  await delay(500);
+  assert.equal(
+    completedAnalyses(rapid.uri).length,
+    1,
+    'rapid edits must produce exactly one debounced analysis'
+  );
+  assert.equal(completedAnalyses(rapid.uri)[0].version, rapid.document.version);
+  assert.equal('sourceText' in completedAnalyses(rapid.uri)[0], false);
+
+  // A paste is a single bulk edit; its inserted lines are identified and the
+  // enclosing JavaScript functions become the analysis target.
+  const pasted = await openMonitoringFile('paste.js', 'const start = 0;\n');
+  const pastedText = [
+    'function first() {',
+    '  return 1;',
+    '}',
+    '',
+    'function second() {',
+    '  return 2;',
+    '}',
+    ''
+  ].join('\n');
+  assert.equal(await applyInsert(pasted.document, pastedText), true);
+  await waitForMonitor(() => completedAnalyses(pasted.uri).length === 1);
+  await delay(500);
+  assert.equal(completedAnalyses(pasted.uri).length, 1, 'a paste must produce one scan');
+  assert.equal(completedAnalyses(pasted.uri)[0].kind, 'function');
+  assert.ok(completedAnalyses(pasted.uri)[0].changedLines >= 7);
+
+  // Saving flushes immediately with a file-level scan and supersedes any
+  // pending debounced edit for the same document.
+  const saved = await openMonitoringFile('saved.py', 'value = 1\n');
+  assert.equal(await applyReplace(saved.document, new vscode.Range(0, 0, 0, 9), 'value = 2'), true);
+  assert.equal(await saved.document.save(), true);
+  await waitForMonitor(() => completedAnalyses(saved.uri).length === 1);
+  await delay(500);
+  assert.equal(completedAnalyses(saved.uri).length, 1);
+  assert.equal(completedAnalyses(saved.uri)[0].reason, 'save');
+  assert.equal(completedAnalyses(saved.uri)[0].kind, 'file');
+
+  // Edits to different documents are tracked independently.
+  const concurrentA = await openMonitoringFile('concurrent-a.py', 'a = 0\n');
+  const concurrentB = await openMonitoringFile('concurrent-b.js', 'const b = 0;\n');
+  await Promise.all([
+    applyInsert(concurrentA.document, '# concurrent a\n'),
+    applyInsert(concurrentB.document, '// concurrent b\n')
+  ]);
+  await waitForMonitor(
+    () =>
+      completedAnalyses(concurrentA.uri).length === 1 &&
+      completedAnalyses(concurrentB.uri).length === 1
+  );
+  assert.equal(completedAnalyses(concurrentA.uri).length, 1);
+  assert.equal(completedAnalyses(concurrentB.uri).length, 1);
+
+  // With explicit automatic consent disabled, no background request is sent
+  // even when monitoring is enabled and the general sharing setting is true.
+  await configuration.update(
+    'monitoring.allowAutomaticSourceSharing',
+    false,
+    vscode.ConfigurationTarget.Workspace
+  );
+  const skippedBefore = api.monitor.getStats().skipped;
+  assert.equal(await applyInsert(concurrentA.document, '# no consent\n'), true);
+  await delay(600);
+  assert.equal(completedAnalyses(concurrentA.uri).length, 1);
+  assert.ok(api.monitor.getStats().skipped > skippedBefore);
+
+  await configuration.update('monitoring.enabled', false, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('monitoring.debounceMs', 750, vscode.ConfigurationTarget.Workspace);
+  assert.equal(
+    bugdhorDiagnostics().length,
+    0,
+    'benign monitored edits must never fabricate diagnostics'
+  );
 
   console.log('Bug Dhor Extension Host checks passed.');
 }

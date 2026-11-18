@@ -2,7 +2,11 @@
 
 const { COMMANDS } = require('../constants');
 
-const UTILITY_COMMANDS = Object.freeze([COMMANDS.showStatus, COMMANDS.showLogs]);
+const UTILITY_COMMANDS = Object.freeze([
+  COMMANDS.showStatus,
+  COMMANDS.showLogs,
+  COMMANDS.showAssistantCapabilities
+]);
 
 /**
  * @param {object} health
@@ -29,10 +33,11 @@ function describeHealth(health) {
  *   vscode: import('vscode'),
  *   service: import('../api/securityEngineService').SecurityEngineService,
  *   logger: import('../logging/output').Logger,
- *   registry: import('./registry').CommandRegistry
+ *   registry: import('./registry').CommandRegistry,
+ *   assistantRegistry?: ReturnType<import('../integrations/registry').createProviderRegistry>
  * }} context
  */
-function registerUtilityCommands({ vscode, service, logger, registry }) {
+function registerUtilityCommands({ vscode, service, logger, registry, assistantRegistry }) {
   registry.register(COMMANDS.showStatus, async () => {
     let health;
     try {
@@ -71,6 +76,16 @@ function registerUtilityCommands({ vscode, service, logger, registry }) {
 
   registry.register(COMMANDS.showLogs, () => {
     logger.show();
+  });
+
+  registry.register(COMMANDS.showAssistantCapabilities, () => {
+    const snapshot = assistantRegistry?.toJSON?.() ?? {
+      selectedKind: 'editor',
+      activeProvider: 'editor-monitor',
+      providers: []
+    };
+    logger.info(`Bug Dhor assistant capabilities: ${JSON.stringify(snapshot)}`);
+    return snapshot;
   });
 }
 

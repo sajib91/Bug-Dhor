@@ -112,7 +112,17 @@ test('configuration settings are declared', () => {
     'bugdhor.backend.pythonPath',
     'bugdhor.backend.autoStart',
     'bugdhor.logging.level',
-    'bugdhor.ui.showStatusBarItem'
+    'bugdhor.ui.showStatusBarItem',
+    'bugdhor.monitoring.enabled',
+    'bugdhor.monitoring.allowAutomaticSourceSharing',
+    'bugdhor.monitoring.onSaveOnly',
+    'bugdhor.monitoring.debounceMs',
+    'bugdhor.monitoring.languages',
+    'bugdhor.monitoring.analysisScope',
+    'bugdhor.monitoring.maxFileBytes',
+    'bugdhor.monitoring.maxChangedLines',
+    'bugdhor.monitoring.excludeGlobs',
+    'bugdhor.monitoring.notifyOnFindings'
   ]) {
     assert.ok(properties[key], `${key} must be declared`);
   }
@@ -128,6 +138,21 @@ test('configuration settings are declared', () => {
   assert.equal(properties['bugdhor.backend.requestTimeoutMs'].default, 30000);
   assert.equal(properties['bugdhor.backend.healthTimeoutMs'].default, 3000);
   assert.equal(properties['bugdhor.privacy.sendSourceText'].default, true);
+});
+
+test('real-time monitoring is off by default and requires explicit source consent', () => {
+  const properties = manifest.contributes?.configuration?.properties ?? {};
+  assert.equal(properties['bugdhor.monitoring.enabled'].default, false);
+  assert.equal(properties['bugdhor.monitoring.allowAutomaticSourceSharing'].default, false);
+  assert.equal(properties['bugdhor.monitoring.onSaveOnly'].default, false);
+  assert.deepEqual(properties['bugdhor.monitoring.languages'].default, ['python', 'javascript']);
+  assert.equal(properties['bugdhor.monitoring.analysisScope'].default, 'function');
+  assert.deepEqual(properties['bugdhor.monitoring.analysisScope'].enum, [
+    'changedLines',
+    'function',
+    'file'
+  ]);
+  assert.ok(properties['bugdhor.monitoring.debounceMs'].minimum >= 100);
 });
 
 test('extension icon is a valid 128x128 PNG', () => {

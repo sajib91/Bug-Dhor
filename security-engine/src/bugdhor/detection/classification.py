@@ -59,7 +59,9 @@ _CWE_TO_CATEGORY: dict[str, VulnerabilityCategory] = {
     "CWE-352": VulnerabilityCategory.CSRF,
     "CWE-287": VulnerabilityCategory.AUTH_BYPASS,
     "CWE-306": VulnerabilityCategory.AUTH_BYPASS,
-    "CWE-862": VulnerabilityCategory.AUTH_BYPASS,
+    "CWE-862": VulnerabilityCategory.AUTHORIZATION_WEAKNESS,
+    "CWE-863": VulnerabilityCategory.AUTHORIZATION_WEAKNESS,
+    "CWE-639": VulnerabilityCategory.IDOR,
     "CWE-20": VulnerabilityCategory.INPUT_VALIDATION,
 }
 
@@ -192,13 +194,31 @@ CATEGORY_INFO: dict[VulnerabilityCategory, CategoryInfo] = {
         base_severity="high",
     ),
     VulnerabilityCategory.AUTH_BYPASS: CategoryInfo(
-        title="Authentication or authorization bypass",
+        title="Authentication bypass",
         default_cwe="CWE-287",
         remediation=(
-            "Enforce authentication and authorization on every protected path, "
-            "fail closed, and add negative tests for missing or forged identity."
+            "Enforce authentication on every protected path, fail closed, and add "
+            "negative tests for missing or forged identity."
         ),
         base_severity="critical",
+    ),
+    VulnerabilityCategory.AUTHORIZATION_WEAKNESS: CategoryInfo(
+        title="Authorization weakness",
+        default_cwe="CWE-862",
+        remediation=(
+            "Check the authenticated principal's permissions on every protected "
+            "operation and deny access by default."
+        ),
+        base_severity="high",
+    ),
+    VulnerabilityCategory.IDOR: CategoryInfo(
+        title="Insecure direct object reference",
+        default_cwe="CWE-639",
+        remediation=(
+            "Verify the authenticated user's ownership or entitlement for every "
+            "object identifier instead of trusting an identifier from the request."
+        ),
+        base_severity="high",
     ),
     VulnerabilityCategory.INPUT_VALIDATION: CategoryInfo(
         title="Improper input validation",
@@ -226,6 +246,8 @@ CATEGORY_ORDER: tuple[VulnerabilityCategory, ...] = (
     VulnerabilityCategory.OPEN_REDIRECT,
     VulnerabilityCategory.CSRF,
     VulnerabilityCategory.AUTH_BYPASS,
+    VulnerabilityCategory.AUTHORIZATION_WEAKNESS,
+    VulnerabilityCategory.IDOR,
     VulnerabilityCategory.INPUT_VALIDATION,
     VulnerabilityCategory.UNKNOWN,
 )
@@ -372,6 +394,16 @@ _CATEGORY_PATTERNS: tuple[tuple[VulnerabilityCategory, tuple[str, ...]], ...] = 
         ("csrf", "cross-site-request-forgery", "cross_site_request_forgery"),
     ),
     (
+        VulnerabilityCategory.IDOR,
+        (
+            "insecure-direct-object-reference",
+            "insecure_direct_object_reference",
+            "idor",
+            "object-level-authorization",
+            "object-level-access-control",
+        ),
+    ),
+    (
         VulnerabilityCategory.AUTH_BYPASS,
         (
             "auth-bypass",
@@ -380,6 +412,16 @@ _CATEGORY_PATTERNS: tuple[tuple[VulnerabilityCategory, tuple[str, ...]], ...] = 
             "authorization-bypass",
             "missing-auth",
             "missing-authentication",
+        ),
+    ),
+    (
+        VulnerabilityCategory.AUTHORIZATION_WEAKNESS,
+        (
+            "authorization-weakness",
+            "authorization_weakness",
+            "broken-access-control",
+            "missing-authorization",
+            "improper-authorization",
         ),
     ),
     (

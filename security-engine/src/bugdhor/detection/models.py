@@ -84,6 +84,8 @@ class VulnerabilityCategory(StrEnum):
     OPEN_REDIRECT = "open_redirect"
     CSRF = "csrf"
     AUTH_BYPASS = "auth_bypass"
+    AUTHORIZATION_WEAKNESS = "authorization_weakness"
+    IDOR = "idor"
     INPUT_VALIDATION = "input_validation"
     UNKNOWN = "unknown"
 
@@ -480,6 +482,7 @@ class VulnerabilityFinding:
     limitations: tuple[str, ...] = ()
     conflicts: tuple[str, ...] = ()
     rule_ids: tuple[str, ...] = ()
+    verification_status: str = "potential"
 
     def __post_init__(self) -> None:
         if not self.finding_id or not self.title:
@@ -488,6 +491,10 @@ class VulnerabilityFinding:
             raise ValueError(f"invalid CWE identifier: {self.cwe!r}")
         if self.severity not in _SEVERITIES:
             raise ValueError(f"unsupported severity: {self.severity!r}")
+        if self.verification_status not in {"confirmed", "potential"}:
+            raise ValueError(
+                f"unsupported verification status: {self.verification_status!r}"
+            )
 
     @property
     def evidence_sources(self) -> tuple[str, ...]:
@@ -534,6 +541,7 @@ class VulnerabilityFinding:
             "provenance": self.provenance.to_dict(),
             "limitations": list(self.limitations),
             "conflicts": list(self.conflicts),
+            "verificationStatus": self.verification_status,
         }
 
     def to_contract_dict(self) -> dict[str, Any]:
@@ -614,6 +622,7 @@ class VulnerabilityFinding:
             "explanation": self.explanation[:100_000],
             "sourceReferences": references,
             "repair": None,
+            "verificationStatus": self.verification_status,
         }
 
 

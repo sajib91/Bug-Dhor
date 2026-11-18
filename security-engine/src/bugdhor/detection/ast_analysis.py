@@ -356,8 +356,16 @@ def _call_matches(
             )
         )
 
-    # Dynamic SQL construction at a query sink.
-    if first_dynamic and any(normalized.endswith(suffix) for suffix in _SQL_SINK_SUFFIXES):
+    # Dynamic SQL construction at a query sink. A call that also supplies
+    # bind parameters is a parameterized query, not dynamic SQL construction.
+    parameterized_query = len(positional) >= 2 or any(
+        key in {"params", "parameters", "values", "bindings", "args"} for key in keywords
+    )
+    if (
+        first_dynamic
+        and not parameterized_query
+        and any(normalized.endswith(suffix) for suffix in _SQL_SINK_SUFFIXES)
+    ):
         info = CATEGORY_INFO[VulnerabilityCategory.SQL_INJECTION]
         results.append(
             StructuralMatch(

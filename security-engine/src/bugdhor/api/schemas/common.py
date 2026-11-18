@@ -92,6 +92,13 @@ class Finding(APIModel):
     explanation: str | None = Field(default=None, max_length=100_000)
     source_references: list[SourceReference] = Field(default_factory=list, max_length=50)
     repair: RepairInfo | None = None
+    verification_status: Literal["confirmed", "potential"] | None = Field(
+        default=None,
+        description=(
+            "Evidence-backed finding status. 'confirmed' requires multiple independent "
+            "observation/inference evidence families; otherwise 'potential'."
+        ),
+    )
 
 
 class ScanScope(APIModel):
