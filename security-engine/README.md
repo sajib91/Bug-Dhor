@@ -24,10 +24,12 @@ Implemented and tested:
   and RFC 9457 problem-detail handlers.
 - `src/bugdhor/core/` — settings, typed errors, logging, path containment,
   pipeline primitives, and the operation orchestrator.
-- `src/bugdhor/parsing/` — Python/JavaScript detection, BOM and line-ending
-  normalization with a lossless source map, exact UTF-8/UTF-16 spans,
+- `src/bugdhor/parsing/` — detection for 13 requested languages, parsing with
+  installed Python/JavaScript/TypeScript (including TSX) grammars, BOM and
+  line-ending normalization with a lossless source map, exact UTF-8/UTF-16 spans,
   tokenization, function/method/lambda extraction, AST-aware chunking,
-  repository metadata, and recoverable syntax-error diagnostics.
+  repository metadata with explicit `no_installed_parser` skips, and recoverable
+  syntax-error diagnostics.
 - `src/bugdhor/program_analysis/` — module/function CFGs with basic blocks,
   branches, loops, exceptions, returns, and break/continue; reaching-definition
   DFGs with def-use, parameter, call, return, raise, and closure edges; a taint
@@ -41,13 +43,18 @@ Implemented and tested:
   parsing, shared normalized findings, conservative CWE extraction, and
   deduplication. Missing, failed, and timed-out tools are explicit statuses, never
   empty successful scans.
+- `src/bugdhor/detection/` — evidence fusion, opt-in general-bug/security AST
+  rules, and additive finding fields for category, exact coordinates, epistemic
+  confidence, uncertainty, detection method, and remediation.
+- `src/bugdhor/core/capability_report.py` — runtime language/parser/tool/linter
+  capability report exposed as `analysisCapabilities` on `/health`.
 - `src/bugdhor/main.py` — Uvicorn entry point with configurable host and port.
 - File scans — allowlisted-root validation, path/symlink containment, UTF-8 and
   size checks, SHA-256 computation, and language detection.
 - Workspace scans — symlink-safe source discovery with ignored generated
   directories, a configurable file-count limit, and available scan stages over
   discovered sources.
-- 638 tests under `tests/`, covering every endpoint, validation, problem details,
+- 717 tests under `tests/`, covering every endpoint, validation, problem details,
   auth, CORS, request/file/workspace limits, path containment, pipeline status
   semantics, settings, OpenAPI paths, shared contracts, source preprocessing,
   CFG/DFG graph correctness, positive/negative taint flows, subprocess safety and

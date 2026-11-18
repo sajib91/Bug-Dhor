@@ -1,17 +1,23 @@
 """Source-code preprocessing for Bug Dhor.
 
-Python and JavaScript are supported. The package provides language detection,
-lossless normalization, tree-sitter tokenization, exact source spans, function
-extraction, syntax-aware chunking, and repository metadata extraction. Syntax
-errors are reported as diagnostics and never converted into a silent success.
+Language detection covers the project's requested source languages. Parsing is
+available only where an installed tree-sitter grammar exists. The package also
+provides lossless normalization, exact source spans, function extraction,
+syntax-aware chunking, and explicit capability reporting. Syntax errors are
+reported as diagnostics and never converted into a silent success.
 """
 
 from bugdhor.parsing.chunking import chunk_source
 from bugdhor.parsing.functions import extract_functions
 from bugdhor.parsing.languages import (
+    LanguageCapability,
     UnsupportedLanguageError,
     detect_language,
+    is_parser_available,
+    language_capabilities,
+    language_capability,
     require_language,
+    require_parser,
     tree_sitter_language,
 )
 from bugdhor.parsing.metadata import (
@@ -47,6 +53,7 @@ __all__ = [
     "DetectionSource",
     "FunctionKind",
     "FunctionSymbol",
+    "LanguageCapability",
     "LanguageDetection",
     "LineEnding",
     "NormalizedSource",
@@ -65,12 +72,16 @@ __all__ = [
     "chunk_source",
     "detect_language",
     "extract_functions",
+    "is_parser_available",
+    "language_capabilities",
+    "language_capability",
     "extract_repository_metadata",
     "normalize_source",
     "parse_source",
     "preprocess_file",
     "preprocess_source",
     "require_language",
+    "require_parser",
     "tokenize_source",
     "tree_sitter_language",
 ]

@@ -24,6 +24,18 @@ from bugdhor.parsing.locations import LineIndex
         ("component.jsx", SupportedLanguage.JAVASCRIPT),
         ("module.mjs", SupportedLanguage.JAVASCRIPT),
         ("common.cjs", SupportedLanguage.JAVASCRIPT),
+        ("component.ts", SupportedLanguage.TYPESCRIPT),
+        ("component.tsx", SupportedLanguage.TYPESCRIPT),
+        ("Service.java", SupportedLanguage.JAVA),
+        ("main.c", SupportedLanguage.C),
+        ("main.cpp", SupportedLanguage.CPP),
+        ("index.php", SupportedLanguage.PHP),
+        ("main.go", SupportedLanguage.GO),
+        ("main.rs", SupportedLanguage.RUST),
+        ("Program.cs", SupportedLanguage.CSHARP),
+        ("app.rb", SupportedLanguage.RUBY),
+        ("Main.kt", SupportedLanguage.KOTLIN),
+        ("main.swift", SupportedLanguage.SWIFT),
     ],
 )
 def test_detects_supported_extensions(path: str, expected: SupportedLanguage) -> None:
@@ -46,8 +58,17 @@ def test_explicit_language_id_wins_over_extension_and_content() -> None:
     assert detection.detail == " JavaScript "
 
 
-def test_explicit_language_id_is_authoritative_even_when_unsupported() -> None:
+def test_explicit_language_id_is_authoritative_even_with_a_different_extension() -> None:
     detection = detect_language(path="module.py", language_id="typescript")
+
+    assert detection.language is SupportedLanguage.TYPESCRIPT
+    assert detection.source is DetectionSource.EXPLICIT
+    assert detection.detected is True
+    assert detection.detail is not None
+
+
+def test_unknown_language_id_is_reported_without_fallback() -> None:
+    detection = detect_language(path="module.py", language_id="cobol")
 
     assert detection.language is None
     assert detection.source is DetectionSource.EXPLICIT
@@ -61,7 +82,7 @@ def test_explicit_language_id_is_authoritative_even_when_unsupported() -> None:
 
 def test_unsupported_extension_does_not_fall_back_to_content() -> None:
     detection = detect_language(
-        path="module.ts",
+        path="module.unknown",
         text="def function_like_name():\n    pass\n",
     )
 
@@ -277,15 +298,15 @@ def test_empty_source_parses_without_chunks_or_tokens() -> None:
     assert tokenize_source(parsed) == ()
 
 
-def test_parse_rejects_unsupported_or_invalid_text() -> None:
-    with pytest.raises(UnsupportedLanguageError, match="Supported languages"):
-        parse_source("const value = 1;\n", path="module.ts")
+def test_parse_rejects_detected_languages_without_installed_grammars() -> None:
+    with pytest.raises(UnsupportedLanguageError, match="no installed parser|Supported languages"):
+        parse_source("class Example {}\n", path="module.java")
 
     with pytest.raises(ValueError, match="valid UTF-8"):
         parse_source("\ud800", path="invalid.py")
 
-    with pytest.raises(UnsupportedLanguageError, match="Supported languages"):
-        parse_source("x = 1\n", path="script", language="typescript")
+    with pytest.raises(UnsupportedLanguageError, match="no installed parser|Supported languages"):
+        parse_source("x = 1\n", path="script", language="java")
 
 
 def test_explicit_language_parses_unusual_extension() -> None:

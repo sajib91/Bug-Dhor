@@ -4,6 +4,9 @@
 - [HTTP API](api.md) — implemented `/api/v1` endpoints, envelopes, errors, auth, limits, and OpenAPI access.
 - [Program analysis](program-analysis.md) — standalone Python/JavaScript CFG, DFG, and taint analysis, NetworkX graphs, exact spans, supported constructs, tests, and limitations.
 - [AI assistant integration](ai-assistant-integration.md) — model-independent provider adapters, A–F capability taxonomy, compatibility matrix, honest provenance, and the incremental assisted-analysis workflow.
+- [Workspace scanning audit](workspace-scanning-audit.md) — evidence audit of the VS Code, FastAPI, privacy, and research boundaries for workspace scanning.
+- [Current feature status](current-feature-status.md) — one current status matrix and verification record for implemented, partial, unavailable, and not-run capabilities.
+- [Workspace scanning implementation plan](workspace-scanning-implementation-plan.md) — architecture decisions, settings, event map, acceptance criteria, and follow-up work for model-independent monitoring.
 - [Model compatibility testing](model-compatibility-testing.md) — evidence-backed probes for ten model capabilities, exact checkpoint metadata, SAE/steering compatibility, and the generated compatibility report.
 - [Coding benchmark](../benchmarks/README.md) — ten realistic tasks, E0-E7 conditions, leakage controls, and an honest `not_run` readiness bundle.
 - [Shared JSON contracts](../shared/schemas/README.md) — Draft 2020-12 schemas, fixtures, and score/availability rules validated from Python and JavaScript.

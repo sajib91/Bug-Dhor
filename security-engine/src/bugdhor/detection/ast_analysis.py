@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from tree_sitter import Node
 
 from bugdhor.detection.classification import CATEGORY_INFO
-from bugdhor.detection.models import EvidenceLocation, VulnerabilityCategory
+from bugdhor.detection.models import EvidenceLocation, EvidenceType, VulnerabilityCategory
 from bugdhor.parsing.models import SourceSpan
 from bugdhor.parsing.parser import ParsedSource
 
@@ -125,6 +125,7 @@ class StructuralMatch:
     reliability: float
     remediation: str = ""
     limitations: tuple[str, ...] = ()
+    evidence_type: EvidenceType = EvidenceType.AST
 
     def to_location(self, path: str) -> EvidenceLocation:
         return EvidenceLocation.from_source(self.span, path)

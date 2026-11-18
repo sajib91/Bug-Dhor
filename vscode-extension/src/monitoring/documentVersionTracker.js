@@ -35,6 +35,7 @@ class DocumentVersionTracker {
    *   uri: string,
    *   version: number,
    *   lineCount?: number,
+   *   fsPath?: string,
    *   contentChanges?: unknown[],
    *   timestamp?: number
    * }} event
@@ -82,6 +83,7 @@ class DocumentVersionTracker {
       uri,
       version,
       lineCount,
+      fsPath: typeof event.fsPath === 'string' ? event.fsPath : undefined,
       ranges: mergeRanges(ranges).slice(0, Math.max(1, this.maxRanges)),
       fullDocument,
       // Edit-shape description only; no claim about the author or model.
@@ -94,10 +96,56 @@ class DocumentVersionTracker {
   }
 
   /**
+   * Record a document open. Opening is tracked once per document version so an
+   * open event cannot repeatedly trigger scans. It deliberately does not infer
+   * who created or last edited the file.
+   *
+   * @param {{
+   *   uri: string,
+   *   version: number,
+   *   lineCount?: number,
+   *   fsPath?: string,
+   *   timestamp?: number
+   * }} event
+   */
+  observeOpen(event) {
+    const uri = event?.uri;
+    const version = event?.version;
+    if (typeof uri !== 'string' || uri.length === 0 || !Number.isInteger(version) || version < 0) {
+      return { ignored: true, reason: 'invalid', state: undefined };
+    }
+
+    const previous = /** @type {any} */ (this.documents.get(uri));
+    if (previous && version <= previous.version) {
+      return { ignored: true, reason: 'stale', state: previous };
+    }
+
+    const state = {
+      ...(previous ?? {}),
+      uri,
+      version,
+      lineCount: Number.isInteger(event.lineCount) ? event.lineCount : 1,
+      fsPath:
+        typeof event.fsPath === 'string'
+          ? event.fsPath
+          : typeof previous?.fsPath === 'string'
+            ? previous.fsPath
+            : undefined,
+      ranges: [],
+      fullDocument: true,
+      bulkInsert: false,
+      openedVersion: version,
+      lastSeenAt: Number.isFinite(event.timestamp) ? event.timestamp : Date.now()
+    };
+    this.store(uri, state);
+    return { ignored: false, reason: undefined, state };
+  }
+
+  /**
    * Record a document save. The version is not advanced; a save is a trigger
    * for a bounded file-level confirmation scan of the already-tracked buffer.
    *
-   * @param {{ uri: string, version: number, timestamp?: number }} event
+   * @param {{ uri: string, version: number, fsPath?: string, timestamp?: number }} event
    */
   observeSave(event) {
     const uri = event?.uri;
@@ -107,11 +155,17 @@ class DocumentVersionTracker {
     }
     const previous = /** @type {any} */ (this.documents.get(uri));
     const state = previous
-      ? { ...previous, savedVersion: version, lastSeenAt: event.timestamp ?? Date.now() }
+      ? {
+          ...previous,
+          fsPath: typeof event.fsPath === 'string' ? event.fsPath : previous.fsPath,
+          savedVersion: version,
+          lastSeenAt: event.timestamp ?? Date.now()
+        }
       : {
           uri,
           version,
           lineCount: 1,
+          fsPath: typeof event.fsPath === 'string' ? event.fsPath : undefined,
           ranges: [],
           fullDocument: true,
           bulkInsert: false,

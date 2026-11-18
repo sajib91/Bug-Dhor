@@ -118,6 +118,17 @@ test('health validation accepts the documented response without adding fields', 
   assert.equal(health.sandboxBackend, 'none');
 });
 
+test('health validation preserves the optional analysis capability report', () => {
+  const analysisCapabilities = {
+    installedParsers: ['python', 'javascript', 'typescript'],
+    programAnalysis: { python: ['cfg', 'dfg', 'taint'] },
+    dependencyVulnerabilityChecks: { automated: false }
+  };
+  const health = validateHealthResponse(healthPayload({ analysisCapabilities }));
+
+  assert.deepEqual(health.analysisCapabilities, analysisCapabilities);
+});
+
 test('health validation rejects unsupported or incomplete responses', () => {
   for (const payload of [
     healthPayload({ status: 'degraded' }),

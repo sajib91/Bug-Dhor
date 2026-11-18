@@ -53,6 +53,7 @@ from bugdhor.api.schemas import (
     VerificationResult,
 )
 from bugdhor.config import API_VERSION
+from bugdhor.core.capability_report import analysis_capabilities as build_analysis_capabilities
 from bugdhor.core.errors import (
     AppError,
     ConflictAppError,
@@ -156,7 +157,13 @@ OPERATION_STAGES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _progress_noop(stage: str, status: str, message: str, percent: float | None = None, data: Mapping[str, Any] | None = None) -> None:
+def _progress_noop(
+    stage: str,
+    status: str,
+    message: str,
+    percent: float | None = None,
+    data: Mapping[str, Any] | None = None,
+) -> None:
     return None
 
 
@@ -219,7 +226,9 @@ class Orchestrator:
 
     _ANALYSIS_CACHE_VERSION = "v1"
 
-    def __init__(self, settings: Settings, stages: Mapping[str, PipelineStage] | None = None) -> None:
+    def __init__(
+        self, settings: Settings, stages: Mapping[str, PipelineStage] | None = None
+    ) -> None:
         self.settings = settings
         self.logger = get_logger("bugdhor.orchestrator")
         self.stages: dict[str, PipelineStage] = {
@@ -230,7 +239,11 @@ class Orchestrator:
         self.stages["repair"] = type(
             "_RepairStage",
             (),
-            {"name": "repair", "available": True, "run": lambda self, ctx: StageResult(stage="repair", status=StageStatus.OK)},
+            {
+                "name": "repair",
+                "available": True,
+                "run": lambda self, ctx: StageResult(stage="repair", status=StageStatus.OK),
+            },
         )()
         self.stages["recommendation"] = type(
             "_RecommendationStage",
@@ -238,13 +251,13 @@ class Orchestrator:
             {
                 "name": "recommendation",
                 "available": True,
-                "run": lambda self, ctx: StageResult(
-                    stage="recommendation", status=StageStatus.OK
-                ),
+                "run": lambda self, ctx: StageResult(stage="recommendation", status=StageStatus.OK),
             },
         )()
         self._analysis_cache: dict[str, dict[str, Any]] = {}
-        self._analysis_cache_dir = Path(getattr(self.settings, "data_dir", Path(".bugdhor-data"))) / "cache" / "analysis"
+        self._analysis_cache_dir = (
+            Path(getattr(self.settings, "data_dir", Path(".bugdhor-data"))) / "cache" / "analysis"
+        )
         try:
             self._analysis_cache_dir.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -256,12 +269,16 @@ class Orchestrator:
                 self.stages[name] = stage
 
     def _analysis_cache_key(self, path: str, source_sha256: str, language_id: str | None) -> str:
-        raw = json.dumps({
-            "v": self._ANALYSIS_CACHE_VERSION,
-            "path": path,
-            "sha256": source_sha256,
-            "languageId": language_id or "",
-        }, sort_keys=True, separators=(",", ":"))
+        raw = json.dumps(
+            {
+                "v": self._ANALYSIS_CACHE_VERSION,
+                "path": path,
+                "sha256": source_sha256,
+                "languageId": language_id or "",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def _load_analysis_cache(self, key: str) -> dict[str, Any] | None:
@@ -305,6 +322,10 @@ class Orchestrator:
         caps["verification_run"] = getattr(self.stages.get("verification"), "available", False)
         return caps
 
+    def analysis_capabilities(self) -> dict[str, Any]:
+        """Return parser, analyzer, and tool support with explicit gaps."""
+        return build_analysis_capabilities()
+
     # ---- job/persistence helpers ----
     def _run_with_job(
         self,
@@ -317,12 +338,20 @@ class Orchestrator:
         if job_store is None or job_id is None:
             return fn(_progress_noop, None)
         token = job_store.token(job_id)
-        def progress(stage: str, status: str, message: str, percent: float | None = None, data: Mapping[str, Any] | None = None) -> None:
+
+        def progress(
+            stage: str,
+            status: str,
+            message: str,
+            percent: float | None = None,
+            data: Mapping[str, Any] | None = None,
+        ) -> None:
             job_store.progress(job_id, stage, status, message, percent, data)
             self.logger.info(
                 message,
                 extra={"operation": operation, "request_id": request_id, "path": stage},
             )
+
         try:
             progress("operation", "running", f"Started {operation}", 0.0)
             result = fn(progress, token)
@@ -332,29 +361,56 @@ class Orchestrator:
         except ConflictAppError as exc:
             if getattr(exc, "code", "") == "E_CANCELLED":
                 progress("operation", "cancelled", str(exc), None)
-            job_store.fail(job_id, {"code": exc.code, "detail": exc.detail, "statusCode": exc.status_code})
+            job_store.fail(
+                job_id, {"code": exc.code, "detail": exc.detail, "statusCode": exc.status_code}
+            )
             raise
         except AppError as exc:
-            job_store.fail(job_id, {"code": exc.code, "detail": exc.detail, "statusCode": exc.status_code})
+            job_store.fail(
+                job_id, {"code": exc.code, "detail": exc.detail, "statusCode": exc.status_code}
+            )
             raise
         except Exception as exc:
-            self.logger.exception("Operation failed.", extra={"request_id": request_id, "operation": operation})
-            job_store.fail(job_id, {"code": "E_INTERNAL", "detail": "Internal engine error.", "type": type(exc).__name__})
+            self.logger.exception(
+                "Operation failed.", extra={"request_id": request_id, "operation": operation}
+            )
+            job_store.fail(
+                job_id,
+                {
+                    "code": "E_INTERNAL",
+                    "detail": "Internal engine error.",
+                    "type": type(exc).__name__,
+                },
+            )
             raise
 
-    def _persist_result(self, job_store: JobStore | None, operation: str, request_id: str, result: Any) -> None:
+    def _persist_result(
+        self, job_store: JobStore | None, operation: str, request_id: str, result: Any
+    ) -> None:
         if job_store is None:
             return
         try:
             payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
             job_store.results_dir.mkdir(parents=True, exist_ok=True)
             path = job_store.results_dir / f"{operation}-{request_id}.json"
-            path.write_text(json.dumps(payload if isinstance(payload, dict) else {"value": payload}, ensure_ascii=False, indent=2), encoding="utf-8")
+            path.write_text(
+                json.dumps(
+                    payload if isinstance(payload, dict) else {"value": payload},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
         except Exception:
-            self.logger.warning("Failed to persist operation result.", extra={"operation": operation, "request_id": request_id})
+            self.logger.warning(
+                "Failed to persist operation result.",
+                extra={"operation": operation, "request_id": request_id},
+            )
 
     # ---- real analysis helpers ----
-    def _run_static_analysis(self, root: Path, targets: list[Path], progress: ProgressCallback) -> tuple[Any | None, list[StageReport], list[str]]:
+    def _run_static_analysis(
+        self, root: Path, targets: list[Path], progress: ProgressCallback
+    ) -> tuple[Any | None, list[StageReport], list[str]]:
         """Best-effort static analysis using available configured adapters. Never fabricated."""
         reports: list[StageReport] = []
         warnings: list[str] = []
@@ -364,7 +420,14 @@ class Orchestrator:
             from bugdhor.static.semgrep import SemgrepAdapter
         except Exception as exc:
             msg = f"Static-analysis adapters unavailable: {type(exc).__name__}"
-            reports.append(StageReport(stage="static_evidence", status=StageStatus.UNAVAILABLE, reason_code="E_ANALYZER_UNAVAILABLE", detail=msg))
+            reports.append(
+                StageReport(
+                    stage="static_evidence",
+                    status=StageStatus.UNAVAILABLE,
+                    reason_code="E_ANALYZER_UNAVAILABLE",
+                    detail=msg,
+                )
+            )
             return None, reports, [msg]
         adapters = []
         for cls in (SemgrepAdapter, BanditAdapter):
@@ -373,37 +436,69 @@ class Orchestrator:
             except Exception:
                 continue
         if not adapters:
-            reports.append(StageReport(stage="static_evidence", status=StageStatus.UNAVAILABLE, reason_code="E_ANALYZER_UNAVAILABLE", detail="No static analyzer adapters could be initialized."))
+            reports.append(
+                StageReport(
+                    stage="static_evidence",
+                    status=StageStatus.UNAVAILABLE,
+                    reason_code="E_ANALYZER_UNAVAILABLE",
+                    detail="No static analyzer adapters could be initialized.",
+                )
+            )
             return None, reports, []
-        progress("static_evidence", "running", "Detecting/running configured static analyzers", None)
+        progress(
+            "static_evidence", "running", "Detecting/running configured static analyzers", None
+        )
         try:
             runner = StaticAnalysisRunner(adapters)
             result = runner.scan(root, targets)
             warnings.extend(list(result.warnings))
             if result.status.value in {"ok", "partial"} and any(s.succeeded for s in result.scans):
                 st = StageStatus.OK if result.status.value == "ok" else StageStatus.PARTIAL
-            elif any(s.status.value == "unavailable" for s in result.scans) and not any(s.succeeded for s in result.scans):
+            elif any(s.status.value == "unavailable" for s in result.scans) and not any(
+                s.succeeded for s in result.scans
+            ):
                 st = StageStatus.UNAVAILABLE
             else:
                 st = StageStatus.PARTIAL
             reasons = [s.reason_code for s in result.scans if s.reason_code]
-            detail = "; ".join(dict.fromkeys([s.detail for s in result.scans if s.detail]))[:500] or None
-            reports.append(StageReport(
-                stage="static_evidence",
-                status=st,
-                reason_code=reasons[0] if reasons and st != StageStatus.OK else None,
-                detail=detail,
-                warnings=list(result.warnings),
-                data={"toolStatuses": {s.tool: s.status.value for s in result.scans}, "findingCount": len(result.findings)},
-            ))
+            detail = (
+                "; ".join(dict.fromkeys([s.detail for s in result.scans if s.detail]))[:500] or None
+            )
+            reports.append(
+                StageReport(
+                    stage="static_evidence",
+                    status=st,
+                    reason_code=reasons[0] if reasons and st != StageStatus.OK else None,
+                    detail=detail,
+                    warnings=list(result.warnings),
+                    data={
+                        "toolStatuses": {s.tool: s.status.value for s in result.scans},
+                        "findingCount": len(result.findings),
+                    },
+                )
+            )
             return result, reports, warnings
         except Exception as exc:
             msg = f"Static analysis failed: {type(exc).__name__}"
-            reports.append(StageReport(stage="static_evidence", status=StageStatus.FAILED, reason_code="E_ANALYZER_FAILED", detail=msg))
+            reports.append(
+                StageReport(
+                    stage="static_evidence",
+                    status=StageStatus.FAILED,
+                    reason_code="E_ANALYZER_FAILED",
+                    detail=msg,
+                )
+            )
             warnings.append(msg)
             return None, reports, warnings
 
-    def _analyze_one_file(self, path: str, uri: str, source_text: str, language_id: str | None, progress: ProgressCallback) -> _FileAnalysis:
+    def _analyze_one_file(
+        self,
+        path: str,
+        uri: str,
+        source_text: str,
+        language_id: str | None,
+        progress: ProgressCallback,
+    ) -> _FileAnalysis:
         source_sha256 = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
         cache_key = self._analysis_cache_key(path, source_sha256, language_id)
         cached = self._load_analysis_cache(cache_key)
@@ -424,29 +519,47 @@ class Orchestrator:
             progress("preprocessing", "cached", f"Reused cached parse/analysis for {path}", None)
             return fa
 
-        fa = _FileAnalysis(path=path, uri=uri, language_id=language_id, source_text=source_text, source_sha256=source_sha256)
+        fa = _FileAnalysis(
+            path=path,
+            uri=uri,
+            language_id=language_id,
+            source_text=source_text,
+            source_sha256=source_sha256,
+        )
         try:
             progress("preprocessing", "running", f"Parsing and preprocessing {path}", None)
             from bugdhor.parsing.parser import parse_source
+
             parsed = parse_source(source_text, path=path, language_id=language_id)
-            fa.language_id = fa.language_id or getattr(getattr(parsed, "language", None), "value", None)
+            fa.language_id = fa.language_id or getattr(
+                getattr(parsed, "language", None), "value", None
+            )
             fa.parsed_ok = True
         except Exception as exc:
             fa.parse_error = f"{type(exc).__name__}: {exc}"
-            self._store_analysis_cache(cache_key, {
-                "_kind": "analysis-v1",
-                "language_id": fa.language_id,
-                "parsed_ok": False,
-                "program_analysis": None,
-                "taint": None,
-                "parse_error": fa.parse_error,
-                "analysis_error": None,
-            })
+            self._store_analysis_cache(
+                cache_key,
+                {
+                    "_kind": "analysis-v1",
+                    "language_id": fa.language_id,
+                    "parsed_ok": False,
+                    "program_analysis": None,
+                    "taint": None,
+                    "parse_error": fa.parse_error,
+                    "analysis_error": None,
+                },
+            )
             return fa
         try:
-            progress("program_analysis", "running", f"Building AST/CFG/DFG and taint analysis for {path}", None)
+            progress(
+                "program_analysis",
+                "running",
+                f"Building AST/CFG/DFG and taint analysis for {path}",
+                None,
+            )
             from bugdhor.program_analysis.analysis import analyze_parsed
             from bugdhor.program_analysis.taint import analyze_taint
+
             pa = analyze_parsed(parsed)
             fa.program_analysis = pa
             try:
@@ -572,7 +685,9 @@ class Orchestrator:
             for report in reports
         )
 
-    def _run_detection(self, analyses: list[_FileAnalysis], static_result: Any | None, progress: ProgressCallback) -> tuple[list[Finding], list[str], list[StageReport], list[str], dict[str, Any]]:
+    def _run_detection(
+        self, analyses: list[_FileAnalysis], static_result: Any | None, progress: ProgressCallback
+    ) -> tuple[list[Finding], list[str], list[StageReport], list[str], dict[str, Any]]:
         findings: list[Finding] = []
         evidence_sources: list[str] = []
         stage_reports: list[StageReport] = []
@@ -581,7 +696,14 @@ class Orchestrator:
         try:
             from bugdhor.detection.engine import DetectionEngine
         except Exception as exc:
-            stage_reports.append(StageReport(stage="detection", status=StageStatus.UNAVAILABLE, reason_code="E_DETECTOR_UNAVAILABLE", detail=f"Detection engine unavailable: {type(exc).__name__}"))
+            stage_reports.append(
+                StageReport(
+                    stage="detection",
+                    status=StageStatus.UNAVAILABLE,
+                    reason_code="E_DETECTOR_UNAVAILABLE",
+                    detail=f"Detection engine unavailable: {type(exc).__name__}",
+                )
+            )
             return findings, evidence_sources, stage_reports, warnings, coverage
         engine = DetectionEngine()
         progress("detection", "running", "Fusing evidence for vulnerability detection", None)
@@ -606,18 +728,20 @@ class Orchestrator:
                     except Exception:
                         # keep honest minimal finding
                         try:
-                            findings.append(Finding(
-                                id=str(fdict.get("id", f"finding-{idx}")),
-                                message=str(fdict.get("message", "Potential vulnerability")),
-                                severity=str(fdict.get("severity", "info")),
-                                cwe=fdict.get("cwe"),
-                                rule_id=fdict.get("ruleId"),
-                                location=fdict["location"],
-                                evidence=fdict.get("evidence"),
-                                explanation=fdict.get("explanation"),
-                                source_references=fdict.get("sourceReferences", []),
-                                risk_assessment=risk_summary,
-                            ))
+                            findings.append(
+                                Finding(
+                                    id=str(fdict.get("id", f"finding-{idx}")),
+                                    message=str(fdict.get("message", "Potential vulnerability")),
+                                    severity=str(fdict.get("severity", "info")),
+                                    cwe=fdict.get("cwe"),
+                                    rule_id=fdict.get("ruleId"),
+                                    location=fdict["location"],
+                                    evidence=fdict.get("evidence"),
+                                    explanation=fdict.get("explanation"),
+                                    source_references=fdict.get("sourceReferences", []),
+                                    risk_assessment=risk_summary,
+                                )
+                            )
                         except Exception:
                             pass
                 evidence_sources.extend(list(det.evidence_sources))
@@ -631,14 +755,36 @@ class Orchestrator:
                 st = StageStatus.UNAVAILABLE
                 reason = "E_DETECTOR_NO_INPUT"
                 detail = "No analyzable input provided."
-            stage_reports.append(StageReport(stage="detection", status=st, reason_code=reason, detail=detail, warnings=warnings[:20], data={"findingCount": len(findings), "coverage": coverage}))
+            stage_reports.append(
+                StageReport(
+                    stage="detection",
+                    status=st,
+                    reason_code=reason,
+                    detail=detail,
+                    warnings=warnings[:20],
+                    data={"findingCount": len(findings), "coverage": coverage},
+                )
+            )
         except Exception as exc:
-            stage_reports.append(StageReport(stage="detection", status=StageStatus.PARTIAL, reason_code="E_DETECTOR_ERROR", detail=f"{type(exc).__name__}: {exc}"))
+            stage_reports.append(
+                StageReport(
+                    stage="detection",
+                    status=StageStatus.PARTIAL,
+                    reason_code="E_DETECTOR_ERROR",
+                    detail=f"{type(exc).__name__}: {exc}",
+                )
+            )
             warnings.append(f"detection error: {type(exc).__name__}")
         evidence_sources = list(dict.fromkeys(evidence_sources))
         return findings, evidence_sources, stage_reports, warnings, coverage
 
-    def _build_scan_reports(self, analyses: list[_FileAnalysis], static_reports: list[StageReport], det_reports: list[StageReport], extra_warnings: list[str]) -> tuple[list[StageReport], list[str]]:
+    def _build_scan_reports(
+        self,
+        analyses: list[_FileAnalysis],
+        static_reports: list[StageReport],
+        det_reports: list[StageReport],
+        extra_warnings: list[str],
+    ) -> tuple[list[StageReport], list[str]]:
         reports: list[StageReport] = []
         warnings: list[str] = list(extra_warnings)
         # preprocessing/program_analysis summary
@@ -647,13 +793,55 @@ class Orchestrator:
         pa_ok = sum(1 for a in analyses if a.program_analysis is not None)
         cached = sum(1 for a in analyses if getattr(a, "from_cache", False))
         if analyses and parsed == 0:
-            reports.append(StageReport(stage="preprocessing", status=StageStatus.PARTIAL, reason_code="E_PARSE_FAILED", detail="Parsing failed for analyzed inputs.", data={"files": len(analyses), "parsed": parsed, "cached": cached}))
+            reports.append(
+                StageReport(
+                    stage="preprocessing",
+                    status=StageStatus.PARTIAL,
+                    reason_code="E_PARSE_FAILED",
+                    detail="Parsing failed for analyzed inputs.",
+                    data={"files": len(analyses), "parsed": parsed, "cached": cached},
+                )
+            )
         else:
-            reports.append(StageReport(stage="preprocessing", status=StageStatus.OK if analyses else StageStatus.UNAVAILABLE, reason_code=None if analyses else "E_NO_INPUT", detail=None, data={"files": len(analyses), "parsed": parsed, "cached": cached}))
+            reports.append(
+                StageReport(
+                    stage="preprocessing",
+                    status=StageStatus.OK if analyses else StageStatus.UNAVAILABLE,
+                    reason_code=None if analyses else "E_NO_INPUT",
+                    detail=None,
+                    data={"files": len(analyses), "parsed": parsed, "cached": cached},
+                )
+            )
         if pa_ok == 0 and analyses:
-            reports.append(StageReport(stage="program_analysis", status=StageStatus.PARTIAL, reason_code="E_PROGRAM_ANALYSIS_PARTIAL", detail="AST/CFG/DFG/taint analysis unavailable or failed for inputs.", data={"files": len(analyses), "programAnalysis": pa_ok, "taint": tainted, "cached": cached}))
+            reports.append(
+                StageReport(
+                    stage="program_analysis",
+                    status=StageStatus.PARTIAL,
+                    reason_code="E_PROGRAM_ANALYSIS_PARTIAL",
+                    detail="AST/CFG/DFG/taint analysis unavailable or failed for inputs.",
+                    data={
+                        "files": len(analyses),
+                        "programAnalysis": pa_ok,
+                        "taint": tainted,
+                        "cached": cached,
+                    },
+                )
+            )
         else:
-            reports.append(StageReport(stage="program_analysis", status=StageStatus.OK if tainted == pa_ok and analyses else (StageStatus.PARTIAL if analyses else StageStatus.UNAVAILABLE), data={"files": len(analyses), "programAnalysis": pa_ok, "taint": tainted, "cached": cached}))
+            reports.append(
+                StageReport(
+                    stage="program_analysis",
+                    status=StageStatus.OK
+                    if tainted == pa_ok and analyses
+                    else (StageStatus.PARTIAL if analyses else StageStatus.UNAVAILABLE),
+                    data={
+                        "files": len(analyses),
+                        "programAnalysis": pa_ok,
+                        "taint": tainted,
+                        "cached": cached,
+                    },
+                )
+            )
         for a in analyses:
             if a.parse_error:
                 warnings.append(f"{a.path}: {a.parse_error}")
@@ -664,37 +852,102 @@ class Orchestrator:
         return reports, list(dict.fromkeys(warnings))
 
     # ---- operations ----
-    def scan_file(self, request: ScanFileRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> ScanFileResponse:
+    def scan_file(
+        self,
+        request: ScanFileRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> ScanFileResponse:
         def run(progress: ProgressCallback, token: CancellationToken | None) -> ScanFileResponse:
-            if token: token.raise_if_cancelled()
+            if token:
+                token.raise_if_cancelled()
             root = ensure_allowed_root(request.workspace_root, self.settings)
             snapshot = self._snapshot(root, request)
             self._validate_requested_selection(snapshot, request)
-            progress("file_snapshot", "ok", f"Inspected {snapshot.path}", 10.0, {"size": snapshot.size, "sha256": snapshot.sha256})
-            analysis = self._analyze_one_file(str(snapshot.path), snapshot.uri, snapshot.text, request.language_id or snapshot.language_id, progress)
-            if token: token.raise_if_cancelled()
-            static_result, static_reports, static_warnings = self._run_static_analysis(root, [snapshot.path], progress)
-            if token: token.raise_if_cancelled()
-            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection([analysis], static_result, progress)
-            reports, warnings = self._build_scan_reports([analysis], static_reports, det_reports, static_warnings + det_warnings)
+            progress(
+                "file_snapshot",
+                "ok",
+                f"Inspected {snapshot.path}",
+                10.0,
+                {"size": snapshot.size, "sha256": snapshot.sha256},
+            )
+            analysis = self._analyze_one_file(
+                str(snapshot.path),
+                snapshot.uri,
+                snapshot.text,
+                request.language_id or snapshot.language_id,
+                progress,
+            )
+            if token:
+                token.raise_if_cancelled()
+            static_result, static_reports, static_warnings = self._run_static_analysis(
+                root, [snapshot.path], progress
+            )
+            if token:
+                token.raise_if_cancelled()
+            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection(
+                [analysis], static_result, progress
+            )
+            reports, warnings = self._build_scan_reports(
+                [analysis], static_reports, det_reports, static_warnings + det_warnings
+            )
             # prepend snapshot report
-            reports = [StageReport(stage="file_snapshot", status=StageStatus.OK, data={"size": snapshot.size, "sha256": snapshot.sha256, "languageId": snapshot.language_id})] + reports
-            combined = combine_stage_results([StageResult(stage=r.stage, status=r.status, reason_code=r.reason_code, detail=r.detail, warnings=r.warnings, data=r.data) for r in reports])
+            reports = [
+                StageReport(
+                    stage="file_snapshot",
+                    status=StageStatus.OK,
+                    data={
+                        "size": snapshot.size,
+                        "sha256": snapshot.sha256,
+                        "languageId": snapshot.language_id,
+                    },
+                )
+            ] + reports
+            combined = combine_stage_results(
+                [
+                    StageResult(
+                        stage=r.stage,
+                        status=r.status,
+                        reason_code=r.reason_code,
+                        detail=r.detail,
+                        warnings=r.warnings,
+                        data=r.data,
+                    )
+                    for r in reports
+                ]
+            )
             resp = ScanFileResponse(
                 **self._base_fields_from_reports("scan_file", request_id, reports, warnings),
                 findings=findings,
                 scope=ScanScope(uris=[snapshot.uri]),
                 files_scanned=1,
                 analysis_available=self._analysis_available_from_reports(reports),
-                file=FileInfo(path=str(snapshot.path), uri=snapshot.uri, size=snapshot.size, sha256=snapshot.sha256, language_id=request.language_id or snapshot.language_id),
+                file=FileInfo(
+                    path=str(snapshot.path),
+                    uri=snapshot.uri,
+                    size=snapshot.size,
+                    sha256=snapshot.sha256,
+                    language_id=request.language_id or snapshot.language_id,
+                ),
             )
             self._persist_result(job_store, "scan_file", request_id, resp)
             return resp
+
         return self._run_with_job("scan_file", request_id, job_store, job_id, run)
 
-    def scan_workspace(self, request: ScanWorkspaceRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> ScanWorkspaceResponse:
-        def run(progress: ProgressCallback, token: CancellationToken | None) -> ScanWorkspaceResponse:
-            if token: token.raise_if_cancelled()
+    def scan_workspace(
+        self,
+        request: ScanWorkspaceRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> ScanWorkspaceResponse:
+        def run(
+            progress: ProgressCallback, token: CancellationToken | None
+        ) -> ScanWorkspaceResponse:
+            if token:
+                token.raise_if_cancelled()
             files: dict[str, SourceFile] = {}
             roots = []
             for folder in request.workspace_folders:
@@ -703,8 +956,17 @@ class Orchestrator:
                 for source in enumerate_workspace_sources(root, self.settings):
                     files[source.uri] = source
                     if len(files) > self.settings.max_workspace_files:
-                        raise ResourceLimitAppError("The workspace exceeds the configured file scan limit.", code="E_WORKSPACE_TOO_LARGE")
-            progress("workspace_snapshot", "ok", f"Discovered {len(files)} source files", 5.0, {"fileCount": len(files)})
+                        raise ResourceLimitAppError(
+                            "The workspace exceeds the configured file scan limit.",
+                            code="E_WORKSPACE_TOO_LARGE",
+                        )
+            progress(
+                "workspace_snapshot",
+                "ok",
+                f"Discovered {len(files)} source files",
+                5.0,
+                {"fileCount": len(files)},
+            )
             analyses: list[_FileAnalysis] = []
             static_results: list[Any] = []
             static_reports: list[StageReport] = []
@@ -717,16 +979,35 @@ class Orchestrator:
                 try:
                     text = src.path.read_text(encoding="utf-8")
                 except Exception as exc:
-                    analyses.append(_FileAnalysis(path=str(src.path), uri=uri, language_id=src.language_id, source_text="", parse_error=f"read failed: {type(exc).__name__}"))
+                    analyses.append(
+                        _FileAnalysis(
+                            path=str(src.path),
+                            uri=uri,
+                            language_id=src.language_id,
+                            source_text="",
+                            parse_error=f"read failed: {type(exc).__name__}",
+                        )
+                    )
                 else:
-                    analyses.append(self._analyze_one_file(str(src.path), uri, text, src.language_id, progress))
+                    analyses.append(
+                        self._analyze_one_file(str(src.path), uri, text, src.language_id, progress)
+                    )
                 if (i + 1) % 10 == 0 or i + 1 == total:
-                    progress("program_analysis", "running", f"Analyzed {i+1}/{total} files", 5.0 + 50.0 * (i + 1) / total)
+                    progress(
+                        "program_analysis",
+                        "running",
+                        f"Analyzed {i + 1}/{total} files",
+                        5.0 + 50.0 * (i + 1) / total,
+                    )
             # static analysis per root once on discovered source files (bounded by discovered set)
             for root in roots:
                 if token:
                     token.raise_if_cancelled()
-                targets = [Path(a.path) for a in analyses if a.path and (Path(a.path).exists() if a.path else False)]
+                targets = [
+                    Path(a.path)
+                    for a in analyses
+                    if a.path and (Path(a.path).exists() if a.path else False)
+                ]
                 # Bound static target fanout for very large repos to keep responsiveness; detection still runs on analyzed files.
                 max_static_targets = 500
                 if len(targets) > max_static_targets:
@@ -744,18 +1025,57 @@ class Orchestrator:
             if static_results:
                 try:
                     from bugdhor.static.models import StaticAnalysisResult, ScanStatus
+
                     scans = tuple(s for r in static_results for s in getattr(r, "scans", ()))
-                    findings_static = tuple(f for r in static_results for f in getattr(r, "findings", ()))
-                    warnings_s = tuple(w for r in static_results for w in getattr(r, "warnings", ()))
-                    statuses = [getattr(r, "status", ScanStatus.UNAVAILABLE) for r in static_results]
-                    status = ScanStatus.PARTIAL if any(getattr(s, "value", s) in {"partial", "failed", "timeout", "unavailable"} for s in statuses) else (statuses[0] if statuses else ScanStatus.UNAVAILABLE)
-                    combined_static = StaticAnalysisResult(status=status, findings=findings_static, scans=scans, warnings=warnings_s)
+                    findings_static = tuple(
+                        f for r in static_results for f in getattr(r, "findings", ())
+                    )
+                    warnings_s = tuple(
+                        w for r in static_results for w in getattr(r, "warnings", ())
+                    )
+                    statuses = [
+                        getattr(r, "status", ScanStatus.UNAVAILABLE) for r in static_results
+                    ]
+                    status = (
+                        ScanStatus.PARTIAL
+                        if any(
+                            getattr(s, "value", s)
+                            in {"partial", "failed", "timeout", "unavailable"}
+                            for s in statuses
+                        )
+                        else (statuses[0] if statuses else ScanStatus.UNAVAILABLE)
+                    )
+                    combined_static = StaticAnalysisResult(
+                        status=status, findings=findings_static, scans=scans, warnings=warnings_s
+                    )
                 except Exception:
                     combined_static = static_results[0]
-            if token: token.raise_if_cancelled()
-            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection(analyses, combined_static, progress)
-            reports, warnings = self._build_scan_reports(analyses, static_reports or [StageReport(stage="static_evidence", status=StageStatus.UNAVAILABLE, reason_code="E_ANALYZER_UNAVAILABLE", detail="No static analysis runs executed.")], det_reports, static_warnings + det_warnings)
-            reports = [StageReport(stage="workspace_snapshot", status=StageStatus.OK, data={"fileCount": len(files), "rootCount": len(roots)})] + reports
+            if token:
+                token.raise_if_cancelled()
+            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection(
+                analyses, combined_static, progress
+            )
+            reports, warnings = self._build_scan_reports(
+                analyses,
+                static_reports
+                or [
+                    StageReport(
+                        stage="static_evidence",
+                        status=StageStatus.UNAVAILABLE,
+                        reason_code="E_ANALYZER_UNAVAILABLE",
+                        detail="No static analysis runs executed.",
+                    )
+                ],
+                det_reports,
+                static_warnings + det_warnings,
+            )
+            reports = [
+                StageReport(
+                    stage="workspace_snapshot",
+                    status=StageStatus.OK,
+                    data={"fileCount": len(files), "rootCount": len(roots)},
+                )
+            ] + reports
             resp = ScanWorkspaceResponse(
                 **self._base_fields_from_reports("scan_workspace", request_id, reports, warnings),
                 findings=findings,
@@ -765,20 +1085,42 @@ class Orchestrator:
             )
             self._persist_result(job_store, "scan_workspace", request_id, resp)
             return resp
+
         return self._run_with_job("scan_workspace", request_id, job_store, job_id, run)
 
-    def detection_analyze(self, request: DetectionRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> DetectionResponse:
+    def detection_analyze(
+        self,
+        request: DetectionRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> DetectionResponse:
         def run(progress: ProgressCallback, token: CancellationToken | None) -> DetectionResponse:
-            if token: token.raise_if_cancelled()
+            if token:
+                token.raise_if_cancelled()
             snapshot = self._inspect(request)
-            analysis = self._analyze_one_file(str(snapshot.path), snapshot.uri, snapshot.text, request.language_id or snapshot.language_id, progress)
+            analysis = self._analyze_one_file(
+                str(snapshot.path),
+                snapshot.uri,
+                snapshot.text,
+                request.language_id or snapshot.language_id,
+                progress,
+            )
             root = ensure_allowed_root(request.workspace_root, self.settings)
-            static_result, static_reports, static_warnings = self._run_static_analysis(root, [snapshot.path], progress)
-            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection([analysis], static_result, progress)
-            reports, warnings = self._build_scan_reports([analysis], static_reports, det_reports, static_warnings + det_warnings)
+            static_result, static_reports, static_warnings = self._run_static_analysis(
+                root, [snapshot.path], progress
+            )
+            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection(
+                [analysis], static_result, progress
+            )
+            reports, warnings = self._build_scan_reports(
+                [analysis], static_reports, det_reports, static_warnings + det_warnings
+            )
             reports = [self._snapshot_report(snapshot)] + reports
             resp = DetectionResponse(
-                **self._base_fields_from_reports("detection_analyze", request_id, reports, warnings),
+                **self._base_fields_from_reports(
+                    "detection_analyze", request_id, reports, warnings
+                ),
                 result=DetectionResult(
                     analysis_available=self._analysis_available_from_reports(reports),
                     findings=findings,
@@ -788,18 +1130,36 @@ class Orchestrator:
             )
             self._persist_result(job_store, "detection_analyze", request_id, resp)
             return resp
+
         return self._run_with_job("detection_analyze", request_id, job_store, job_id, run)
 
-    def explanation_analyze(self, request: ExplanationRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> ExplanationResponse:
+    def explanation_analyze(
+        self,
+        request: ExplanationRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> ExplanationResponse:
         def run(progress: ProgressCallback, token: CancellationToken | None) -> ExplanationResponse:
-            if token: token.raise_if_cancelled()
+            if token:
+                token.raise_if_cancelled()
             snapshot = self._inspect(request)
             if request.finding is not None and request.finding.location.uri != snapshot.uri:
                 raise ValidationAppError("The finding location does not match the inspected file.")
-            analysis = self._analyze_one_file(str(snapshot.path), snapshot.uri, snapshot.text, request.language_id or snapshot.language_id, progress)
+            analysis = self._analyze_one_file(
+                str(snapshot.path),
+                snapshot.uri,
+                snapshot.text,
+                request.language_id or snapshot.language_id,
+                progress,
+            )
             root = ensure_allowed_root(request.workspace_root, self.settings)
-            static_result, static_reports, static_warnings = self._run_static_analysis(root, [snapshot.path], progress)
-            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection([analysis], static_result, progress)
+            static_result, static_reports, static_warnings = self._run_static_analysis(
+                root, [snapshot.path], progress
+            )
+            findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection(
+                [analysis], static_result, progress
+            )
             finding_id = request.finding.id if request.finding else request.finding_id
             # Only a finding actually produced by this detection run can be
             # explained from evidence. A client-supplied id without a matching
@@ -829,12 +1189,12 @@ class Orchestrator:
             else:
                 finding_id = target.finding_id
                 try:
-                    progress("explanation", "running", "Building evidence-grounded explanation", None)
+                    progress(
+                        "explanation", "running", "Building evidence-grounded explanation", None
+                    )
                     from bugdhor.explain.engine import ExplainableVulnerabilityEngine
 
-                    record = ExplainableVulnerabilityEngine().explain(
-                        target, taint=analysis.taint
-                    )
+                    record = ExplainableVulnerabilityEngine().explain(target, taint=analysis.taint)
                     graph = record.to_dict()
                     claim_kinds = sorted(
                         {
@@ -859,55 +1219,173 @@ class Orchestrator:
                     limitations.append(exp_detail)
                     graph = None
                     claim_kinds = []
-            reports, warnings = self._build_scan_reports([analysis], static_reports, det_reports, static_warnings + det_warnings)
-            reports.append(StageReport(stage="explanation", status=exp_status, reason_code=exp_reason, detail=exp_detail, data={"findingId": finding_id, "claimKinds": claim_kinds}, warnings=limitations[:10]))
+            reports, warnings = self._build_scan_reports(
+                [analysis], static_reports, det_reports, static_warnings + det_warnings
+            )
+            reports.append(
+                StageReport(
+                    stage="explanation",
+                    status=exp_status,
+                    reason_code=exp_reason,
+                    detail=exp_detail,
+                    data={"findingId": finding_id, "claimKinds": claim_kinds},
+                    warnings=limitations[:10],
+                )
+            )
             reports = [self._snapshot_report(snapshot)] + reports
             resp = ExplanationResponse(
-                **self._base_fields_from_reports("explanation_analyze", request_id, reports, warnings),
-                result=ExplanationResult(analysis_available=exp_status == StageStatus.OK, finding_id=finding_id, graph=graph, claim_kinds=claim_kinds, limitations=limitations),
+                **self._base_fields_from_reports(
+                    "explanation_analyze", request_id, reports, warnings
+                ),
+                result=ExplanationResult(
+                    analysis_available=exp_status == StageStatus.OK,
+                    finding_id=finding_id,
+                    graph=graph,
+                    claim_kinds=claim_kinds,
+                    limitations=limitations,
+                ),
             )
             self._persist_result(job_store, "explanation_analyze", request_id, resp)
             return resp
+
         return self._run_with_job("explanation_analyze", request_id, job_store, job_id, run)
 
     # ---- stubs / existing operations preserved ----
-    def features_extract(self, request: FeatureExtractionRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> FeatureExtractionResponse:
-        def run(progress: ProgressCallback, token: CancellationToken | None) -> FeatureExtractionResponse:
+    def features_extract(
+        self,
+        request: FeatureExtractionRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> FeatureExtractionResponse:
+        def run(
+            progress: ProgressCallback, token: CancellationToken | None
+        ) -> FeatureExtractionResponse:
             snapshot = self._inspect(request)
-            execution = self._execute_declared("features_extract", request_id, self._payload(snapshot, request.language_id, saeArtifactId=request.sae_artifact_id, layer=request.layer, hookPoint=request.hook_point, aggregation=request.aggregation), progress, token)
+            execution = self._execute_declared(
+                "features_extract",
+                request_id,
+                self._payload(
+                    snapshot,
+                    request.language_id,
+                    saeArtifactId=request.sae_artifact_id,
+                    layer=request.layer,
+                    hookPoint=request.hook_point,
+                    aggregation=request.aggregation,
+                ),
+                progress,
+                token,
+            )
             combined = self._with_snapshot(self._snapshot_result(snapshot), execution)
-            resp = FeatureExtractionResponse(**self._base_fields("features_extract", request_id, combined), result=FeatureExtractionResult(analysis_available=self._analysis_available(execution), sae_artifact_id=request.sae_artifact_id, features=[], coverage=None, aggregation=request.aggregation))
+            resp = FeatureExtractionResponse(
+                **self._base_fields("features_extract", request_id, combined),
+                result=FeatureExtractionResult(
+                    analysis_available=self._analysis_available(execution),
+                    sae_artifact_id=request.sae_artifact_id,
+                    features=[],
+                    coverage=None,
+                    aggregation=request.aggregation,
+                ),
+            )
             self._persist_result(job_store, "features_extract", request_id, resp)
             return resp
+
         return self._run_with_job("features_extract", request_id, job_store, job_id, run)
 
-    def counterfactual_analyze(self, request: CounterfactualRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> CounterfactualResponse:
-        def run(progress: ProgressCallback, token: CancellationToken | None) -> CounterfactualResponse:
+    def counterfactual_analyze(
+        self,
+        request: CounterfactualRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> CounterfactualResponse:
+        def run(
+            progress: ProgressCallback, token: CancellationToken | None
+        ) -> CounterfactualResponse:
             snapshot = self._inspect(request)
-            execution = self._execute_declared("counterfactual_analyze", request_id, self._payload(snapshot, request.language_id, findingId=request.finding_id, interventions=[item.model_dump(mode="json") for item in request.interventions], budget=request.budget, seed=request.seed), progress, token)
+            execution = self._execute_declared(
+                "counterfactual_analyze",
+                request_id,
+                self._payload(
+                    snapshot,
+                    request.language_id,
+                    findingId=request.finding_id,
+                    interventions=[item.model_dump(mode="json") for item in request.interventions],
+                    budget=request.budget,
+                    seed=request.seed,
+                ),
+                progress,
+                token,
+            )
             combined = self._with_snapshot(self._snapshot_result(snapshot), execution)
-            resp = CounterfactualResponse(**self._base_fields("counterfactual_analyze", request_id, combined), result=CounterfactualResult(analysis_available=self._analysis_available(execution), effects=[], validity=None, budget=request.budget))
+            resp = CounterfactualResponse(
+                **self._base_fields("counterfactual_analyze", request_id, combined),
+                result=CounterfactualResult(
+                    analysis_available=self._analysis_available(execution),
+                    effects=[],
+                    validity=None,
+                    budget=request.budget,
+                ),
+            )
             self._persist_result(job_store, "counterfactual_analyze", request_id, resp)
             return resp
+
         return self._run_with_job("counterfactual_analyze", request_id, job_store, job_id, run)
 
-    def prevention_steer(self, request: PreventionRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> PreventionResponse:
+    def prevention_steer(
+        self,
+        request: PreventionRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> PreventionResponse:
         def run(progress: ProgressCallback, token: CancellationToken | None) -> PreventionResponse:
             snapshot = self._inspect(request)
-            execution = self._execute_declared("prevention_steer", request_id, self._payload(snapshot, request.language_id, featureIndices=list(request.feature_indices), strength=request.strength, targetMetric=request.target_metric), progress, token)
+            execution = self._execute_declared(
+                "prevention_steer",
+                request_id,
+                self._payload(
+                    snapshot,
+                    request.language_id,
+                    featureIndices=list(request.feature_indices),
+                    strength=request.strength,
+                    targetMetric=request.target_metric,
+                ),
+                progress,
+                token,
+            )
             combined = self._with_snapshot(self._snapshot_result(snapshot), execution)
-            resp = PreventionResponse(**self._base_fields("prevention_steer", request_id, combined), result=PreventionResult(analysis_available=self._analysis_available(execution), plan=None, guardrails=[], evaluation=None, limitations=[]))
+            resp = PreventionResponse(
+                **self._base_fields("prevention_steer", request_id, combined),
+                result=PreventionResult(
+                    analysis_available=self._analysis_available(execution),
+                    plan=None,
+                    guardrails=[],
+                    evaluation=None,
+                    limitations=[],
+                ),
+            )
             self._persist_result(job_store, "prevention_steer", request_id, resp)
             return resp
+
         return self._run_with_job("prevention_steer", request_id, job_store, job_id, run)
 
-    def repair_generate(self, request: RepairRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> RepairResponse:
+    def repair_generate(
+        self,
+        request: RepairRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> RepairResponse:
         def run(progress: ProgressCallback, token: CancellationToken | None) -> RepairResponse:
             snapshot = self._inspect(request)
-            if token: token.raise_if_cancelled()
+            if token:
+                token.raise_if_cancelled()
             if request.finding.document_uri and request.finding.document_uri != snapshot.uri:
                 raise ValidationAppError("The finding location does not match the inspected file.")
-            repository_context = RepositoryContextBuilder(self.settings).build(request.workspace_root, request.file_path)
+            repository_context = RepositoryContextBuilder(self.settings).build(
+                request.workspace_root, request.file_path
+            )
             consent_model = getattr(request, "execution_consent", None)
             consent = ExecutionConsent(
                 granted=bool(getattr(consent_model, "granted", False)),
@@ -935,8 +1413,22 @@ class Orchestrator:
                 project_test_command=getattr(request, "project_test_command", None),
             )
             workflow_dict = record.to_dict()
-            analysis_available = bool((record.security or {}).get("analysisAvailable") or (record.functional or {}).get("executed") or record.state in {"SECURITY_PASSED", "FUNCTIONAL_PASSED", "FULLY_VERIFIED", "FAILED"})
-            reports = [self._snapshot_report(snapshot), StageReport(stage="repair", status=StageStatus.OK if analysis_available else StageStatus.PARTIAL, reason_code=None if analysis_available else "E_REPAIR_WORKFLOW_INCONCLUSIVE", detail=record.state, data={"workflowState": record.state})]
+            analysis_available = bool(
+                (record.security or {}).get("analysisAvailable")
+                or (record.functional or {}).get("executed")
+                or record.state
+                in {"SECURITY_PASSED", "FUNCTIONAL_PASSED", "FULLY_VERIFIED", "FAILED"}
+            )
+            reports = [
+                self._snapshot_report(snapshot),
+                StageReport(
+                    stage="repair",
+                    status=StageStatus.OK if analysis_available else StageStatus.PARTIAL,
+                    reason_code=None if analysis_available else "E_REPAIR_WORKFLOW_INCONCLUSIVE",
+                    detail=record.state,
+                    data={"workflowState": record.state},
+                ),
+            ]
             candidate = record.candidate or {}
             resp = RepairResponse(
                 **self._base_fields_from_reports("repair_generate", request_id, reports, []),
@@ -945,7 +1437,10 @@ class Orchestrator:
                     state=record.state,
                     patch=candidate.get("patch"),
                     touched_files=candidate.get("touchedFiles", []),
-                    rationale=[f"Integrated workflow state: {record.state}.", "Patch is a proposal only; explicit user approval is required before application."],
+                    rationale=[
+                        f"Integrated workflow state: {record.state}.",
+                        "Patch is a proposal only; explicit user approval is required before application.",
+                    ],
                     risk_notes=list((record.security or {}).get("limitations", []))[:10],
                     requires_approval=True,
                     metadata=record.metadata,
@@ -954,6 +1449,7 @@ class Orchestrator:
             )
             self._persist_result(job_store, "repair_generate", request_id, resp)
             return resp
+
         return self._run_with_job("repair_generate", request_id, job_store, job_id, run)
 
     def recommendation_generate(
@@ -969,6 +1465,7 @@ class Orchestrator:
         non-secret provider metadata; steering is never claimed for a provider
         that has not supplied real D/E/F access and a real steering pipeline.
         """
+
         def run(
             progress: ProgressCallback, token: CancellationToken | None
         ) -> RecommendationResponse:
@@ -1049,8 +1546,7 @@ class Orchestrator:
             warnings: list[str] = []
             if not result.verified:
                 warnings.append(
-                    "No candidate passed all mandatory verification gates; "
-                    "no patch is recommended."
+                    "No candidate passed all mandatory verification gates; no patch is recommended."
                 )
             resp = RecommendationResponse(
                 **self._base_fields_from_reports(
@@ -1075,21 +1571,62 @@ class Orchestrator:
             )
             self._persist_result(job_store, "recommendation_generate", request_id, resp)
             return resp
+
         return self._run_with_job("recommendation_generate", request_id, job_store, job_id, run)
 
-    def verification_run(self, request: VerificationRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> VerificationResponse:
-        def run(progress: ProgressCallback, token: CancellationToken | None) -> VerificationResponse:
+    def verification_run(
+        self,
+        request: VerificationRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> VerificationResponse:
+        def run(
+            progress: ProgressCallback, token: CancellationToken | None
+        ) -> VerificationResponse:
             snapshot = self._inspect(request)
             progress("verification", "running", "Running independent verification", None)
-            execution = self._execute_declared("verification_run", request_id, self._payload(snapshot, request.language_id, sourceText=snapshot.text, repairId=request.repair_id, patch=request.patch, patchedSource=request.patched_source, cwe=request.cwe, findingId=request.finding_id, profile=request.profile, runExecution=request.run_execution, sandboxBackend=self.settings.sandbox_backend), progress, token)
+            execution = self._execute_declared(
+                "verification_run",
+                request_id,
+                self._payload(
+                    snapshot,
+                    request.language_id,
+                    sourceText=snapshot.text,
+                    repairId=request.repair_id,
+                    patch=request.patch,
+                    patchedSource=request.patched_source,
+                    cwe=request.cwe,
+                    findingId=request.finding_id,
+                    profile=request.profile,
+                    runExecution=request.run_execution,
+                    sandboxBackend=self.settings.sandbox_backend,
+                ),
+                progress,
+                token,
+            )
             combined = self._with_snapshot(self._snapshot_result(snapshot), execution)
             stage_result = next((s for s in execution.stages if s.stage == "verification"), None)
             data = stage_result.data.get("verificationResult") if stage_result else None
             if not isinstance(data, dict):
-                data = {"analysisAvailable": False, "repairId": request.repair_id, "verdict": "inconclusive", "classification": "inconclusive_verification", "profile": request.profile, "checks": [], "sandboxBackend": self.settings.sandbox_backend, "limitations": ["Independent verification did not produce a result payload."], "report": {}}
-            resp = VerificationResponse(**self._base_fields("verification_run", request_id, combined), result=VerificationResult(**data))
+                data = {
+                    "analysisAvailable": False,
+                    "repairId": request.repair_id,
+                    "verdict": "inconclusive",
+                    "classification": "inconclusive_verification",
+                    "profile": request.profile,
+                    "checks": [],
+                    "sandboxBackend": self.settings.sandbox_backend,
+                    "limitations": ["Independent verification did not produce a result payload."],
+                    "report": {},
+                }
+            resp = VerificationResponse(
+                **self._base_fields("verification_run", request_id, combined),
+                result=VerificationResult(**data),
+            )
             self._persist_result(job_store, "verification_run", request_id, resp)
             return resp
+
         return self._run_with_job("verification_run", request_id, job_store, job_id, run)
 
     # ---- internal helpers ----
@@ -1102,75 +1639,172 @@ class Orchestrator:
         root = ensure_allowed_root(request.workspace_root, self.settings)
         snapshot = self._snapshot(root, request)
         if request.selection is not None:
-            validate_selection(snapshot.text, request.selection.start.line, request.selection.start.character, request.selection.end.line, request.selection.end.character)
+            validate_selection(
+                snapshot.text,
+                request.selection.start.line,
+                request.selection.start.character,
+                request.selection.end.line,
+                request.selection.end.character,
+            )
         return snapshot
 
-    def _validate_requested_selection(self, snapshot: FileSnapshot, request: ScanFileRequest) -> None:
+    def _validate_requested_selection(
+        self, snapshot: FileSnapshot, request: ScanFileRequest
+    ) -> None:
         if request.selection is None:
             return
-        validate_selection(snapshot.text, request.selection.start.line, request.selection.start.character, request.selection.end.line, request.selection.end.character)
+        validate_selection(
+            snapshot.text,
+            request.selection.start.line,
+            request.selection.start.character,
+            request.selection.end.line,
+            request.selection.end.character,
+        )
 
-    def _execute_declared(self, operation: str, request_id: str, payload: Mapping[str, Any], progress: ProgressCallback, token: CancellationToken | None) -> PipelineExecution:
+    def _execute_declared(
+        self,
+        operation: str,
+        request_id: str,
+        payload: Mapping[str, Any],
+        progress: ProgressCallback,
+        token: CancellationToken | None,
+    ) -> PipelineExecution:
         if token:
             token.raise_if_cancelled()
         stage_names = OPERATION_STAGES[operation]
         if not stage_names:
             return combine_stage_results([])
         pipeline = Pipeline(self.stages[name] for name in stage_names)
-        context = StageContext(operation=operation, request_id=request_id, settings=self.settings, payload=payload)
+        context = StageContext(
+            operation=operation, request_id=request_id, settings=self.settings, payload=payload
+        )
         try:
             for name in stage_names:
                 progress(name, "running", f"Running stage {name}", None)
             execution = pipeline.run(context)
             for st in execution.stages:
-                progress(st.stage, st.status.value, st.detail or f"Stage {st.stage} {st.status.value}", None)
+                progress(
+                    st.stage,
+                    st.status.value,
+                    st.detail or f"Stage {st.stage} {st.status.value}",
+                    None,
+                )
         except AppError:
             raise
         except Exception:
-            self.logger.exception("Pipeline execution failed.", extra={"request_id": request_id, "operation": operation})
+            self.logger.exception(
+                "Pipeline execution failed.",
+                extra={"request_id": request_id, "operation": operation},
+            )
             raise InternalAppError() from None
         if execution.status is PipelineStatus.FAILED:
-            self.logger.error("Pipeline reported a failed stage.", extra={"request_id": request_id, "operation": operation})
+            self.logger.error(
+                "Pipeline reported a failed stage.",
+                extra={"request_id": request_id, "operation": operation},
+            )
             raise InternalAppError()
         return execution
 
-    def _with_snapshot(self, snapshot: StageResult, execution: PipelineExecution) -> PipelineExecution:
+    def _with_snapshot(
+        self, snapshot: StageResult, execution: PipelineExecution
+    ) -> PipelineExecution:
         return combine_stage_results([snapshot, *execution.stages])
 
     def _snapshot_result(self, snapshot: FileSnapshot) -> StageResult:
-        return StageResult(stage="file_snapshot", status=StageStatus.OK, data={"size": snapshot.size, "sha256": snapshot.sha256, "languageId": snapshot.language_id})
+        return StageResult(
+            stage="file_snapshot",
+            status=StageStatus.OK,
+            data={
+                "size": snapshot.size,
+                "sha256": snapshot.sha256,
+                "languageId": snapshot.language_id,
+            },
+        )
 
     def _snapshot_report(self, snapshot: FileSnapshot) -> StageReport:
-        return StageReport(stage="file_snapshot", status=StageStatus.OK, data={"size": snapshot.size, "sha256": snapshot.sha256, "languageId": snapshot.language_id})
+        return StageReport(
+            stage="file_snapshot",
+            status=StageStatus.OK,
+            data={
+                "size": snapshot.size,
+                "sha256": snapshot.sha256,
+                "languageId": snapshot.language_id,
+            },
+        )
 
     def _analysis_available(self, execution: PipelineExecution) -> bool:
         return execution.status in {PipelineStatus.COMPLETED, PipelineStatus.PARTIAL}
 
-    def _payload(self, snapshot: FileSnapshot, language_id: str | None, **extra: Any) -> dict[str, Any]:
-        payload: dict[str, Any] = {"filePath": str(snapshot.path), "documentUri": snapshot.uri, "languageId": language_id or snapshot.language_id, "sha256": snapshot.sha256}
+    def _payload(
+        self, snapshot: FileSnapshot, language_id: str | None, **extra: Any
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "filePath": str(snapshot.path),
+            "documentUri": snapshot.uri,
+            "languageId": language_id or snapshot.language_id,
+            "sha256": snapshot.sha256,
+        }
         payload.update({key: value for key, value in extra.items() if value is not None})
         return payload
 
-    def _base_fields(self, operation: str, request_id: str, combined: PipelineExecution) -> dict[str, Any]:
+    def _base_fields(
+        self, operation: str, request_id: str, combined: PipelineExecution
+    ) -> dict[str, Any]:
         return {
             "operation": operation,
             "status": combined.status,
             "api_version": API_VERSION,
             "request_id": request_id,
-            "stages": [StageReport(stage=result.stage, status=result.status, reason_code=result.reason_code, detail=result.detail, warnings=result.warnings, data=result.data) for result in combined.stages],
+            "stages": [
+                StageReport(
+                    stage=result.stage,
+                    status=result.status,
+                    reason_code=result.reason_code,
+                    detail=result.detail,
+                    warnings=result.warnings,
+                    data=result.data,
+                )
+                for result in combined.stages
+            ],
             "warnings": combined.warnings,
         }
 
-    def _base_fields_from_reports(self, operation: str, request_id: str, reports: list[StageReport], warnings: list[str]) -> dict[str, Any]:
-        results = [StageResult(stage=r.stage, status=r.status, reason_code=r.reason_code, detail=r.detail, warnings=list(r.warnings), data=dict(r.data)) for r in reports]
-        combined = combine_stage_results(results) if results else PipelineExecution(status=PipelineStatus.UNAVAILABLE, stages=[], warnings=[])
+    def _base_fields_from_reports(
+        self, operation: str, request_id: str, reports: list[StageReport], warnings: list[str]
+    ) -> dict[str, Any]:
+        results = [
+            StageResult(
+                stage=r.stage,
+                status=r.status,
+                reason_code=r.reason_code,
+                detail=r.detail,
+                warnings=list(r.warnings),
+                data=dict(r.data),
+            )
+            for r in reports
+        ]
+        combined = (
+            combine_stage_results(results)
+            if results
+            else PipelineExecution(status=PipelineStatus.UNAVAILABLE, stages=[], warnings=[])
+        )
         all_warnings = list(dict.fromkeys([*combined.warnings, *warnings]))
         return {
             "operation": operation,
             "status": combined.status,
             "api_version": API_VERSION,
             "request_id": request_id,
-            "stages": [StageReport(stage=result.stage, status=result.status, reason_code=result.reason_code, detail=result.detail, warnings=result.warnings, data=result.data) for result in combined.stages],
+            "stages": [
+                StageReport(
+                    stage=result.stage,
+                    status=result.status,
+                    reason_code=result.reason_code,
+                    detail=result.detail,
+                    warnings=result.warnings,
+                    data=result.data,
+                )
+                for result in combined.stages
+            ],
             "warnings": all_warnings,
         }
 

@@ -18,7 +18,7 @@ The extension produces no analysis result on its own: diagnostics, hover content
 | Command | `bugdhor.showLogs` | Open the Bug Dhor output channel |
 | Command | `bugdhor.scanCurrentFile` | Scan the active saved file |
 | Command | `bugdhor.scanSelection` | Scan the selected code |
-| Command | `bugdhor.scanWorkspace` | Scan all open workspace folders |
+| Command | `bugdhor.scanWorkspace` | Scan open workspace folders (client sends metadata; backend reads allowlisted files) |
 | Command | `bugdhor.explainVulnerability` | Explain the vulnerability in context |
 | Command | `bugdhor.analyzeSecurityFeatures` | Analyze security-relevant features |
 | Command | `bugdhor.counterfactualAnalysis` | Compare a selected code region with counterfactual variants |
@@ -100,17 +100,30 @@ The scan commands feed successful backend results into a native VS Code `Diagnos
 - **Validation and containment.** Malformed findings are rejected and logged; a malformed result envelope is rejected without clearing existing diagnostics. Findings outside an open workspace folder and non-`file:` URIs are never published. `scope.uris` or the scanned document URI clears stale diagnostics for the covered files.
 - **Model-internal evidence is not wired.** Scans, detection, explanation, repair proposals, and verification reach real backend paths whose availability is declared by `/health`. SAE features, counterfactual effects, and activation steering remain unavailable without compatible model artifacts and direct D/E/F access; the extension does not simulate them. Provider adapters are tested with backend-shaped fixtures.
 
-## Real-time code change monitoring
+## Model-independent workspace monitoring
 
-When `bugdhor.monitoring.enabled` is set, the extension observes `onDidChangeTextDocument` and `onDidSaveTextDocument` for `file:` documents in the open workspace. Python and JavaScript are supported initially; other language IDs are skipped. Generated directories (for example `node_modules`, `.venv`, `dist`, and `__pycache__`) are excluded by configurable globs.
+`WorkspaceMonitor` is the single owner of official VS Code event registration. When `bugdhor.monitoring.enabled` is set, it observes:
 
-The monitor tracks document versions and ignores repeated or out-of-order events. Each batch identifies the changed lines, then scopes analysis to the enclosing function (lexically detected for Python and JavaScript), to the changed lines, or to the whole file according to `bugdhor.monitoring.analysisScope`. Wide batches fall back to a bounded file-level scan. Text is read once per debounced batch, and documents above `bugdhor.monitoring.maxFileBytes` are skipped.
+- `onDidOpenTextDocument` — tracked once per document version; scanned only when `bugdhor.monitoring.scanOnOpen` is explicitly enabled.
+- `onDidChangeTextDocument` — debounced, versioned, incremental analysis.
+- `onDidSaveTextDocument` — supersedes pending work with an immediate bounded file scan.
+- `onDidCreateFiles` — eligible new source files are opened with `workspace.openTextDocument` and scanned once.
+- `onDidDeleteFiles` — cancels work, forgets state, and clears that file's diagnostics.
+- `onDidChangeWorkspaceFolders` — prunes stale state; optionally schedules one debounced metadata-only full workspace scan.
 
-Changes are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) so no scan runs per keystroke. At most one request per document is active: a newer edit cancels the superseded request through a cancellation token, and the API client aborts its in-flight HTTP call. Analysis runs off the editor's event path, publishes backend findings to the native Problems panel with the document URI as scope (clearing stale findings), and shows a non-blocking notification when findings exist. Backend results remain the only source of findings; an unavailable analysis publishes nothing.
+`onDidCloseTextDocument` is also registered when available. No private API, reverse engineering, or provider-specific dependency is required. This works identically for code from Copilot, Cursor, Claude, ChatGPT pasted text, OpenCode, other assistants, or manual edits.
 
-**Attribution:** every edit is treated as an ordinary document change. The monitor does not assume an AI assistant produced it, does not detect an "AI mode", and does not claim to identify the model or author responsible. A multi-line insertion is described only by its edit shape.
+The incremental executor tracks document versions and ignores repeated or out-of-order events. Each batch identifies changed lines, then scopes analysis to the enclosing function (lexically detected for Python and JavaScript), to the changed lines, or to the whole file according to `bugdhor.monitoring.analysisScope`. Open, create, and save events use full-file scope; wide batches also fall back to a bounded file-level scan. Text is read once per debounced batch, and documents above `bugdhor.monitoring.maxFileBytes` are skipped.
 
-**Privacy:** monitoring is disabled by default. No background request containing source text is sent unless both the explicit `bugdhor.monitoring.allowAutomaticSourceSharing` consent and `bugdhor.privacy.sendSourceText` are enabled. With consent disabled, the monitor tracks versions locally but makes no engine call. Stats exposed on the activation API contain metadata only: no source text, selected text, or code identifiers.
+Changes are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) so no scan runs per keystroke. At most one request per document is active: a newer edit cancels the superseded request through a cancellation token, and the API client aborts its in-flight HTTP call. Workspace-level scans are coalesced and bounded by `bugdhor.monitoring.maxConcurrentScans`. Analysis runs off the editor's event path, publishes backend findings to the native Problems panel with the document URI as scope, and shows a non-blocking notification when findings exist. Backend results remain the only source of findings; `analysisAvailable: false` or `status: 'unavailable'` never becomes a clean scan.
+
+**Eligibility:** `fileFilter.js` skips paths outside open `file:` workspace folders, unsupported languages, binary extensions (by path only), generated artifacts such as `*.min.js`, bundles, source maps and lockfiles, and configurable exclude globs covering `node_modules`, `.git`, virtual environments, `site-packages`, caches, build/coverage directories, `vendor`, and `.bugdhor-data`. It never reads file bytes to guess a language author.
+
+**Attribution:** every edit is treated as an ordinary document change. The monitor does not assume an AI assistant produced it, does not detect an "AI mode", and does not claim to identify the model or author responsible. `src/monitoring/providerMatrix.js` reports `workspace-document-events` and `attribution: 'none'` for every supported workflow; optional adapters are listed only for separately configured generation-metadata workflows and never alter scan results.
+
+**Privacy:** monitoring is disabled by default. No background request containing source text is sent unless both the explicit `bugdhor.monitoring.allowAutomaticSourceSharing` consent and `bugdhor.privacy.sendSourceText` are enabled. With consent disabled, the monitor tracks versions locally but makes no engine call. Full workspace scans send folder metadata only; the backend reads allowlisted files from disk. Stats exposed on the activation API contain metadata only: no source text, selected text, or code identifiers.
+
+See `docs/workspace-scanning-audit.md` and `docs/workspace-scanning-implementation-plan.md` at the repository root for the evidence boundary and full event/settings map.
 
 ## Settings
 
@@ -133,6 +146,15 @@ Changes are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) so no sc
 | `bugdhor.monitoring.maxFileBytes` | `1048576` | Skip documents larger than this size |
 | `bugdhor.monitoring.maxChangedLines` | `500` | Wider change batches fall back to a file-level scan |
 | `bugdhor.monitoring.excludeGlobs` | generated dirs | Path globs excluded from monitoring (`*`, `**`, `?`) |
+| `bugdhor.monitoring.watchWorkspaceFiles` | `true` | Watch official file create/delete and workspace-folder events when monitoring is enabled |
+| `bugdhor.monitoring.scanNewFiles` | `true` | Scan eligible newly created source files once |
+| `bugdhor.monitoring.scanOnOpen` | `false` | Scan an eligible document when opened; off by default so browsing does not trigger scans |
+| `bugdhor.monitoring.fullScanOnWorkspaceChange` | `false` | Opt in to one debounced metadata-only full workspace scan on folder changes |
+| `bugdhor.monitoring.fullScanDebounceMs` | `2000` | Debounce for workspace-level full scans |
+| `bugdhor.monitoring.maxConcurrentScans` | `2` | Maximum concurrent workspace-level scans |
+| `bugdhor.monitoring.maxWorkspaceFiles` | `2000` | Maximum new files observed from a single create event |
+| `bugdhor.monitoring.excludeBinaryFiles` | `true` | Skip common binary extensions by path without reading file content |
+| `bugdhor.monitoring.excludeGeneratedFiles` | `true` | Skip minified bundles, source maps, generated files, and lockfiles |
 | `bugdhor.monitoring.notifyOnFindings` | `true` | Show a non-blocking notification when findings are published |
 
 The backend must be started separately, for example from `security-engine/`:
@@ -162,7 +184,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit suite (295 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), secure recommendation request mapping and provider B/C gating, candidate extraction, feedback deduplication/resolution/lifecycle, one-shot suppression and bounded rescan, dashboard recommendation review and explicit approval, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, produces a real SQL-injection finding and publishes it as a native diagnostic with hover and observation-only explanation, verifies honest SAE/counterfactual/steering stubs and proposal-only repair with explicit-patch verification, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
+The unit suite (325 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), workspace monitoring (settings normalization, file filtering, scheduler coalescing/cancellation/concurrency, provider matrix, official events, open/create/delete/folder handling), secure recommendation request mapping and provider B/C gating, candidate extraction, feedback deduplication/resolution/lifecycle, one-shot suppression and bounded rescan, dashboard recommendation review and explicit approval, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, produces a real SQL-injection finding and publishes it as a native diagnostic with hover and observation-only explanation, verifies honest SAE/counterfactual/steering stubs and proposal-only repair with explicit-patch verification, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
 
 ## Extension Development Host
 
@@ -217,6 +239,11 @@ The extension has no runtime npm dependency: `ajv` is used only by the unit test
 | `src/recommendations/secureCodeGeneration.js` | Prompt retrieval, provider B/C validation, candidate extraction, and backend verification |
 | `src/feedback/` | Finding lifecycle, applied-patch provenance, and bounded feedback controller |
 | `src/integrations/` | Provider registry, capabilities A–F, hooks, and official manifest validation |
+| `src/monitoring/workspaceMonitor.js` | Sole owner of official document and workspace event registration |
+| `src/monitoring/settings.js` | Normalized monitoring defaults and single source of truth |
+| `src/monitoring/fileFilter.js` | Pure workspace, glob, binary, generated, language, and size eligibility |
+| `src/monitoring/scanScheduler.js` | Debounce, dedupe, cancellation, generation checks, and bounded concurrency |
+| `src/monitoring/providerMatrix.js` | Provider/workflow matrix with `attribution: 'none'` |
 | `src/monitoring/realtimeMonitor.js` | Debounced change analysis, suppression, bounded rescan, and cancellation |
 | `src/security/paths.js` | Workspace containment checks for backend-supplied paths |
 | `src/logging/output.js` | Log output channel and level filtering |

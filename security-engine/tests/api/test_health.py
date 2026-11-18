@@ -61,6 +61,43 @@ def test_health_reports_service_and_capabilities(api) -> None:
     assert body["capabilities"]["prevention_steer"] is False
 
 
+def test_health_reports_language_and_analyzer_capabilities_separately(api) -> None:
+    response = api.client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    report = response.json()["analysisCapabilities"]
+    assert {item["language"] for item in report["languages"]} == {
+        "python",
+        "javascript",
+        "typescript",
+        "java",
+        "c",
+        "cpp",
+        "php",
+        "go",
+        "rust",
+        "csharp",
+        "ruby",
+        "kotlin",
+        "swift",
+    }
+    assert set(report["installedParsers"]) == {"python", "javascript", "typescript"}
+    assert report["programAnalysis"] == {
+        "python": ["cfg", "dfg", "taint"],
+        "javascript": ["cfg", "dfg", "taint"],
+    }
+    assert {item["tool"] for item in report["staticTools"]} == {
+        "semgrep",
+        "bandit",
+        "codeql",
+        "joern",
+    }
+    assert all(item["adapterAvailable"] is False for item in report["linterTypeCheckers"])
+    assert report["dependencyVulnerabilityChecks"]["automated"] is False
+    assert report["generalBugs"]["enabledByDefault"] is False
+    assert "wired paths" in report["note"]
+
+
 def test_health_reflects_integrated_and_stage_capabilities(tmp_path: Path) -> None:
     settings = Settings(_env_file=None, workspace_roots=[tmp_path], log_level="ERROR")
     stages = {

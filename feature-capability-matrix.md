@@ -16,7 +16,7 @@
 
 | Capability | Status | Evidence | Boundary |
 |---|---|---|---|
-| VS Code editor monitoring (change events, versions, diagnostics) | **Fully** | 295 extension unit tests; Extension Host e2e passed | No author or model attribution |
+| VS Code editor monitoring (change events, versions, diagnostics) | **Fully** | 325 extension unit tests; Extension Host e2e passed | No author or model attribution |
 | Debounce, cancellation, concurrent documents | **Fully** | Unit and e2e monitor tests | Editor responsiveness preserved |
 | Source-sharing privacy gates | **Fully** | Unit tests and e2e consent checks | Workspace scans send metadata only |
 | Strict backend response validation | **Fully** | API/client contract tests; real backend payload exercised | Invalid findings are rejected, never synthesized |
@@ -24,8 +24,12 @@
 | Hover explanation and repair Quick Fix | **Fully** | Hover verified in e2e; Quick Fix verified in unit tests | Content comes from backend finding/result only |
 | Dashboard rendering and state honesty | **Fully** | Unit tests; e2e opened singleton tab | Demo data is explicitly labelled and never a scan result |
 | Versioned HTTP transport and typed errors | **Fully** | Backend API tests; e2e health/unreachable checks | Backend process is not started by the extension |
-| Python/JavaScript preprocessing | **Fully** | Backend unit/integration tests; scan stages observed | Other languages unsupported |
+| 13-language detection | **Fully** | Extension, id, shebang, and content detection contracts in `test_language_capabilities.py` | Detection does not imply parsing or semantic analysis |
+| Python/JavaScript/TypeScript preprocessing | **Fully** | Installed tree-sitter grammars, TSX selection, parser/AST tests; scan stages observed | Python/JavaScript also have CFG/DFG/taint; TypeScript has parsing only |
+| Detected-but-unparsed language reporting | **Fully** | `no_installed_parser` metadata skips and `analysisCapabilities` rows | Java, C, C++, PHP, Go, Rust, C#, Ruby, Kotlin, Swift are not clean scans |
 | AST analysis | **Fully** | Real `ast.dynamic-sql-query` finding observed | Observation, not exploitability proof |
+| General-bug/security AST enrichment | **Partial** | 32 opt-in rule tests for syntax, undefined/unused variables, type/null risks, exceptions, resources, control flow, common mistakes, sensitive exposure, SSRF, and uploads | Off by default; broad heuristics with epistemic confidence and uncertainty, not calibrated probabilities |
+| Language/analyzer capability report | **Fully** | `/health.analysisCapabilities` and extension pass-through validation | Static tools, linter adapters, and dependency checks are reported with explicit gaps |
 | CFG/DFG construction | **Fully** | Graph unit tests; scan evidence sources | Intraprocedural and same-file only |
 | Taint path construction | **Partial** | Positive/negative flow tests; DFG evidence in e2e | Potential syntactic flow, not attacker control |
 | Static analyzer adapters | **Partial** | Adapter tests with mocked/fake tools | Tool availability varies; rule pack unpinned |
@@ -40,6 +44,12 @@
 | Compatibility matrix harness | **Fully** | Rerun produced stable config hash and report | Reports observed local probes, not production availability |
 | Benchmark readiness harness | **Fully** as a readiness validator | Harness executed; bundle written with `contractIssues=[]` and `status=not_run` | Contract validation only |
 | Benchmark execution | **Not run** (`not_run`) | Every metric `null` and `measured: false` | No model path, sandbox profile, rule pack, or executor |
+
+The extension's background-file eligibility is still restricted to
+Python/JavaScript by `changeAnalyzer.js` and `fileFilter.js`. The broader
+13-language registry is visible through the backend parser and
+`/health.analysisCapabilities` reports; it is not a claim that the editor
+monitor scans every detected language.
 
 ## 2. Research and model-internal capabilities
 
@@ -80,9 +90,9 @@ Invariants are enforced: E implies D; F implies D and E; hosted providers may no
 |---|---|---|---|
 | A | change_detection | **Fully** | Document events and version tracking |
 | B | region_identification | **Fully** | Bounded function-level ranges |
-| C | syntax_analysis | **Fully** | Python/JavaScript only |
-| D | ast_analysis | **Fully** | Real AST evidence |
-| E | cfg_dfg_analysis | **Fully** | Declared intraprocedural/same-file scope |
+| C | syntax_analysis | **Fully** | Python/JavaScript/TypeScript parsing; broader languages detected but unparsed |
+| D | ast_analysis | **Fully** | Real AST evidence; general-bug enrichment is opt-in |
+| E | cfg_dfg_analysis | **Fully** | Python/JavaScript only; intraprocedural/same-file scope |
 | F | taint_analysis | **Partial** | Potential flows, not exploitability |
 | G | static_analysis | **Partial** | Optional tools and unpinned rule pack |
 | H | sae_features | **Unavailable** | Honest HTTP stub |

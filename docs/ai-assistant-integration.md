@@ -51,16 +51,45 @@ augmented with discovered provider records. Each record contains the provider
 ID, kind, hosted flag, status, capabilities, model summary (when available),
 reason/detail for failures, documented API description, and limitations.
 
+## Workspace monitoring provider matrix
+
+`vscode-extension/src/monitoring/providerMatrix.js` describes the universal
+fallback separately from optional generation adapters. It covers GitHub
+Copilot, Cursor, Claude-assisted workflows, ChatGPT-pasted code, OpenCode, other
+VS Code assistants, and manual code. Every row uses
+`workspace-document-events`, reports `workspaceMonitoring: 'supported'`, and
+sets `attribution: 'none'`.
+
+| Source or workflow | Observation | Attribution | Optional adapters |
+|---|---|---|---|
+| GitHub Copilot | `workspace-document-events` | `none` | VS Code Language Model API |
+| Cursor | `workspace-document-events` | `none` | none |
+| Claude-assisted workflows | `workspace-document-events` | `none` | OpenAI-compatible / extension API |
+| ChatGPT-pasted code | `workspace-document-events` | `none` | OpenAI-compatible |
+| OpenCode | `workspace-document-events` | `none` | OpenAI-compatible / extension API |
+| Other assistants | `workspace-document-events` | `none` | extension API |
+| Manually written code | `workspace-document-events` | `none` | none |
+
+The matrix lists only official events: `onDidOpenTextDocument`,
+`onDidChangeTextDocument`, `onDidSaveTextDocument`, `onDidCreateFiles`,
+`onDidDeleteFiles`, and `onDidChangeWorkspaceFolders`. Private APIs and
+reverse-engineered extension internals are never used, and an optional adapter
+never changes scan eligibility, severity, or diagnostics. See
+[the workspace scanning audit](workspace-scanning-audit.md) for the evidence
+boundary.
+
 ## Provider rules
 
 ### Editor monitoring (default)
 
-`createEditorProvider()` exposes only capability `A`. The realtime monitor uses
-documented VS Code change events and records bounded, zero-based half-open line
-ranges plus document URI/version metadata. It does not attribute an edit to a
-person, assistant, or model. Source text leaves the extension only under the
-existing explicit consent settings (`bugdhor.monitoring.enabled`,
-`bugdhor.monitoring.sendSourceText`, and general source-sharing settings).
+`createEditorProvider()` exposes only capability `A`. The workspace monitor owns
+all official document and workspace events; the incremental executor records
+bounded, zero-based half-open line ranges plus document URI/version metadata. It
+does not attribute an edit to a person, assistant, or model. Source text leaves
+the extension only when `bugdhor.monitoring.enabled` is true,
+`bugdhor.monitoring.allowAutomaticSourceSharing` is true, and
+`bugdhor.privacy.sendSourceText` is true. The nonexistent setting
+`bugdhor.monitoring.sendSourceText` must not be used.
 
 ### VS Code Language Model API
 

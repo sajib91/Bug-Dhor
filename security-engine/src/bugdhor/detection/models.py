@@ -41,6 +41,7 @@ class EvidenceType(StrEnum):
     BANDIT = "bandit"
     CODEQL = "codeql"
     JOERN = "joern"
+    PARSER = "parser"
     LLM = "llm"
 
 
@@ -87,11 +88,47 @@ class VulnerabilityCategory(StrEnum):
     AUTHORIZATION_WEAKNESS = "authorization_weakness"
     IDOR = "idor"
     INPUT_VALIDATION = "input_validation"
+    UNSAFE_FILE_UPLOAD = "unsafe_file_upload"
+    SENSITIVE_EXPOSURE = "sensitive_exposure"
+    SYNTAX_ERROR = "syntax_error"
+    UNDEFINED_VARIABLE = "undefined_variable"
+    UNUSED_VARIABLE = "unused_variable"
+    TYPE_ERROR = "type_error"
+    NULL_REFERENCE = "null_reference"
+    UNHANDLED_EXCEPTION = "unhandled_exception"
+    RESOURCE_HANDLE = "resource_handle"
+    SUSPICIOUS_CONTROL_FLOW = "suspicious_control_flow"
+    RUNTIME_ERROR = "runtime_error"
+    COMMON_MISTAKE = "common_mistake"
     UNKNOWN = "unknown"
 
     @property
     def is_classified(self) -> bool:
         return self is not VulnerabilityCategory.UNKNOWN
+
+    @property
+    def is_security(self) -> bool:
+        """Whether this category describes a security weakness rather than a bug."""
+        return (
+            self.value not in _GENERAL_BUG_CATEGORY_VALUES
+            and self is not VulnerabilityCategory.UNKNOWN
+        )
+
+
+_GENERAL_BUG_CATEGORY_VALUES = frozenset(
+    {
+        "syntax_error",
+        "undefined_variable",
+        "unused_variable",
+        "type_error",
+        "null_reference",
+        "unhandled_exception",
+        "resource_handle",
+        "suspicious_control_flow",
+        "runtime_error",
+        "common_mistake",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -483,6 +520,10 @@ class VulnerabilityFinding:
     conflicts: tuple[str, ...] = ()
     rule_ids: tuple[str, ...] = ()
     verification_status: str = "potential"
+    confidence: str = "observation"
+    confidence_basis: str = "Evidence claim kinds, not a calibrated probability."
+    uncertainty: tuple[str, ...] = ()
+    detection_method: str = "ast"
 
     def __post_init__(self) -> None:
         if not self.finding_id or not self.title:
@@ -492,9 +533,9 @@ class VulnerabilityFinding:
         if self.severity not in _SEVERITIES:
             raise ValueError(f"unsupported severity: {self.severity!r}")
         if self.verification_status not in {"confirmed", "potential"}:
-            raise ValueError(
-                f"unsupported verification status: {self.verification_status!r}"
-            )
+            raise ValueError(f"unsupported verification status: {self.verification_status!r}")
+        if self.confidence not in {"observation", "inference", "hypothesis"}:
+            raise ValueError(f"unsupported confidence: {self.confidence!r}")
 
     @property
     def evidence_sources(self) -> tuple[str, ...]:
@@ -542,6 +583,10 @@ class VulnerabilityFinding:
             "limitations": list(self.limitations),
             "conflicts": list(self.conflicts),
             "verificationStatus": self.verification_status,
+            "confidence": self.confidence,
+            "confidenceBasis": self.confidence_basis,
+            "uncertainty": list(self.uncertainty),
+            "detectionMethod": self.detection_method,
         }
 
     def to_contract_dict(self) -> dict[str, Any]:
@@ -576,7 +621,12 @@ class VulnerabilityFinding:
             )
         payload = {
             "findingId": self.finding_id,
+            "category": self.category.value,
             "filePath": self.location.path[:4096],
+            "startLine": self.location.start_line,
+            "startColumn": self.location.start_column,
+            "endLine": self.location.end_line,
+            "endColumn": self.location.end_column,
             "location": self.location.to_contract_dict(),
             "cwe": self.cwe,
             "severity": self.severity,
@@ -584,6 +634,10 @@ class VulnerabilityFinding:
             "riskScore": self.risk.to_contract_dict(),
             "explanation": self.explanation[:100_000],
             "suggestedRemediation": self.suggested_remediation[:100_000],
+            "confidence": self.confidence,
+            "confidenceBasis": self.confidence_basis[:1000],
+            "uncertainty": [item[:5000] for item in self.uncertainty[:100]],
+            "detectionMethod": self.detection_method[:500],
             "provenance": self.provenance.to_contract_dict(),
             "limitations": [item[:5000] for item in self.limitations[:100]],
         }
@@ -610,16 +664,27 @@ class VulnerabilityFinding:
                 break
         return {
             "id": self.finding_id,
+            "category": self.category.value,
             "message": self.title[:5000],
             "severity": self.severity,
             "cwe": self.cwe,
             "ruleId": self.rule_ids[0][:500] if self.rule_ids else None,
+            "filePath": self.location.path[:4096],
+            "startLine": self.location.start_line,
+            "startColumn": self.location.start_column,
+            "endLine": self.location.end_line,
+            "endColumn": self.location.end_column,
             "location": {
                 "uri": uri,
                 "range": self.location.to_api_range(),
             },
             "evidence": "\n".join(item.detail for item in self.evidence)[:100_000],
             "explanation": self.explanation[:100_000],
+            "suggestedRemediation": self.suggested_remediation[:100_000],
+            "confidence": self.confidence,
+            "confidenceBasis": self.confidence_basis[:1000],
+            "uncertainty": [item[:5000] for item in self.uncertainty[:100]],
+            "detectionMethod": self.detection_method[:500],
             "sourceReferences": references,
             "repair": None,
             "verificationStatus": self.verification_status,

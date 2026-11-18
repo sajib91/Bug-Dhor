@@ -210,6 +210,39 @@ def test_api_serialization_is_complete_for_the_existing_api_shape() -> None:
         assert payload["explanation"]
 
 
+def test_expanded_contract_and_api_fields_validate_without_probabilities() -> None:
+    config = DetectionConfig(enrich_general_bugs=True, enrich_cfg=False, enrich_dfg=False)
+    result = DetectionEngine(expected_tools=(), config=config).detect_source(
+        "def broken(:\n",
+        path="app.py",
+    )
+    finding = next(item for item in result.findings if "parser.syntax-error" in item.rule_ids)
+    payload = finding.to_contract_dict()
+
+    _assert_schema_valid(payload)
+    assert payload["category"] == "syntax_error"
+    assert payload["startLine"] == finding.location.start_line
+    assert payload["startColumn"] == finding.location.start_column
+    assert payload["endLine"] == finding.location.end_line
+    assert payload["endColumn"] == finding.location.end_column
+    assert payload["confidence"] == "observation"
+    assert "not a calibrated probability" in payload["confidenceBasis"]
+    assert payload["uncertainty"]
+    assert payload["detectionMethod"] == "parser"
+    assert payload["riskScore"]["kind"] == "heuristic"
+
+    api = finding.to_api_finding()
+    assert api["category"] == "syntax_error"
+    assert api["filePath"] == "app.py"
+    assert api["startLine"] == payload["startLine"]
+    assert api["confidence"] == "observation"
+    assert api["confidenceBasis"] == payload["confidenceBasis"]
+    assert api["uncertainty"] == payload["uncertainty"]
+    assert api["detectionMethod"] == "parser"
+    assert api["suggestedRemediation"] == payload["suggestedRemediation"]
+    assert "probability" not in api
+
+
 def test_unknown_cwe_is_not_serialized_as_a_finding() -> None:
     unknown = StaticFinding(
         finding_id="semgrep-unknown",

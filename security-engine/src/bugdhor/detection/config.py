@@ -159,6 +159,7 @@ class DetectionConfig:
     include_unclassified: bool = True
     enrich_cfg: bool = True
     enrich_dfg: bool = True
+    enrich_general_bugs: bool = False
     llm_min_confidence: float = 0.35
 
     def __post_init__(self) -> None:
@@ -186,6 +187,7 @@ class DetectionConfig:
             "include_unclassified": self.include_unclassified,
             "enrich_cfg": self.enrich_cfg,
             "enrich_dfg": self.enrich_dfg,
+            "enrich_general_bugs": self.enrich_general_bugs,
             "llm_min_confidence": self.llm_min_confidence,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))

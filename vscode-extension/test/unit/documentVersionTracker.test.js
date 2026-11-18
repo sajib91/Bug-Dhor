@@ -84,6 +84,33 @@ test('records saves without advancing the document version', () => {
   assert.equal(saved.state.savedVersion, 3);
 });
 
+test('records an open once per document version without attributing an author', () => {
+  const tracker = new DocumentVersionTracker();
+  const first = tracker.observeOpen({
+    uri: URI,
+    version: 1,
+    lineCount: 4,
+    fsPath: '/workspace/src/app.py'
+  });
+  assert.equal(first.ignored, false);
+  assert.equal(first.state.openedVersion, 1);
+  assert.deepEqual(first.state.ranges, []);
+
+  const duplicate = tracker.observeOpen({ uri: URI, version: 1, lineCount: 4 });
+  assert.equal(duplicate.ignored, true);
+  assert.equal(duplicate.reason, 'stale');
+
+  const observedChange = tracker.observeChange({
+    uri: URI,
+    version: 2,
+    lineCount: 5,
+    fsPath: '/workspace/src/app.py',
+    contentChanges: [change(2)]
+  });
+  assert.equal(observedChange.ignored, false);
+  assert.equal(tracker.get(URI).version, 2);
+});
+
 test('bounds tracked documents and supports forgetting a document', () => {
   const tracker = new DocumentVersionTracker({ maxDocuments: 2 });
   tracker.observeChange({ uri: 'file:///a.py', version: 1, lineCount: 1, timestamp: 1 });

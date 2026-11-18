@@ -62,14 +62,23 @@ These are research goals and engineering directions; not all are fully operation
 
 Language support depends on the capability:
 
-| Capability | Supported/handled languages (current implementation/docs) | Notes |
+| Capability | Supported/handled languages (current implementation) | Notes |
 |---|---|---|
-| Source detection, parsing/preprocessing, tree-sitter-based analysis | **Python** and **JavaScript** (per engine/parsing/program-analysis docs and supported language handling) | Syntax recovery is best-effort for some cases; unsupported constructs/languages are limited and reported where applicable. |
-| Program analysis (CFG/DFG/taint) | Implemented for supported parsed sources in the analysis library/integration (primarily Python/JavaScript paths covered by current modules/tests) | Analysis is intraprocedural/bounded in important ways (see limitations/research docs). |
-| Static adapters | Tool/language coverage depends on installed analyzers and adapter support (e.g. Semgrep rules, Bandit for Python) | Missing/unconfigured tools are reported as unavailable/failed with reasons, not as clean scans. |
-| VS Code file commands | Operate on active/saved workspace `file:` editors as validated by extension command logic | Some commands require saved files inside an open workspace folder and/or a non-empty selection. |
+| Source detection | **Python, JavaScript, TypeScript, Java, C, C++, PHP, Go, Rust, C#, Ruby, Kotlin, Swift** | Detected from extension, editor language id, shebang, or conservative content signals. Detection does not imply parsing. |
+| Parsing / AST extraction | **Python, JavaScript, TypeScript** (including TSX grammar selection) | Only installed tree-sitter grammars are used. Functions, classes, imports, source locations, and syntax diagnostics are extracted for these languages. |
+| Program analysis (CFG/DFG/taint) | **Python and JavaScript only** | TypeScript has parsing support but no implemented CFG/DFG/taint layers. Analysis is intraprocedural/bounded (see [program analysis](program-analysis.md)). |
+| Static adapters | Semgrep and Bandit are wired into scans; CodeQL and Joern require explicit CLI/database/query configuration | Missing/unconfigured tools are reported as unavailable/failed with reasons, never as clean scans. Installed linters/type checkers without adapters are reported as `E_NO_ADAPTER` gaps. |
+| General-bug/security AST enrichment | Conservative parser/AST rules for all parsed languages | Off by default. Enable with `DetectionConfig(enrich_general_bugs=True)` in the engine API. Findings use epistemic labels (`observation`/`inference`/`hypothesis`) plus uncertainty text, not calibrated probabilities. |
+| VS Code file commands | Operate on active/saved workspace `file:` editors as validated by extension command logic | Some commands require saved files inside an open workspace folder and/or a non-empty selection. Background monitoring eligibility is currently Python/JavaScript only. |
 
-Do not assume support for languages not explicitly handled by parsing/analyzers/configuration.
+Languages that are detected but have no installed parser are reported as
+`no_installed_parser` skips in repository metadata and as explicit gaps in the
+capability report. They are never treated as clean or analysed source. Query
+`GET /api/v1/health` and read `analysisCapabilities` for the runtime view of
+detected languages, installed parsers, program-analysis layers, static tools,
+linter/type-checker adapter gaps, manual-only dependency checks, and general-bug
+configuration. The older boolean `capabilities` map still describes wired
+operation paths only.
 
 ## 5. Installation instructions
 
@@ -231,17 +240,24 @@ Adjust payload to match the current OpenAPI schema (include an auth header if `B
 - **`analysisAvailable: false` / unavailable stages:** indicates specific analyses were not run or not supported with current configuration; do **not** interpret as "no vulnerabilities."
 - **`partial`:** some stages completed, others unavailable/failed or limited (e.g. external static analyzers missing).
 - Findings are evidence-based outputs of the configured engine/rules/analyzers and can include **false positives or false negatives**.
+- General-bug/security AST enrichment is opt-in. Its findings are structural observations with epistemic confidence labels and explicit uncertainty; they are not type-checker, linter, or calibrated-probability results.
+- Inspect `analysisCapabilities` in the health response to see which languages are parsed, which have CFG/DFG/taint, which analyzers are actually available, and which checks remain manual or adapter-less.
 
-### 8.7 Real-time code change monitoring (VS Code, opt-in)
+### 8.7 Model-independent workspace monitoring (VS Code, opt-in)
 
-Bug Dhor can watch Python and JavaScript files while you edit. It is **disabled by default** and is intended as a background aid, not a replacement for an explicit scan.
+Bug Dhor can watch eligible workspace files while you edit. It is **disabled by default** and is intended as a background aid, not a replacement for an explicit scan. It does not matter whether code came from Copilot, Cursor, Claude, ChatGPT pasted text, OpenCode, another assistant, or manual typing: the extension sees only ordinary workspace documents.
 
-- Enable it with `bugdhor.monitoring.enabled`. The extension then observes ordinary document edits and saves; it does not assume an AI assistant made them and never claims to identify the model or author responsible.
-- Edits are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) and tracked by document version so rapid changes or pasted blocks produce a single scan of the latest buffer, never one scan per keystroke. A newer edit cancels any superseded request.
-- Analysis is scoped to the enclosing function, the changed lines, or the whole file (`bugdhor.monitoring.analysisScope`). Set `bugdhor.monitoring.onSaveOnly` to analyze only on save. Large files, unsupported languages, and generated paths are skipped.
-- Findings come only from validated backend results and are published to the native **Problems** panel (clearing stale findings); a non-blocking notification appears when findings exist. An unavailable analysis publishes nothing.
+- Enable it with `bugdhor.monitoring.enabled`. A single workspace coordinator then registers the official VS Code events: document open, change, save, close, file create, file delete, and workspace-folder change. No private API or reverse engineering is used.
+- Edits are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) and tracked by document version so rapid changes or pasted blocks produce a single scan of the latest buffer, never one scan per keystroke. A newer edit cancels any superseded request. Saves supersede pending edits with an immediate bounded file scan.
+- Analysis is scoped to the enclosing function, the changed lines, or the whole file (`bugdhor.monitoring.analysisScope`). Set `bugdhor.monitoring.onSaveOnly` to analyze only on save. Large files, generated paths, and languages outside the extension's current Python/JavaScript eligibility are skipped. The backend can still detect the broader 13-language set and reports parser gaps separately.
+- New eligible source files are opened through the documented `workspace.openTextDocument` API and scanned once. Deletes cancel pending work, forget tracking state, and clear that file's diagnostics. Folder changes always prune stale state; `bugdhor.monitoring.fullScanOnWorkspaceChange` is an opt-in for one debounced, metadata-only full workspace scan.
+- Opening a document does **not** trigger a scan unless `bugdhor.monitoring.scanOnOpen` is explicitly enabled. Watch/create behavior can be disabled with `bugdhor.monitoring.watchWorkspaceFiles` and `bugdhor.monitoring.scanNewFiles`.
+- Binary extensions, generated artifacts (minified bundles, source maps, generated files, lockfiles), vendored directories, virtual environments, build/cache directories, and out-of-workspace paths are skipped by default. Workspace-level full scans are bounded by `bugdhor.monitoring.maxConcurrentScans` and `bugdhor.monitoring.maxWorkspaceFiles`.
+- Findings come only from validated backend results and are published to the native **Problems** panel (clearing stale findings); a non-blocking notification appears when findings exist. An unavailable analysis publishes nothing. See [the workspace scanning audit](workspace-scanning-audit.md) and [implementation plan](workspace-scanning-implementation-plan.md) for the full event and settings map.
 
-**Privacy:** background analysis sends source text **only** when both `bugdhor.monitoring.allowAutomaticSourceSharing` and `bugdhor.privacy.sendSourceText` are enabled. Leave either off and the monitor tracks versions locally but makes no engine call. Reachability/health checks never send source code.
+**Attribution:** the monitor never claims to identify an AI assistant, model, or human author. Multi-line insertions are described only by their edit shape. The [provider matrix](ai-assistant-integration.md#workspace-monitoring-provider-matrix) records `attribution: 'none'` for every supported workflow.
+
+**Privacy:** background analysis sends source text **only** when both `bugdhor.monitoring.allowAutomaticSourceSharing` and `bugdhor.privacy.sendSourceText` are enabled. Leave either off and the monitor tracks versions locally but makes no engine call. Workspace scans send folder metadata only; the backend reads allowlisted files from disk. Reachability/health checks never send source code.
 
 ## 9. Vulnerability explanation tutorial
 
@@ -450,7 +466,7 @@ No benchmark results are included in this guide; any future results must be trac
 ### 16.2 Scan/analysis behavior
 
 - **No findings but status unavailable/partial:** analysis may be unavailable or incomplete (e.g. analyzers missing, model artifacts absent). This is not proof of safety.
-- **Static tools missing:** install/configure Semgrep/Bandit/CodeQL/Joern as needed; missing tools are reported explicitly.
+- **Static tools missing:** install/configure Semgrep/Bandit/CodeQL/Joern as needed; missing tools are reported explicitly. Use `/health.analysisCapabilities` to distinguish missing executables from installed linters that have no adapter and from manual-only dependency checks.
 - **Slow scans on large workspaces:** expect higher latency; caching helps repeated unchanged analysis in-process; consider narrowing scope.
 
 ### 16.3 Repair/verification issues

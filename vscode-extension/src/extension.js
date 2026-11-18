@@ -10,7 +10,7 @@ const { registerSidebarView } = require('./webviews/sidebarView');
 const { DashboardPanelController } = require('./webviews/dashboardPanel');
 const { buildDashboardState } = require('./webviews/dashboardModel');
 const { registerDiagnostics } = require('./diagnostics');
-const { RealtimeMonitor } = require('./monitoring/realtimeMonitor');
+const { WorkspaceMonitor } = require('./monitoring/workspaceMonitor');
 const { onSettingsChanged, readSettings } = require('./config');
 const { createProviderRegistry, SecurityHooks } = require('./integrations');
 const { FeedbackController } = require('./feedback');
@@ -36,6 +36,15 @@ function getMonitoringSettings() {
     allowAutomaticSourceSharing: settings.monitoringAllowAutomaticSourceSharing,
     notifyOnFindings: settings.monitoringNotifyOnFindings,
     excludeGlobs: settings.monitoringExcludeGlobs,
+    watchWorkspaceFiles: settings.monitoringWatchWorkspaceFiles,
+    scanNewFiles: settings.monitoringScanNewFiles,
+    scanOnOpen: settings.monitoringScanOnOpen,
+    fullScanOnWorkspaceChange: settings.monitoringFullScanOnWorkspaceChange,
+    fullScanDebounceMs: settings.monitoringFullScanDebounceMs,
+    maxConcurrentScans: settings.monitoringMaxConcurrentScans,
+    maxWorkspaceFiles: settings.monitoringMaxWorkspaceFiles,
+    excludeBinaryFiles: settings.monitoringExcludeBinaryFiles,
+    excludeGeneratedFiles: settings.monitoringExcludeGeneratedFiles,
     sendSourceText: settings.sendSourceText
   };
 }
@@ -210,7 +219,7 @@ function activate(context) {
   });
   const sidebarRegistration = registerSidebarView(context, logger);
 
-  const monitor = new RealtimeMonitor({
+  const monitor = new WorkspaceMonitor({
     vscode,
     service,
     logger,

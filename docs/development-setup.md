@@ -304,17 +304,17 @@ Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-
 | `npm run structure:check` | 50 required directories and 161 required files present; no TypeScript sources |
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
-| Tree-sitter grammars | Python and JavaScript grammars exercised by parsing tests; the TypeScript module imports but is not supported by preprocessing |
-| `npm run lint` | Root Ruff gate fails on the pre-existing repository baseline (506 errors); extension ESLint is clean |
-| `npm run format:check` | Fails on a pre-existing baseline: 57 files would be reformatted, 178 already formatted; changed JavaScript files are Prettier-clean |
-| Ruff on changed Python files | 129 findings versus 137 at HEAD; no new net violations |
-| `npm test` | 638 pytest tests passed (API, contracts, parsing, program analysis, taint, static adapters, detection, explanation, repair, verification, settings, paths, and pipeline); 295 Node unit tests passed |
-| Parsing unit tests | 59 tests passed over valid and invalid Python/JavaScript source, BOM/CRLF source maps, UTF-16 positions, tokenization, function extraction, chunking, and repository metadata |
+| Tree-sitter grammars | Python, JavaScript, TypeScript, and TSX grammars exercised by parsing tests; all 13 requested languages are detectable, but only those three language families are parsed and only Python/JavaScript have CFG/DFG/taint |
+| `npm run lint` | Root Ruff gate fails on the pre-existing repository baseline; extension ESLint is clean |
+| `npm run format:check` | Fails on a pre-existing baseline: 55 files would be reformatted, 184 already formatted; no file changed by this work appears in the reformat list |
+| `npm test` | 806 pytest tests passed from the repository root (engine + mathematical regressions); engine-only run from `security-engine/` passed 717 tests; 325 Node unit tests passed |
+| Language and parsing unit tests | Coverage for 13-language detection, installed-parser capability reporting, TSX grammar selection, explicit `no_installed_parser` skips, BOM/CRLF source maps, UTF-16 positions, tokenization, function extraction, chunking, syntax diagnostics, and repository metadata |
 | Program-analysis unit tests | 62 tests passed over Python/JavaScript basic blocks, branches, loops, exceptions, functions, exact locations, reaching definitions, calls, returns, closures, unresolved uses, graph invariants, determinism, and positive/negative taint flows for five vulnerability classes |
+| Detection unit tests | 70 engine/fusion/contract/analysis tests, 81 contract and shared-schema tests, 32 opt-in general-bug rule tests, and 13 health/pipeline tests passed |
 | Static-adapter tests | 32 tests passed over subprocess safety, timeouts, output capture, Semgrep/Bandit/SARIF/Joern parsing, CWE normalization, deduplication, missing/failed/unavailable statuses, CodeQL license/config gates, Joern version gates, and mocked end-to-end integrations |
 | `npm run extension:test:integration` | Extension Host activated the extension; all 13 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
 | Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
-| `npm run check` | Fails on the pre-existing root lint/format baseline; extension lint, backend 638 tests, and extension 295 tests pass |
+| `npm run check` | Fails on the pre-existing root lint/format baseline; extension lint, backend 717/806 tests, and extension 325 tests pass |
 | `npm run build` | Python wheel built; 50-file, 74.63 KB VSIX packaged |
 | `npm audit --omit=dev` | 0 production vulnerabilities |
 | `npm audit` | 4 moderate `minimatch` advisories in development tooling only |
@@ -345,7 +345,7 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 - Windows setup commands were not executed on this macOS host.
 - The VS Code **Run Bug Dhor Extension** launch configuration was not clicked manually; an equivalent Extension Host run passed through `@vscode/test-electron`.
 - The extension connects to a separately started Python backend over the versioned HTTP API. It does not start or supervise that process. Detection, explanation, proposal-only repair, and bounded verification are wired; SAE extraction, counterfactuals, and steering remain `unavailable`.
-- Python and JavaScript preprocessing is invoked by scan, detection, and explanation stages. Syntax-error recovery is best effort, and only those two languages are supported.
+- Python, JavaScript, and TypeScript preprocessing is invoked by scan, detection, and explanation stages. The detector can identify 13 languages, but only those three language families have installed parsers, and only Python/JavaScript have implemented CFG/DFG/taint layers. General-bug AST enrichment is opt-in and is not a type checker or linter. `GET /api/v1/health` exposes the full `analysisCapabilities` report.
 - Diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. Current scans can publish real AST/CFG/DFG/taint-backed findings with a `heuristic_index` risk index; `analysisAvailable: false` remains explicit unavailable analysis, never a clean scan.
 - Finding locations and source-reference file links are restricted to open workspace folders. A source reference outside the workspace is shown as text anchored at the finding instead of a clickable location. Symlink targets are not resolved.
 - The diagnostics pipeline is exercised against the real backend with detector-produced findings in the Extension Host e2e test, including native diagnostics, hover, and explanation. Windows rendering and interaction behavior were not tested because development runs on macOS.

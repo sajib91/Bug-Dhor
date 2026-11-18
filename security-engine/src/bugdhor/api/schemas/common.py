@@ -104,13 +104,24 @@ class Finding(APIModel):
     """Backend finding contract consumed by the VS Code diagnostics layer."""
 
     id: str = Field(min_length=1, max_length=200)
+    category: str | None = Field(default=None, max_length=100)
     message: str = Field(min_length=1, max_length=5000)
     severity: Literal["critical", "high", "medium", "low", "info"]
     cwe: str | None = Field(default=None, pattern=r"^CWE-\d+$")
     rule_id: str | None = Field(default=None, max_length=500)
+    file_path: str | None = Field(default=None, max_length=4096)
+    start_line: int | None = Field(default=None, ge=0)
+    start_column: int | None = Field(default=None, ge=0)
+    end_line: int | None = Field(default=None, ge=0)
+    end_column: int | None = Field(default=None, ge=0)
     location: FindingLocation
     evidence: str | None = Field(default=None, max_length=100_000)
     explanation: str | None = Field(default=None, max_length=100_000)
+    suggested_remediation: str | None = Field(default=None, max_length=100_000)
+    confidence: Literal["observation", "inference", "hypothesis"] | None = None
+    confidence_basis: str | None = Field(default=None, max_length=1000)
+    uncertainty: list[str] = Field(default_factory=list, max_length=100)
+    detection_method: str | None = Field(default=None, max_length=500)
     source_references: list[SourceReference] = Field(default_factory=list, max_length=50)
     repair: RepairInfo | None = None
     verification_status: Literal["confirmed", "potential"] | None = Field(
@@ -168,4 +179,5 @@ class HealthResponse(APIModel):
     timestamp: datetime
     uptime_seconds: float = Field(ge=0)
     capabilities: dict[str, bool]
+    analysis_capabilities: dict[str, Any] = Field(default_factory=dict)
     sandbox_backend: str

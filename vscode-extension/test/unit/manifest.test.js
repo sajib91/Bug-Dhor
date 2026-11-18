@@ -122,6 +122,15 @@ test('configuration settings are declared', () => {
     'bugdhor.monitoring.maxFileBytes',
     'bugdhor.monitoring.maxChangedLines',
     'bugdhor.monitoring.excludeGlobs',
+    'bugdhor.monitoring.watchWorkspaceFiles',
+    'bugdhor.monitoring.scanNewFiles',
+    'bugdhor.monitoring.scanOnOpen',
+    'bugdhor.monitoring.fullScanOnWorkspaceChange',
+    'bugdhor.monitoring.fullScanDebounceMs',
+    'bugdhor.monitoring.maxConcurrentScans',
+    'bugdhor.monitoring.maxWorkspaceFiles',
+    'bugdhor.monitoring.excludeBinaryFiles',
+    'bugdhor.monitoring.excludeGeneratedFiles',
     'bugdhor.monitoring.notifyOnFindings',
     'bugdhor.feedback.notifyOnPatchApplied',
     'bugdhor.feedback.notifyOnResolution',
@@ -163,6 +172,20 @@ test('real-time monitoring is off by default and requires explicit source consen
     'file'
   ]);
   assert.ok(properties['bugdhor.monitoring.debounceMs'].minimum >= 100);
+  assert.equal(properties['bugdhor.monitoring.watchWorkspaceFiles'].default, true);
+  assert.equal(properties['bugdhor.monitoring.scanNewFiles'].default, true);
+  assert.equal(properties['bugdhor.monitoring.scanOnOpen'].default, false);
+  assert.equal(properties['bugdhor.monitoring.fullScanOnWorkspaceChange'].default, false);
+  assert.equal(properties['bugdhor.monitoring.fullScanDebounceMs'].default, 2000);
+  assert.equal(properties['bugdhor.monitoring.maxConcurrentScans'].default, 2);
+  assert.equal(properties['bugdhor.monitoring.maxWorkspaceFiles'].default, 2000);
+  assert.equal(properties['bugdhor.monitoring.excludeBinaryFiles'].default, true);
+  assert.equal(properties['bugdhor.monitoring.excludeGeneratedFiles'].default, true);
+  assert.ok(
+    properties['bugdhor.monitoring.excludeGlobs'].default.some((glob) =>
+      glob.includes('node_modules')
+    )
+  );
 });
 
 test('extension icon is a valid 128x128 PNG', () => {

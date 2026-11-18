@@ -18,109 +18,19 @@
 const crypto = require('node:crypto');
 const path = require('node:path');
 
-const {
-  ANALYSIS_SCOPES,
-  DEFAULT_EXCLUDE_GLOBS,
-  DEFAULT_SUPPORTED_LANGUAGES,
-  MAX_ABSOLUTE_LINES,
-  buildAnalysisPlan,
-  isPathExcluded,
-  isSupportedLanguage,
-  textForPlan
-} = require('./changeAnalyzer');
+const { MAX_ABSOLUTE_LINES, buildAnalysisPlan, textForPlan } = require('./changeAnalyzer');
 const { DocumentVersionTracker } = require('./documentVersionTracker');
+const { evaluateFileEligibility } = require('./fileFilter');
+const { DEFAULT_MONITORING_SETTINGS, normalizeMonitoringSettings } = require('./settings');
 const { isPathWithinRoot } = require('../security/paths');
 
-const DEFAULT_SETTINGS = Object.freeze({
-  enabled: false,
-  onSaveOnly: false,
-  debounceMs: 750,
-  languages: DEFAULT_SUPPORTED_LANGUAGES,
-  analysisScope: 'function',
-  maxFileBytes: 1_048_576,
-  maxChangedLines: 500,
-  allowAutomaticSourceSharing: false,
-  notifyOnFindings: true,
-  excludeGlobs: DEFAULT_EXCLUDE_GLOBS,
-  sendSourceText: true
-});
+// Backward-compatible aliases for existing callers and tests. The shared
+// settings module is the single source of truth for all monitoring defaults.
+const DEFAULT_SETTINGS = DEFAULT_MONITORING_SETTINGS;
+const normalizeSettings = normalizeMonitoringSettings;
 
 const MAX_RECORDED_ANALYSES = 25;
 const MAX_LINES_FOR_SCAN = MAX_ABSOLUTE_LINES;
-
-/**
- * @param {unknown} value
- * @param {boolean} fallback
- * @returns {boolean}
- */
-function booleanSetting(value, fallback) {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-/**
- * @param {unknown} value
- * @param {number} fallback
- * @param {number} minimum
- * @param {number} maximum
- * @returns {number}
- */
-function integerSetting(value, fallback, minimum, maximum) {
-  const number = typeof value === 'string' && value.trim().length > 0 ? Number(value) : value;
-  if (!Number.isFinite(number)) {
-    return fallback;
-  }
-  return Math.min(maximum, Math.max(minimum, Math.round(number)));
-}
-
-/**
- * @param {unknown} value
- * @param {readonly string[]} fallback
- * @returns {string[]}
- */
-function stringArraySetting(value, fallback) {
-  if (!Array.isArray(value)) {
-    return [...fallback];
-  }
-  const entries = value.filter((entry) => typeof entry === 'string' && entry.trim().length > 0);
-  return entries.length > 0 ? entries.map((entry) => entry.trim()) : [...fallback];
-}
-
-/**
- * @param {unknown} raw
- * @returns {Readonly<typeof DEFAULT_SETTINGS & { languages: string[], excludeGlobs: string[] }>}
- */
-function normalizeSettings(raw) {
-  const source = raw && typeof raw === 'object' ? raw : {};
-  const scope = ANALYSIS_SCOPES.includes(source.analysisScope)
-    ? source.analysisScope
-    : DEFAULT_SETTINGS.analysisScope;
-  return Object.freeze({
-    enabled: booleanSetting(source.enabled, DEFAULT_SETTINGS.enabled),
-    onSaveOnly: booleanSetting(source.onSaveOnly, DEFAULT_SETTINGS.onSaveOnly),
-    debounceMs: integerSetting(source.debounceMs, DEFAULT_SETTINGS.debounceMs, 100, 10_000),
-    languages: stringArraySetting(source.languages, DEFAULT_SETTINGS.languages),
-    analysisScope: scope,
-    maxFileBytes: integerSetting(
-      source.maxFileBytes,
-      DEFAULT_SETTINGS.maxFileBytes,
-      1024,
-      10 * 1024 * 1024
-    ),
-    maxChangedLines: integerSetting(
-      source.maxChangedLines,
-      DEFAULT_SETTINGS.maxChangedLines,
-      1,
-      10_000
-    ),
-    allowAutomaticSourceSharing: booleanSetting(
-      source.allowAutomaticSourceSharing,
-      DEFAULT_SETTINGS.allowAutomaticSourceSharing
-    ),
-    notifyOnFindings: booleanSetting(source.notifyOnFindings, DEFAULT_SETTINGS.notifyOnFindings),
-    excludeGlobs: stringArraySetting(source.excludeGlobs, DEFAULT_SETTINGS.excludeGlobs),
-    sendSourceText: booleanSetting(source.sendSourceText, DEFAULT_SETTINGS.sendSourceText)
-  });
-}
 
 /**
  * A minimal cancellation token source. The API client only needs
@@ -227,10 +137,20 @@ class RealtimeMonitor {
    *   logger: import('../logging/output').Logger,
    *   getSettings?: () => object,
    *   hooks?: import('../integrations/securityHooks').SecurityHooks,
-   *   feedback?: import('../feedback/feedbackController').FeedbackController
+   *   feedback?: import('../feedback/feedbackController').FeedbackController,
+   *   registerDocumentListeners?: boolean
    * }} dependencies
    */
-  constructor({ vscode, service, diagnostics, logger, getSettings, hooks, feedback } = {}) {
+  constructor({
+    vscode,
+    service,
+    diagnostics,
+    logger,
+    getSettings,
+    hooks,
+    feedback,
+    registerDocumentListeners = true
+  } = {}) {
     if (!vscode?.workspace || !service || !diagnostics || !logger) {
       throw new TypeError('RealtimeMonitor requires vscode, service, diagnostics, and logger.');
     }
@@ -240,6 +160,7 @@ class RealtimeMonitor {
     this.logger = logger;
     this.hooks = hooks ?? null;
     this.feedback = feedback ?? null;
+    this.registerDocumentListeners = registerDocumentListeners !== false;
     this.getSettings = typeof getSettings === 'function' ? getSettings : () => ({});
     this.settings = normalizeSettings(this.getSettings());
 
@@ -272,8 +193,18 @@ class RealtimeMonitor {
     this.disposed = false;
   }
 
-  /** Register VS Code listeners. */
+  /**
+   * Register document listeners. A workspace orchestrator can set
+   * `registerDocumentListeners: false` and drive the same public handlers so
+   * there is exactly one owner of VS Code event registration.
+   */
   start() {
+    if (!this.registerDocumentListeners) {
+      this.logger.debug(
+        'Bug Dhor incremental monitor is using an external workspace event coordinator.'
+      );
+      return this;
+    }
     const workspace = this.vscode.workspace;
     if (
       typeof workspace.onDidChangeTextDocument !== 'function' ||
@@ -322,6 +253,7 @@ class RealtimeMonitor {
       uri,
       version: document.version,
       lineCount: document.lineCount,
+      fsPath: document.uri.fsPath,
       contentChanges: event.contentChanges
     });
     if (observed.ignored) {
@@ -343,8 +275,109 @@ class RealtimeMonitor {
       return;
     }
     const uri = document.uri.toString();
-    this.tracker.observeSave({ uri, version: document.version });
+    this.tracker.observeSave({ uri, version: document.version, fsPath: document.uri.fsPath });
     this.schedule(document, uri, 'save', { immediate: true });
+  }
+
+  /**
+   * Observe an opened document. Opening is recorded once per version; scanning
+   * on open is opt-in because it would otherwise create a scan for every tab a
+   * user visits.
+   *
+   * @param {any} document
+   * @returns {{ scheduled: boolean, reason?: string }}
+   */
+  handleOpen(document) {
+    if (this.disposed || !this.settings.enabled) {
+      return { scheduled: false, reason: 'disabled' };
+    }
+    if (!this.isEligibleDocument(document)) {
+      return { scheduled: false, reason: 'ineligible' };
+    }
+    const uri = document.uri.toString();
+    const observed = this.tracker.observeOpen({
+      uri,
+      version: document.version,
+      lineCount: document.lineCount,
+      fsPath: document.uri.fsPath
+    });
+    if (observed.ignored) {
+      return { scheduled: false, reason: observed.reason };
+    }
+    if (!this.settings.scanOnOpen) {
+      return { scheduled: false, reason: 'scan-on-open-disabled' };
+    }
+    this.schedule(document, uri, 'open');
+    return { scheduled: true };
+  }
+
+  /**
+   * Schedule a file-level scan for a newly created source file.
+   *
+   * @param {any} document
+   * @returns {boolean}
+   */
+  handleCreate(document) {
+    if (this.disposed || !this.settings.enabled || !this.settings.scanNewFiles) {
+      return false;
+    }
+    if (!this.isEligibleDocument(document)) {
+      return false;
+    }
+    const uri = document.uri.toString();
+    const observed = this.tracker.observeOpen({
+      uri,
+      version: document.version,
+      lineCount: document.lineCount,
+      fsPath: document.uri.fsPath
+    });
+    if (observed.ignored) {
+      return false;
+    }
+    this.schedule(document, uri, 'create');
+    return true;
+  }
+
+  /**
+   * Cancel and forget all monitoring state for a deleted URI. No scan is
+   * scheduled for the deletion itself.
+   *
+   * @param {string} uri
+   */
+  handleDeleteUri(uri) {
+    if (typeof uri !== 'string' || uri.length === 0) {
+      return;
+    }
+    this.cancelAnalysis(uri, 'file deleted');
+    this.tracker.forget(uri);
+    this.analyzedHashes.delete(uri);
+    try {
+      this.diagnostics.clearUri?.(uri);
+    } catch {
+      // Diagnostic cleanup is best effort; never fail a delete event.
+    }
+  }
+
+  /**
+   * Drop tracking for documents that are no longer inside the workspace.
+   *
+   * @param {ReadonlyArray<{ uri?: { scheme?: string, fsPath?: string } }>} [folders]
+   */
+  pruneOutOfWorkspace(folders = this.vscode.workspace?.workspaceFolders ?? []) {
+    for (const [uri, state] of [...this.tracker.documents]) {
+      const fsPath = /** @type {any} */ (state)?.fsPath;
+      const inside =
+        typeof fsPath === 'string' &&
+        folders.some(
+          (folder) =>
+            folder?.uri?.scheme === 'file' &&
+            typeof folder.uri.fsPath === 'string' &&
+            isPathWithinRoot(fsPath, folder.uri.fsPath)
+        );
+      if (!inside) {
+        this.handleDeleteUri(uri);
+      }
+    }
   }
 
   /** @param {any} document */
@@ -367,7 +400,7 @@ class RealtimeMonitor {
   /**
    * @param {any} document
    * @param {string} uri
-   * @param {'change' | 'save' | 'rescan'} reason
+   * @param {'change' | 'save' | 'rescan' | 'open' | 'create'} reason
    * @param {{ immediate?: boolean }} [options]
    */
   schedule(document, uri, reason, options = {}) {
@@ -399,7 +432,7 @@ class RealtimeMonitor {
    *   document: any,
    *   uri: string,
    *   generation: number,
-   *   reason: 'change' | 'save' | 'rescan'
+   *   reason: 'change' | 'save' | 'rescan' | 'open' | 'create'
    * }} task
    */
   async runAnalysis({ document, uri, generation, reason }) {
@@ -519,7 +552,10 @@ class RealtimeMonitor {
       languageId: document.languageId,
       ranges: changeState?.ranges ?? [],
       settings: {
-        analysisScope: reason === 'save' || reason === 'rescan' ? 'file' : this.settings.analysisScope,
+        analysisScope:
+          reason === 'save' || reason === 'rescan' || reason === 'create' || reason === 'open'
+            ? 'file'
+            : this.settings.analysisScope,
         maxChangedLines: this.settings.maxChangedLines
       },
       reason
@@ -635,10 +671,13 @@ class RealtimeMonitor {
     if (!Number.isInteger(document.version) || document.version < 0) {
       return false;
     }
-    if (!isSupportedLanguage(document.languageId, this.settings.languages)) {
-      return false;
-    }
-    if (isPathExcluded(document.uri.fsPath, this.settings.excludeGlobs)) {
+    const eligibility = evaluateFileEligibility({
+      fsPath: document.uri.fsPath,
+      languageId: document.languageId,
+      settings: this.settings,
+      workspaceFolders: this.vscode.workspace?.workspaceFolders ?? []
+    });
+    if (!eligibility.eligible) {
       return false;
     }
     return !Number.isInteger(document.lineCount) || document.lineCount <= MAX_LINES_FOR_SCAN;

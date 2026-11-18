@@ -197,6 +197,7 @@ function requireObjectOrNull(value, path) {
  *   timestamp: string,
  *   uptimeSeconds: number,
  *   capabilities: Record<string, boolean>,
+ *   analysisCapabilities?: Record<string, any>,
  *   sandboxBackend: string
  * }}
  */
@@ -254,6 +255,9 @@ function validateHealthResponse(value) {
     timestamp,
     uptimeSeconds: health.uptimeSeconds,
     capabilities: { ...capabilities },
+    ...(isPlainObject(health.analysisCapabilities)
+      ? { analysisCapabilities: { ...health.analysisCapabilities } }
+      : {}),
     sandboxBackend: health.sandboxBackend
   };
 }

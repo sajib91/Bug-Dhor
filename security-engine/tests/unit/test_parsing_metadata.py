@@ -81,6 +81,7 @@ def test_reports_each_skipped_file_reason(tmp_path) -> None:
     _write(tmp_path, "latin.py", b"x = '\xff'\n")
     _write(tmp_path, "small.py", "x = 1\n")
     _write(tmp_path, "types.ts", "const x = 1;\n")
+    _write(tmp_path, "App.java", "class App {}\n")
     _write(tmp_path, "README.md", "# Not source\n")
 
     metadata = extract_repository_metadata(tmp_path, max_file_bytes=20)
@@ -89,12 +90,12 @@ def test_reports_each_skipped_file_reason(tmp_path) -> None:
         "big.py": "too_large",
         "bin.py": "binary",
         "latin.py": "invalid_utf8",
-        "types.ts": "unsupported_language",
+        "App.java": "no_installed_parser",
     }
-    assert [file.path for file in metadata.files] == ["small.py"]
-    assert metadata.file_count == 1
-    assert metadata.total_bytes == 6
-    assert metadata.total_lines == 1
+    assert [file.path for file in metadata.files] == ["small.py", "types.ts"]
+    assert metadata.file_count == 2
+    assert metadata.total_bytes == 19
+    assert metadata.total_lines == 2
     assert metadata.total_functions == 0
     assert metadata.total_classes == 0
 
@@ -130,7 +131,7 @@ def test_truncates_after_max_files_and_reports_a_warning(tmp_path) -> None:
 
 def test_truncation_counts_candidates_that_are_skipped(tmp_path) -> None:
     _write(tmp_path, "a.py", "x = 1\n")
-    _write(tmp_path, "b.ts", "const x = 1;\n")
+    _write(tmp_path, "b.java", "class B {}\n")
     _write(tmp_path, "c.py", "y = 2\n")
 
     metadata = extract_repository_metadata(tmp_path, max_files=2)
@@ -139,7 +140,7 @@ def test_truncation_counts_candidates_that_are_skipped(tmp_path) -> None:
     assert metadata.file_count == 1
     assert [file.path for file in metadata.files] == ["a.py"]
     assert [(skipped.path, skipped.reason) for skipped in metadata.skipped_files] == [
-        ("b.ts", "unsupported_language")
+        ("b.java", "no_installed_parser")
     ]
 
 

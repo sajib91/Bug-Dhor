@@ -35,6 +35,7 @@ from bugdhor.detection.config import DEFAULT_DETECTION_CONFIG, DetectionConfig, 
 from bugdhor.detection.context import ContextAssessor
 from bugdhor.detection.models import (
     CalibratedProbability,
+    ClaimKind,
     DetectionCoverage,
     EvidenceFamily,
     EvidenceItem,
@@ -329,6 +330,7 @@ def _representative_location(items: Sequence[EvidenceItem]) -> EvidenceLocation:
         EvidenceType.SEMGREP: 1,
         EvidenceType.BANDIT: 1,
         EvidenceType.JOERN: 1,
+        EvidenceType.PARSER: 1,
         EvidenceType.AST: 2,
         EvidenceType.LLM: 3,
     }
@@ -509,6 +511,9 @@ def _build_finding(
         coverage=coverage,
     )
     provenance_source = _provenance_source(evidence)
+    confidence, confidence_basis = _confidence_summary(evidence)
+    detection_method = _detection_method(evidence)
+    uncertainty = tuple(dict.fromkeys((*limitations, *classification.conflicts)))
     return VulnerabilityFinding(
         finding_id=finding_id,
         category=category,
@@ -532,6 +537,10 @@ def _build_finding(
         limitations=limitations,
         conflicts=tuple(classification.conflicts),
         rule_ids=rule_ids,
+        confidence=confidence,
+        confidence_basis=confidence_basis,
+        uncertainty=uncertainty,
+        detection_method=detection_method,
     )
 
 
@@ -560,6 +569,35 @@ def _unclassified_candidate(
         evidence=tuple(evidence),
         heuristic_risk=heuristic.value,
     )
+
+
+def _confidence_summary(
+    evidence: Sequence[EvidenceItem],
+) -> tuple[str, str]:
+    """Describe epistemic strength without inventing a probability."""
+    supporting = [item for item in evidence if item.polarity is EvidencePolarity.SUPPORTS]
+    claims = {item.claim_kind for item in supporting}
+    if ClaimKind.OBSERVATION in claims:
+        level = "observation"
+    elif ClaimKind.INFERENCE in claims:
+        level = "inference"
+    elif claims:
+        level = "hypothesis"
+    else:
+        level = "hypothesis"
+    basis = (
+        "Derived from the strongest supporting evidence claim kind "
+        f"({', '.join(sorted(item.value for item in claims)) or 'none'}). "
+        "This is an epistemic label, not a calibrated probability."
+    )
+    return level, basis
+
+
+def _detection_method(evidence: Sequence[EvidenceItem]) -> str:
+    """Name the concrete analysis layers that produced supporting evidence."""
+    supporting = [item for item in evidence if item.polarity is EvidencePolarity.SUPPORTS]
+    methods = tuple(dict.fromkeys(item.evidence_type.value for item in supporting))
+    return "+".join(methods) or "unknown"
 
 
 def _provenance_source(evidence: Sequence[EvidenceItem]) -> str:

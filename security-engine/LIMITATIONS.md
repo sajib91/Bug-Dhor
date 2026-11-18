@@ -1,7 +1,8 @@
 # Security Engine Limitations
 
 The HTTP API, file/workspace inspection, shared contract validation,
-Python/JavaScript source preprocessing, intraprocedural CFG/DFG construction,
+13-language detection, Python/JavaScript/TypeScript parsing with installed tree-sitter
+grammars, intraprocedural Python/JavaScript CFG/DFG construction,
 configuration-driven same-file taint analysis, Semgrep/Bandit/CodeQL/Joern
 adapters, detection, explanation, proposal-only repair, and bounded verification
 are implemented. Production model/SAE execution, counterfactual and steering HTTP
@@ -17,9 +18,10 @@ before its capability is exposed.
 
 - File and workspace scans inspect real files and report hashes, sizes, languages,
   and discovered source URIs.
-- Preprocessing detects, normalizes, parses, tokenizes, extracts functions from,
-  chunks, and summarizes Python and JavaScript files. It is invoked by scan,
-  detection, and explanation stages; other languages are unsupported.
+- Preprocessing detects 13 languages, and normalizes, parses, tokenizes, extracts
+  functions from, chunks, and summarizes Python, JavaScript, and TypeScript files
+  with installed grammars. Other detected languages are explicit
+  `no_installed_parser` gaps, not clean scans.
 - Program analysis builds intraprocedural control-flow and data-flow graphs for
   Python and JavaScript, plus a configuration-driven taint graph with direct
   same-file call/return propagation. These products feed detection and explanation.
@@ -33,6 +35,13 @@ before its capability is exposed.
   scans.
 - Detection produces real findings from AST, CFG, DFG, taint, and available static
   evidence. Risk enrichment is a `heuristic_index`, not a calibrated probability.
+- General-bug/security AST enrichment is opt-in via
+  `DetectionConfig(enrich_general_bugs=True)`. It emits structural observations
+  with epistemic confidence labels and uncertainty, not type-checker, linter, or
+  calibrated-probability results.
+- `GET /api/v1/health` exposes `analysisCapabilities` for language, parser,
+  program-analysis, static-tool, linter-adapter, and dependency-check gaps. The
+  boolean `capabilities` map only describes wired operation paths.
 - Explanation produces observation-claim graphs only for finding IDs produced by
   the current backend detection run; unmatched IDs return `analysisAvailable: false`.
 - No production SAE artifact has been registered or validated, and no production
@@ -105,9 +114,9 @@ or complete.
 - `LIM-PA-05` — Comprehensions do not get loop CFGs. Generators and async functions
   are treated as ordinary functions; `yield` and `await` scheduling are ignored.
   Python `match` has no fallthrough and only a literal `_` pattern is treated as
-  exhaustive. JavaScript labels are not modeled as break/continue targets, JSX is
-  opaque expression syntax, and TypeScript/TSX are unsupported by the parsing
-  layer.
+  exhaustive. JavaScript labels are not modeled as break/continue targets, and
+  JSX/TSX expressions are opaque syntax. TypeScript/TSX can be parsed, but no
+  CFG/DFG/taint layers are implemented for them.
 - `LIM-PA-06` — Tree-sitter recovery can produce incomplete or misleading
   instructions, functions, and edges for invalid source. Dead code is represented
   as unreachable blocks. Path feasibility, constant conditions, and implicit or

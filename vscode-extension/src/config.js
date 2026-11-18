@@ -8,7 +8,7 @@ const {
   DEFAULT_REQUEST_TIMEOUT_MS,
   DEFAULT_HEALTH_TIMEOUT_MS
 } = require('./api/configurationService');
-const { DEFAULT_SETTINGS: DEFAULT_MONITORING_SETTINGS } = require('./monitoring/realtimeMonitor');
+const { DEFAULT_MONITORING_SETTINGS } = require('./monitoring/settings');
 
 /**
  * @typedef {Object} ExtensionSettings
@@ -30,6 +30,15 @@ const { DEFAULT_SETTINGS: DEFAULT_MONITORING_SETTINGS } = require('./monitoring/
  * @property {boolean} monitoringAllowAutomaticSourceSharing
  * @property {boolean} monitoringNotifyOnFindings
  * @property {string[]} monitoringExcludeGlobs
+ * @property {boolean} monitoringWatchWorkspaceFiles
+ * @property {boolean} monitoringScanNewFiles
+ * @property {boolean} monitoringScanOnOpen
+ * @property {boolean} monitoringFullScanOnWorkspaceChange
+ * @property {number} monitoringFullScanDebounceMs
+ * @property {number} monitoringMaxConcurrentScans
+ * @property {number} monitoringMaxWorkspaceFiles
+ * @property {boolean} monitoringExcludeBinaryFiles
+ * @property {boolean} monitoringExcludeGeneratedFiles
  * @property {string} assistantProvider
  * @property {object} assistantVscodeLanguageModelSelector
  * @property {string} assistantOpenAiEndpoint
@@ -99,6 +108,42 @@ function readSettings() {
     monitoringExcludeGlobs: configuration.get('monitoring.excludeGlobs', [
       ...DEFAULT_MONITORING_SETTINGS.excludeGlobs
     ]),
+    monitoringWatchWorkspaceFiles: configuration.get(
+      'monitoring.watchWorkspaceFiles',
+      DEFAULT_MONITORING_SETTINGS.watchWorkspaceFiles
+    ),
+    monitoringScanNewFiles: configuration.get(
+      'monitoring.scanNewFiles',
+      DEFAULT_MONITORING_SETTINGS.scanNewFiles
+    ),
+    monitoringScanOnOpen: configuration.get(
+      'monitoring.scanOnOpen',
+      DEFAULT_MONITORING_SETTINGS.scanOnOpen
+    ),
+    monitoringFullScanOnWorkspaceChange: configuration.get(
+      'monitoring.fullScanOnWorkspaceChange',
+      DEFAULT_MONITORING_SETTINGS.fullScanOnWorkspaceChange
+    ),
+    monitoringFullScanDebounceMs: configuration.get(
+      'monitoring.fullScanDebounceMs',
+      DEFAULT_MONITORING_SETTINGS.fullScanDebounceMs
+    ),
+    monitoringMaxConcurrentScans: configuration.get(
+      'monitoring.maxConcurrentScans',
+      DEFAULT_MONITORING_SETTINGS.maxConcurrentScans
+    ),
+    monitoringMaxWorkspaceFiles: configuration.get(
+      'monitoring.maxWorkspaceFiles',
+      DEFAULT_MONITORING_SETTINGS.maxWorkspaceFiles
+    ),
+    monitoringExcludeBinaryFiles: configuration.get(
+      'monitoring.excludeBinaryFiles',
+      DEFAULT_MONITORING_SETTINGS.excludeBinaryFiles
+    ),
+    monitoringExcludeGeneratedFiles: configuration.get(
+      'monitoring.excludeGeneratedFiles',
+      DEFAULT_MONITORING_SETTINGS.excludeGeneratedFiles
+    ),
     assistantProvider: configuration.get('assistant.provider', 'editor'),
     assistantVscodeLanguageModelSelector: configuration.get(
       'assistant.vscodeLanguageModel.selector',

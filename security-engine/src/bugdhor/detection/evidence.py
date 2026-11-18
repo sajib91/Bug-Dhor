@@ -20,6 +20,7 @@ from bugdhor.detection.classification import (
     default_cwe,
 )
 from bugdhor.detection.config import FusionWeights
+from bugdhor.detection.general_bugs import analyze_general_bugs
 from bugdhor.detection.llm import LLMClaim
 from bugdhor.detection.models import (
     ClaimKind,
@@ -114,11 +115,20 @@ def ast_evidence(
     *,
     path: str | None = None,
     config_hash: str | None = None,
+    include_general_bugs: bool = False,
 ) -> tuple[EvidenceItem, ...]:
-    """Convert conservative AST matches into observation evidence."""
+    """Convert conservative structural matches into observation evidence.
+
+    General-bug and syntax-diagnostic rules are opt-in because they are broader
+    and intentionally noisier than the security-specific AST rules. Callers must
+    enable them explicitly and preserve the resulting coverage limitations.
+    """
     file_path = path or parsed.path or "<memory>"
     items: list[EvidenceItem] = []
-    for match in analyze_ast(parsed, path=file_path):
+    matches = list(analyze_ast(parsed, path=file_path))
+    if include_general_bugs:
+        matches.extend(analyze_general_bugs(parsed))
+    for match in matches:
         items.append(_ast_item(match, file_path, config_hash))
     return tuple(items)
 
@@ -287,6 +297,7 @@ def build_evidence(
     llm_claims: Sequence[LLMClaim] | None = None,
     config_hash: str | None = None,
     llm_min_confidence: float = 0.35,
+    include_general_bugs: bool = False,
     extra_evidence: Sequence[EvidenceItem] = (),
 ) -> EvidenceBundle:
     """Run all evidence adapters and combine their records.
@@ -302,7 +313,14 @@ def build_evidence(
         weights=weights,
         min_confidence=llm_min_confidence,
     )
-    items: list[EvidenceItem] = list(ast_evidence(parsed, path=file_path, config_hash=config_hash))
+    items: list[EvidenceItem] = list(
+        ast_evidence(
+            parsed,
+            path=file_path,
+            config_hash=config_hash,
+            include_general_bugs=include_general_bugs,
+        )
+    )
     if taint is not None:
         items.extend(
             taint_evidence(
@@ -336,18 +354,25 @@ def _ast_item(
     path: str,
     config_hash: str | None,
 ) -> EvidenceItem:
+    parser_evidence = match.evidence_type is EvidenceType.PARSER
+    source = "bugdhor.parser" if parser_evidence else "bugdhor.ast"
+    shared_limitation = (
+        "Parser recovery and syntax structure do not establish program semantics."
+        if parser_evidence
+        else "AST evidence is structural and does not establish attacker control."
+    )
     return EvidenceItem(
         evidence_id=_evidence_id(
-            "ast",
-            "bugdhor.ast",
+            match.evidence_type.value,
+            source,
             match.to_location(path),
             match.rule_id,
             match.cwe,
         ),
-        evidence_type=EvidenceType.AST,
+        evidence_type=match.evidence_type,
         family=EvidenceFamily.PROGRAM_ANALYSIS,
         claim_kind=ClaimKind.OBSERVATION,
-        source="bugdhor.ast",
+        source=source,
         location=match.to_location(path),
         category=match.category,
         cwe=match.cwe,
@@ -358,8 +383,7 @@ def _ast_item(
         title=match.title,
         detail=match.detail,
         config_hash=config_hash,
-        limitations=match.limitations
-        + ("AST evidence is structural and does not establish attacker control.",),
+        limitations=match.limitations + (shared_limitation,),
     )
 
 

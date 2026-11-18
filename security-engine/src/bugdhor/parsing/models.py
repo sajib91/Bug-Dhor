@@ -16,10 +16,26 @@ LineEnding = Literal["lf", "crlf", "cr", "mixed", "none"]
 
 
 class SupportedLanguage(StrEnum):
-    """Languages the preprocessing layer can parse in this phase."""
+    """Languages the workspace detector can identify.
+
+    Detection support does not imply parser support. Runtime capability reports
+    must distinguish an identified language from an installed tree-sitter grammar
+    and from implemented CFG/DFG/taint layers.
+    """
 
     PYTHON = "python"
     JAVASCRIPT = "javascript"
+    TYPESCRIPT = "typescript"
+    JAVA = "java"
+    C = "c"
+    CPP = "cpp"
+    PHP = "php"
+    GO = "go"
+    RUST = "rust"
+    CSHARP = "csharp"
+    RUBY = "ruby"
+    KOTLIN = "kotlin"
+    SWIFT = "swift"
 
 
 class DetectionSource(StrEnum):

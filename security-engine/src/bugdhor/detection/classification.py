@@ -63,6 +63,18 @@ _CWE_TO_CATEGORY: dict[str, VulnerabilityCategory] = {
     "CWE-863": VulnerabilityCategory.AUTHORIZATION_WEAKNESS,
     "CWE-639": VulnerabilityCategory.IDOR,
     "CWE-20": VulnerabilityCategory.INPUT_VALIDATION,
+    "CWE-434": VulnerabilityCategory.UNSAFE_FILE_UPLOAD,
+    "CWE-200": VulnerabilityCategory.SENSITIVE_EXPOSURE,
+    "CWE-1078": VulnerabilityCategory.SYNTAX_ERROR,
+    "CWE-457": VulnerabilityCategory.UNDEFINED_VARIABLE,
+    "CWE-1164": VulnerabilityCategory.UNUSED_VARIABLE,
+    "CWE-704": VulnerabilityCategory.TYPE_ERROR,
+    "CWE-476": VulnerabilityCategory.NULL_REFERENCE,
+    "CWE-248": VulnerabilityCategory.UNHANDLED_EXCEPTION,
+    "CWE-772": VulnerabilityCategory.RESOURCE_HANDLE,
+    "CWE-670": VulnerabilityCategory.SUSPICIOUS_CONTROL_FLOW,
+    "CWE-754": VulnerabilityCategory.RUNTIME_ERROR,
+    "CWE-710": VulnerabilityCategory.COMMON_MISTAKE,
 }
 
 
@@ -229,6 +241,115 @@ CATEGORY_INFO: dict[VulnerabilityCategory, CategoryInfo] = {
         ),
         base_severity="medium",
     ),
+    VulnerabilityCategory.UNSAFE_FILE_UPLOAD: CategoryInfo(
+        title="Unsafe file upload",
+        default_cwe="CWE-434",
+        remediation=(
+            "Restrict uploaded file types and sizes, store uploads outside the web "
+            "root with generated names, and never trust client-supplied filenames "
+            "or content types."
+        ),
+        base_severity="high",
+    ),
+    VulnerabilityCategory.SENSITIVE_EXPOSURE: CategoryInfo(
+        title="Sensitive information exposure",
+        default_cwe="CWE-200",
+        remediation=(
+            "Remove sensitive values from logs, responses, and diagnostics. Return "
+            "the minimum necessary data and redact secrets at every boundary."
+        ),
+        base_severity="high",
+    ),
+    VulnerabilityCategory.SYNTAX_ERROR: CategoryInfo(
+        title="Syntax error",
+        default_cwe="CWE-1078",
+        remediation=(
+            "Correct the reported syntax error before relying on analysis results. "
+            "Parsing stops or degrades when source text is malformed."
+        ),
+        base_severity="high",
+    ),
+    VulnerabilityCategory.UNDEFINED_VARIABLE: CategoryInfo(
+        title="Undefined variable",
+        default_cwe="CWE-457",
+        remediation=(
+            "Declare or import the name before use and correct misspellings. Keep "
+            "variable scope explicit so undefined reads are detectable."
+        ),
+        base_severity="medium",
+    ),
+    VulnerabilityCategory.UNUSED_VARIABLE: CategoryInfo(
+        title="Unused variable",
+        default_cwe="CWE-1164",
+        remediation=(
+            "Remove the unused binding or use it where intended. Avoid dead bindings "
+            "that hide incorrect control flow."
+        ),
+        base_severity="low",
+    ),
+    VulnerabilityCategory.TYPE_ERROR: CategoryInfo(
+        title="Type error",
+        default_cwe="CWE-704",
+        remediation=(
+            "Convert values explicitly or correct the operation so operand types "
+            "match the API contract. Add a type check where the language supports it."
+        ),
+        base_severity="medium",
+    ),
+    VulnerabilityCategory.NULL_REFERENCE: CategoryInfo(
+        title="Null reference risk",
+        default_cwe="CWE-476",
+        remediation=(
+            "Check for null or undefined before dereferencing and provide a safe "
+            "fallback or explicit failure path."
+        ),
+        base_severity="high",
+    ),
+    VulnerabilityCategory.UNHANDLED_EXCEPTION: CategoryInfo(
+        title="Unhandled exception",
+        default_cwe="CWE-248",
+        remediation=(
+            "Handle expected failures at the trust boundary, fail closed, and avoid "
+            "leaking internal details in error messages."
+        ),
+        base_severity="medium",
+    ),
+    VulnerabilityCategory.RESOURCE_HANDLE: CategoryInfo(
+        title="Incorrect resource handling",
+        default_cwe="CWE-772",
+        remediation=(
+            "Close files, sockets, and handles deterministically with context "
+            "managers, try/finally, or equivalent cleanup."
+        ),
+        base_severity="medium",
+    ),
+    VulnerabilityCategory.SUSPICIOUS_CONTROL_FLOW: CategoryInfo(
+        title="Suspicious control flow",
+        default_cwe="CWE-670",
+        remediation=(
+            "Review unreachable, contradictory, or fallthrough paths and make each "
+            "branch terminate explicitly."
+        ),
+        base_severity="medium",
+    ),
+    VulnerabilityCategory.RUNTIME_ERROR: CategoryInfo(
+        title="Potential runtime error",
+        default_cwe="CWE-754",
+        remediation=(
+            "Validate preconditions such as non-empty collections and index bounds "
+            "before the operation, and handle the exceptional case explicitly."
+        ),
+        base_severity="medium",
+    ),
+    VulnerabilityCategory.COMMON_MISTAKE: CategoryInfo(
+        title="Common programming mistake",
+        default_cwe="CWE-710",
+        remediation=(
+            "Correct the suspicious construct and add a focused regression test that "
+            "documents the intended behavior."
+        ),
+        base_severity="low",
+    ),
 }
 
 CATEGORY_ORDER: tuple[VulnerabilityCategory, ...] = (
@@ -249,6 +370,18 @@ CATEGORY_ORDER: tuple[VulnerabilityCategory, ...] = (
     VulnerabilityCategory.AUTHORIZATION_WEAKNESS,
     VulnerabilityCategory.IDOR,
     VulnerabilityCategory.INPUT_VALIDATION,
+    VulnerabilityCategory.UNSAFE_FILE_UPLOAD,
+    VulnerabilityCategory.SENSITIVE_EXPOSURE,
+    VulnerabilityCategory.SYNTAX_ERROR,
+    VulnerabilityCategory.UNDEFINED_VARIABLE,
+    VulnerabilityCategory.UNUSED_VARIABLE,
+    VulnerabilityCategory.TYPE_ERROR,
+    VulnerabilityCategory.NULL_REFERENCE,
+    VulnerabilityCategory.UNHANDLED_EXCEPTION,
+    VulnerabilityCategory.RESOURCE_HANDLE,
+    VulnerabilityCategory.SUSPICIOUS_CONTROL_FLOW,
+    VulnerabilityCategory.RUNTIME_ERROR,
+    VulnerabilityCategory.COMMON_MISTAKE,
     VulnerabilityCategory.UNKNOWN,
 )
 
@@ -432,6 +565,66 @@ _CATEGORY_PATTERNS: tuple[tuple[VulnerabilityCategory, tuple[str, ...]], ...] = 
             "improper-input",
             "unvalidated-input",
         ),
+    ),
+    (
+        VulnerabilityCategory.UNSAFE_FILE_UPLOAD,
+        (
+            "unsafe-file-upload",
+            "unsafe_file_upload",
+            "unrestricted-upload",
+            "file-upload",
+            "multipart-upload",
+        ),
+    ),
+    (
+        VulnerabilityCategory.SENSITIVE_EXPOSURE,
+        (
+            "sensitive-exposure",
+            "sensitive_exposure",
+            "information-exposure",
+            "sensitive-data",
+            "debug-output",
+        ),
+    ),
+    (
+        VulnerabilityCategory.SYNTAX_ERROR,
+        ("syntax-error", "syntax_error", "parse-error", "parse_error"),
+    ),
+    (
+        VulnerabilityCategory.UNDEFINED_VARIABLE,
+        ("undefined-variable", "undefined_variable", "undefined-name", "name-error"),
+    ),
+    (
+        VulnerabilityCategory.UNUSED_VARIABLE,
+        ("unused-variable", "unused_variable", "unused-import", "dead-binding"),
+    ),
+    (
+        VulnerabilityCategory.TYPE_ERROR,
+        ("type-error", "type_error", "type-mismatch", "invalid-type"),
+    ),
+    (
+        VulnerabilityCategory.NULL_REFERENCE,
+        ("null-reference", "null_reference", "null-dereference", "none-dereference"),
+    ),
+    (
+        VulnerabilityCategory.UNHANDLED_EXCEPTION,
+        ("unhandled-exception", "unhandled_exception", "uncaught-exception", "bare-except"),
+    ),
+    (
+        VulnerabilityCategory.RESOURCE_HANDLE,
+        ("resource-handle", "resource_handle", "unclosed-file", "missing-close", "leaked-handle"),
+    ),
+    (
+        VulnerabilityCategory.SUSPICIOUS_CONTROL_FLOW,
+        ("suspicious-control-flow", "control-flow", "unreachable-code", "missing-break"),
+    ),
+    (
+        VulnerabilityCategory.RUNTIME_ERROR,
+        ("runtime-error", "runtime_error", "index-error", "division-by-zero"),
+    ),
+    (
+        VulnerabilityCategory.COMMON_MISTAKE,
+        ("common-mistake", "common_mistake", "mutable-default", "equality-mistake"),
     ),
 )
 

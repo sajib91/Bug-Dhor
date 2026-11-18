@@ -16,7 +16,7 @@ from pathlib import Path
 
 from bugdhor.core.paths import IGNORED_DIRECTORIES, is_source_file
 from bugdhor.parsing.functions import extract_functions
-from bugdhor.parsing.languages import detect_language
+from bugdhor.parsing.languages import detect_language, is_parser_available
 from bugdhor.parsing.models import SupportedLanguage
 from bugdhor.parsing.parser import parse_source
 
@@ -78,7 +78,7 @@ def extract_repository_metadata(
     max_file_bytes: int = 1_048_576,
     include_hashes: bool = True,
 ) -> RepositoryMetadata:
-    """Walk a repository and summarize supported Python and JavaScript files."""
+    """Walk a repository and summarize detectable files with installed parsers."""
     if max_files < 1:
         raise ValueError("max_files must be at least 1")
     if max_file_bytes < 1:
@@ -125,6 +125,9 @@ def extract_repository_metadata(
             detection = detect_language(path=path)
             if detection.language is None:
                 skipped.append(SkippedFile(path=relative, reason="unsupported_language"))
+                continue
+            if not is_parser_available(detection.language):
+                skipped.append(SkippedFile(path=relative, reason="no_installed_parser"))
                 continue
 
             try:

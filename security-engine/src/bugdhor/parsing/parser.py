@@ -15,7 +15,8 @@ from tree_sitter import Node, Parser, Tree
 from bugdhor.parsing.languages import (
     UnsupportedLanguageError,
     detect_language,
-    require_language,
+    is_parser_available,
+    require_parser,
     tree_sitter_language,
 )
 from bugdhor.parsing.locations import LineIndex
@@ -79,7 +80,7 @@ def parse_source(
     language: SupportedLanguage | str | None = None,
     language_id: str | None = None,
 ) -> ParsedSource:
-    """Parse Python or JavaScript without failing on syntax errors."""
+    """Parse source with an installed tree-sitter grammar and retain diagnostics."""
     resolved_language = _resolve_language(
         source,
         path=path,
@@ -91,7 +92,13 @@ def parse_source(
     except UnicodeEncodeError as error:
         raise ValueError("source text must be valid UTF-8 text") from error
 
-    parser = Parser(tree_sitter_language(resolved_language))
+    parser = Parser(
+        tree_sitter_language(
+            resolved_language,
+            path=path,
+            language_id=language_id,
+        )
+    )
     tree = parser.parse(normalized.text.encode("utf-8"))
     line_index = LineIndex(
         source,
@@ -121,16 +128,23 @@ def _resolve_language(
         if isinstance(language, SupportedLanguage):
             return language
         try:
-            return SupportedLanguage(language.lower())
+            resolved = SupportedLanguage(language.lower())
         except ValueError:
             raise UnsupportedLanguageError(
                 path=path,
                 language_id=language_id,
                 detail=f"unsupported language {language!r}",
             ) from None
+        if not is_parser_available(resolved):
+            raise UnsupportedLanguageError(
+                path=path,
+                language=resolved,
+                detail=f"no installed parser for language {language!r}",
+            )
+        return resolved
 
     detection = detect_language(path=path, text=source, language_id=language_id)
-    return require_language(detection, path=path)
+    return require_parser(detection, path=path)
 
 
 def _collect_diagnostics(

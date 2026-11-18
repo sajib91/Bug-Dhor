@@ -39,5 +39,6 @@ def health(
         timestamp=datetime.now(UTC),
         uptime_seconds=max(0.0, time.monotonic() - started_at),
         capabilities=orchestrator.capabilities(),
+        analysis_capabilities=orchestrator.analysis_capabilities(),
         sandbox_backend=settings.sandbox_backend,
     )

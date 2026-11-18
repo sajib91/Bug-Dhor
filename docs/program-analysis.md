@@ -2,9 +2,14 @@
 
 The Python package `bugdhor.program_analysis` provides standalone
 intraprocedural control-flow graphs (CFGs) and data-flow graphs (DFGs), plus a
-configuration-driven taint analysis for the Python and JavaScript source that
-`bugdhor.parsing` accepts. It is a library layer: no API route, workspace scan,
-detector, or VS Code command invokes it yet.
+configuration-driven taint analysis for Python and JavaScript source. Although
+`bugdhor.parsing` can parse Python, JavaScript, and TypeScript with installed
+tree-sitter grammars, CFG/DFG/taint support is implemented and tested **only**
+for Python and JavaScript. It is also wired into the operational scan path:
+`POST /api/v1/scan/file`, `POST /api/v1/scan/workspace`, and
+`POST /api/v1/detection/analyze` build CFG/DFG/taint reports through the
+orchestrator. It remains intraprocedural and does not perform cross-file
+resolution.
 
 The analysis is deliberately syntactic. It preserves exact source locations for
 every instruction, basic block, graph node, and graph edge, and it is built on
@@ -13,6 +18,21 @@ resolve calls, types, aliases, or runtime values. Taint adds direct same-file
 call/return propagation but does not resolve imports, dynamic targets, or runtime
 values. Known approximations are listed under [Limitations](#limitations) and
 tracked by `LIM-PA-*` identifiers.
+
+## Language support boundaries
+
+| Layer | Languages | Honest boundary |
+|---|---|---|
+| Detection | Python, JavaScript, TypeScript, Java, C, C++, PHP, Go, Rust, C#, Ruby, Kotlin, Swift | Extension, language-id, shebang, and content detection. Detection alone grants no parsing or analysis capability. |
+| Parsing / AST | Python, JavaScript, TypeScript (including TSX) | Installed tree-sitter grammars only. TypeScript parsing does not imply CFG/DFG/taint support. |
+| CFG / DFG / Taint | Python, JavaScript only | Intraprocedural, same-file, syntactic approximation. TypeScript and all other detected languages are explicit capability gaps. |
+
+The runtime form of this table is available from `GET /api/v1/health` under
+`analysisCapabilities`. It also reports static-tool availability, linter/type-checker
+adapters that are absent (`E_NO_ADAPTER`), and manual-only dependency checks.
+Detected languages without an installed parser appear as `no_installed_parser`
+skips in repository metadata; they are never reported as clean or analysed
+source.
 
 ## Quick start
 
@@ -423,7 +443,7 @@ exploitable.
 | `LIM-PA-02` | **Structured exception approximation.** Exception edges originate at a `try` dispatch, not at every potentially raising instruction. Handler type matching is not evaluated, a `raise` inside a `try` routes to the first handler, and returns/raises inside `try`/`finally` bypass the finalizer. |
 | `LIM-PA-03` | **Syntactic scopes and closures.** Closures resolve to the nearest earlier definition in an enclosing scope. `global`/`nonlocal`, named JavaScript function expressions, dynamic scoping, `eval`, reflection, and monkeypatching are not modeled. |
 | `LIM-PA-04` | **No value, type, alias, or mutation tracking.** Attribute/subscript flow is reduced to base-name uses. Mutating a container or object does not create a new definition. Points-to, field sensitivity, string evaluation, and runtime type information are absent. Taint treats attributes and containers as value-preserving approximations. |
-| `LIM-PA-05` | **Construct approximations.** Comprehensions do not get loop CFGs. Generators and async functions are treated as ordinary functions and `yield`/`await` scheduling is ignored. Python `match` has no fallthrough and only a literal `_` pattern is treated as exhaustive. JavaScript labels are not modeled as break/continue targets, and JSX is treated as opaque expression syntax. TypeScript/TSX are unsupported by the parsing layer. |
+| `LIM-PA-05` | **Construct approximations.** Comprehensions do not get loop CFGs. Generators and async functions are treated as ordinary functions and `yield`/`await` scheduling is ignored. Python `match` has no fallthrough and only a literal `_` pattern is treated as exhaustive. JavaScript labels are not modeled as break/continue targets, and JSX/TSX expressions are treated as opaque syntax. TypeScript/TSX can be parsed, but no CFG/DFG/taint layers are implemented for them. |
 | `LIM-PA-06` | **Syntactic partial graphs.** Tree-sitter recovery can produce incomplete or misleading instructions, functions, and edges for invalid source. Dead code is represented as unreachable blocks. Path feasibility, constant conditions, and implicit/exception flows are not evaluated. |
 | `LIM-PA-07` | **Location caveats.** Spans are exact for parsed nodes, but synthetic entry/exit blocks are zero-width and block text spans exclude synthetic lowering anchors. Consumers must retain the original source for slicing. |
 | `LIM-PA-08` | **Scale and determinism scope.** Graphs are rebuilt from scratch with no incremental or cross-file index. Output order is deterministic for a fixed parser/grammar version, but it is structural determinism, not a claim of semantic stability across grammar upgrades or language changes. |

@@ -124,6 +124,7 @@ class DetectionEngine:
             llm_claims=tuple(claims) if claims or llm_analyzer is not None else None,
             config_hash=self.config.config_hash(),
             llm_min_confidence=self.config.llm_min_confidence,
+            include_general_bugs=self.config.enrich_general_bugs,
             extra_evidence=extra_evidence,
         )
         warnings.extend(bundle.warnings)

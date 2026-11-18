@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import math
+import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +26,51 @@ pytestmark = pytest.mark.skipif(
 
 def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _checkpoint_path(config: dict, artifact_path: Path) -> Path:
+    """Resolve a saved checkpoint path without trusting its original machine.
+
+    The artifact records absolute paths from the machine that produced it. The
+    regression suite must remain runnable from a fresh checkout, so a missing
+    absolute path falls back to the checkpoint of the same name beside the
+    stored artifact.
+    """
+
+    saved = Path(config["sae"]["checkpoint"])
+    if saved.exists():
+        return saved
+    fallback = (
+        artifact_path.parent.parent
+        / "artifacts"
+        / saved.name
+    )
+    return fallback if fallback.exists() else saved
+
+
+@contextmanager
+def _legacy_checkpoint_modules():
+    """Allow checkpoints saved under the old `craftsec` name to load as Bug Dhor."""
+
+    import bugdhor
+    import bugdhor.sae
+    import bugdhor.sae.training
+
+    aliases = {
+        "craftsec": bugdhor,
+        "craftsec.sae": bugdhor.sae,
+        "craftsec.sae.training": bugdhor.sae.training,
+    }
+    added = []
+    try:
+        for name, module in aliases.items():
+            if name not in sys.modules:
+                sys.modules[name] = module
+                added.append(name)
+        yield
+    finally:
+        for name in added:
+            sys.modules.pop(name, None)
 
 
 def _parse_cell_key(key: str) -> tuple[int, ...]:
@@ -185,12 +232,17 @@ def test_cross_checkpoint_decoder_cosines_recompute(artifact_path: Path) -> None
             continue
         base_config = entries["base"]
         instruct_config = entries["instruct"]
-        base_payload = torch.load(
-            base_config["sae"]["checkpoint"], map_location="cpu", weights_only=False
-        )
-        instruct_payload = torch.load(
-            instruct_config["sae"]["checkpoint"], map_location="cpu", weights_only=False
-        )
+        with _legacy_checkpoint_modules():
+            base_payload = torch.load(
+                _checkpoint_path(base_config, artifact_path),
+                map_location="cpu",
+                weights_only=False,
+            )
+            instruct_payload = torch.load(
+                _checkpoint_path(instruct_config, artifact_path),
+                map_location="cpu",
+                weights_only=False,
+            )
         base_decoder = base_payload["state_dict"]["decoder.weight"].detach().numpy()
         instruct_decoder = instruct_payload["state_dict"]["decoder.weight"].detach().numpy()
         base_features = [item["feature"] for item in base_config["selected_features"]]

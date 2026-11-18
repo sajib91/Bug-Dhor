@@ -13,13 +13,24 @@
 const DEFAULT_SUPPORTED_LANGUAGES = Object.freeze(['python', 'javascript']);
 const DEFAULT_EXCLUDE_GLOBS = Object.freeze([
   '**/node_modules/**',
+  '**/bower_components/**',
   '**/.git/**',
   '**/.venv/**',
   '**/venv/**',
+  '**/site-packages/**',
   '**/__pycache__/**',
+  '**/.pytest_cache/**',
+  '**/.mypy_cache/**',
+  '**/.ruff_cache/**',
   '**/dist/**',
   '**/out/**',
   '**/build/**',
+  '**/target/**',
+  '**/obj/**',
+  '**/.next/**',
+  '**/.turbo/**',
+  '**/coverage/**',
+  '**/vendor/**',
   '**/.bugdhor-data/**'
 ]);
 
