@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/verification-result.json",
+  "$id": "https://bugdhor.local/schemas/v1/verification-result.json",
   "title": "VerificationResult",
   "description": "Independent verification outcome. An unavailable analysis must report not_run with no checks, and a passed verdict requires available analysis. The classification distinguishes verified security improvement, partial improvement, verification failure, and inconclusive verification; only verified security improvement may map to a passed verdict.",
   "type": "object",

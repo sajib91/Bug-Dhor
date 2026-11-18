@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from craftsec.core.settings import Settings
-from craftsec.repair import RepositoryContextBuilder
+from bugdhor.core.settings import Settings
+from bugdhor.repair import RepositoryContextBuilder
 
 
 def _settings(root: Path) -> Settings:

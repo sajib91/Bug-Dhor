@@ -32,7 +32,7 @@ async function reportFailure({ vscode, logger }, commandTitle, error, expected) 
     logger.error(`${commandTitle} failed: ${message}`, error);
   }
 
-  const action = await vscode.window.showErrorMessage(`CRAFT-Sec: ${message}`, 'Show Logs');
+  const action = await vscode.window.showErrorMessage(`Bug Dhor: ${message}`, 'Show Logs');
   if (action === 'Show Logs') {
     logger.show();
   }
@@ -82,7 +82,7 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke, onR
           logger.info(`${definition.title} cancelled.`);
           return undefined;
         }
-        progress.report({ message: 'Contacting the CRAFT-Sec backend.' });
+        progress.report({ message: 'Contacting the Bug Dhor backend.' });
         const result = await invoke(request, { token, progress });
         if (token.isCancellationRequested) {
           logger.info(`${definition.title} cancelled.`);

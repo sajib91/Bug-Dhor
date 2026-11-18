@@ -9,9 +9,9 @@ torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 
 import reference as ref
-from craftsec.models.config import GenerationConfig
-from craftsec.sae import SAEConfig, SparseAutoencoder
-from craftsec.steering.engine import (
+from bugdhor.models.config import GenerationConfig
+from bugdhor.sae import SAEConfig, SparseAutoencoder
+from bugdhor.steering.engine import (
     ActivationSteeringEngine,
     SteeringSpec,
 )

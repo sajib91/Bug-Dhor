@@ -8,8 +8,8 @@ import pytest
 torch = pytest.importorskip("torch")
 
 import reference as ref
-from craftsec.sae import SAEConfig, SparseAutoencoder
-from craftsec.sae.metrics import feature_statistics, validation_metrics
+from bugdhor.sae import SAEConfig, SparseAutoencoder
+from bugdhor.sae.metrics import feature_statistics, validation_metrics
 
 
 def _identity_sae() -> SparseAutoencoder:

@@ -1,6 +1,6 @@
 # SAE counterfactual analysis
 
-`craftsec.counterfactual.CounterfactualEngine` runs reproducible single-feature
+`bugdhor.counterfactual.CounterfactualEngine` runs reproducible single-feature
 SAE interventions against a compatible local Transformers model. It measures
 baseline layer activations, performs ablation or target-value modification,
 generates baseline and intervened outputs with identical generation settings,

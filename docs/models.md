@@ -1,7 +1,7 @@
 # Local model runtime
 
-CRAFT-Sec uses a lazy Hugging Face Transformers adapter for local execution.
-Importing `craftsec.models` does not import PyTorch or Transformers and never
+Bug Dhor uses a lazy Hugging Face Transformers adapter for local execution.
+Importing `bugdhor.models` does not import PyTorch or Transformers and never
 downloads weights. `ModelConfig.local_files_only` defaults to `true`; callers
 must provision checkpoints separately and may opt into remote resolution
 explicitly.
@@ -16,7 +16,7 @@ explicitly.
 
 Users must review and comply with the applicable license, acceptable-use
 terms, export restrictions, and any gated-model access requirements before
-provisioning a checkpoint. CRAFT-Sec does not redistribute weights.
+provisioning a checkpoint. Bug Dhor does not redistribute weights.
 
 ## Activations and limitations
 

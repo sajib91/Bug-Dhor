@@ -71,7 +71,7 @@ function createVscode(options = {}) {
     workspace: {
       workspaceFolders: folders,
       getConfiguration(section) {
-        assert.equal(section, 'craftsec');
+        assert.equal(section, 'bugdhor');
         return {
           get(key, fallback) {
             if (key === 'privacy.sendSourceText' && options.sendSourceText !== undefined) {

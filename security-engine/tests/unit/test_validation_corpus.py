@@ -6,7 +6,7 @@ import ast
 
 import pytest
 
-from craftsec.counterfactual.validation_corpus import (
+from bugdhor.counterfactual.validation_corpus import (
     LABEL_TOKEN_CANDIDATES,
     build_prompt,
     build_validation_corpus,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/repair-candidate.json",
+  "$id": "https://bugdhor.local/schemas/v1/repair-candidate.json",
   "title": "RepairCandidate",
   "description": "A reviewable repair proposal. The backend never applies it; requiresApproval is always true.",
   "type": "object",

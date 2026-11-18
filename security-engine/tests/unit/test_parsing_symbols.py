@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.parsing import (
+from bugdhor.parsing import (
     ChunkKind,
     FunctionKind,
     SupportedLanguage,

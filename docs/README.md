@@ -1,4 +1,4 @@
-# CRAFT-Sec Documentation
+# Bug Dhor Documentation
 
 - [Software architecture](architecture.md) — monorepo design, runtime model, contracts, pipeline, roadmap, risks.
 - [HTTP API](api.md) — implemented `/api/v1` endpoints, envelopes, errors, auth, limits, and OpenAPI access.

@@ -1,9 +1,9 @@
-# CRAFT-Sec — Mathematical Implementation Mapping
+# Bug Dhor — Mathematical Implementation Mapping
 
 **Purpose.** Map every numbered equation, the unnumbered localization score, Algorithms 1–9, and the §7 metrics to the code that implements them — or to the explicit gap when no implementation exists.
 
 **Audit date:** 2026-11-16  
-**Codebase:** `security-engine/src/craftsec/`  
+**Codebase:** `security-engine/src/bugdhor/`  
 **Constraint:** documentation only; no algorithm or source file was modified.
 
 **Companion documents:**
@@ -232,7 +232,7 @@ The optional calibrator is the only path to a probability. When absent, `calibra
 
 ## 4. Algorithm-to-code map
 
-### Algorithm 1 — Overall CRAFT-Sec Security Framework
+### Algorithm 1 — Overall Bug Dhor Security Framework
 
 | Paper stage | Implementation | Status | Evidence |
 |---|---|---|---|

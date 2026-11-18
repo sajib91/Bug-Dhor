@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Minimal HTTP client for the local CRAFT-Sec FastAPI service.
+ * Minimal HTTP client for the local Bug Dhor FastAPI service.
  *
  * The client deliberately uses the platform `fetch` rather than adding a
  * runtime npm dependency: the VSIX is packaged with `--no-dependencies`.
@@ -42,8 +42,8 @@ class BackendUnavailableError extends ApiClientError {
    */
   constructor(baseUrl, cause) {
     super(
-      `Cannot reach the CRAFT-Sec backend at ${baseUrl}. Start the local security engine and ` +
-        'verify the craftsec.backend.url setting. No analysis was performed.',
+      `Cannot reach the Bug Dhor backend at ${baseUrl}. Start the local security engine and ` +
+        'verify the bugdhor.backend.url setting. No analysis was performed.',
       { code: 'E_BACKEND_UNAVAILABLE', retryable: true, cause }
     );
     this.name = 'BackendUnavailableError';
@@ -58,7 +58,7 @@ class RequestTimeoutError extends ApiClientError {
    */
   constructor(baseUrl, timeoutMs) {
     super(
-      `The CRAFT-Sec backend at ${baseUrl} did not respond within ${timeoutMs} ms. ` +
+      `The Bug Dhor backend at ${baseUrl} did not respond within ${timeoutMs} ms. ` +
         'No analysis was performed.',
       { code: 'E_REQUEST_TIMEOUT', retryable: true }
     );
@@ -69,7 +69,7 @@ class RequestTimeoutError extends ApiClientError {
 
 class RequestCancelledError extends ApiClientError {
   constructor() {
-    super('The CRAFT-Sec request was cancelled. No analysis was performed.', {
+    super('The Bug Dhor request was cancelled. No analysis was performed.', {
       code: 'E_CANCELLED'
     });
     this.name = 'AbortError';
@@ -84,7 +84,7 @@ class ApiHttpError extends ApiClientError {
    */
   constructor(status, statusText, requestId) {
     super(
-      `The CRAFT-Sec backend rejected the request with HTTP ${status}${
+      `The Bug Dhor backend rejected the request with HTTP ${status}${
         statusText ? ` ${statusText}` : ''
       }.${requestId ? ` Request ID: ${requestId}.` : ''}`,
       { code: 'E_HTTP', status, requestId, retryable: status >= 500 }
@@ -150,7 +150,7 @@ function formatProblemMessage(problem, status, requestId) {
       ? problem.detail.trim()
       : typeof problem.title === 'string' && problem.title.trim().length > 0
         ? problem.title.trim()
-        : `The CRAFT-Sec backend rejected the request with HTTP ${status}.`;
+        : `The Bug Dhor backend rejected the request with HTTP ${status}.`;
   const parts = [detail];
   if (typeof problem.code === 'string' && problem.code.length > 0) {
     parts.push(`(${problem.code})`);
@@ -177,7 +177,7 @@ function formatProblemMessage(problem, status, requestId) {
 
   if (status === 401) {
     parts.push(
-      'If the backend was started with CRAFTSEC_API_TOKEN, set the same value in the ' +
+      'If the backend was started with BUGDHOR_API_TOKEN, set the same value in the ' +
         'extension host environment.'
     );
   }
@@ -218,7 +218,7 @@ class ApiClient {
     token = '',
     fetchImpl,
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
-    userAgent = 'craftsec-vscode/0.1.0'
+    userAgent = 'bugdhor-vscode/0.1.0'
   }) {
     if (typeof fetchImpl !== 'function') {
       if (typeof globalThis.fetch !== 'function') {
@@ -352,7 +352,7 @@ class ApiClient {
     const responseText = await response.text();
     if (responseText.length > this.maxResponseBytes) {
       throw new ApiResponseError(
-        `The CRAFT-Sec backend response exceeded ${this.maxResponseBytes} bytes.`,
+        `The Bug Dhor backend response exceeded ${this.maxResponseBytes} bytes.`,
         response.headers?.get?.('x-request-id') ?? undefined
       );
     }
@@ -370,7 +370,7 @@ class ApiClient {
           );
         }
         throw new ApiResponseError(
-          'The CRAFT-Sec backend returned a response that is not valid JSON.',
+          'The Bug Dhor backend returned a response that is not valid JSON.',
           response.headers?.get?.('x-request-id') ?? undefined
         );
       }
@@ -390,7 +390,7 @@ class ApiClient {
 
     if (data === undefined) {
       throw new ApiResponseError(
-        'The CRAFT-Sec backend returned an empty response body.',
+        'The Bug Dhor backend returned an empty response body.',
         requestId
       );
     }

@@ -6,7 +6,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from craftsec.sae import (  # noqa: E402
+from bugdhor.sae import (  # noqa: E402
     CodeSampleLabel,
     FeatureExperimentMetadata,
     FeatureSample,

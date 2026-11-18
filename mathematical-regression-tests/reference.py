@@ -1,6 +1,6 @@
 """Independent numerical references used by the regression suite.
 
-Nothing in this module imports ``craftsec``.  The functions are written from the
+Nothing in this module imports ``bugdhor``.  The functions are written from the
 stated equations so that a match is evidence about the implementation rather
 than a tautology.
 """

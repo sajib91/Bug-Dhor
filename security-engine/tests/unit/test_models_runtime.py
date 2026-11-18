@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from craftsec.models import (
+from bugdhor.models import (
     SUPPORTED_MODELS,
     DevicePreference,
     GenerationConfig,
@@ -12,15 +12,15 @@ from craftsec.models import (
     ModelConfig,
     ModelManager,
 )
-from craftsec.models.activations import (
+from bugdhor.models.activations import (
     ActivationCollector,
     ActivationStore,
     FunctionSpan,
     LayerDiscovery,
 )
-from craftsec.models.adapter import InferenceResult
-from craftsec.models.errors import ModelCompatibilityError, ModelInferenceError
-from craftsec.models.huggingface import resolve_device
+from bugdhor.models.adapter import InferenceResult
+from bugdhor.models.errors import ModelCompatibilityError, ModelInferenceError
+from bugdhor.models.huggingface import resolve_device
 
 
 class FakeAdapter:

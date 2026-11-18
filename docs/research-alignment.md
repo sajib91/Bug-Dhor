@@ -1,11 +1,11 @@
-# CRAFT-Sec — Research Alignment and Integrity Contract
+# Bug Dhor — Research Alignment and Integrity Contract
 
 **Status:** Phase 0 approved. No experiments have been run and no results are reported.
 **Version:** 0.1.0
 **Date:** 2026-11-10
 **Companion document:** [architecture.md](architecture.md)
 
-This document maps the stated research goals of CRAFT-Sec to concrete architectural mechanisms and defines what the system may and may not claim. It is a binding engineering contract: a feature is not "research-complete" until its gate here is satisfied.
+This document maps the stated research goals of Bug Dhor to concrete architectural mechanisms and defines what the system may and may not claim. It is a binding engineering contract: a feature is not "research-complete" until its gate here is satisfied.
 
 ---
 

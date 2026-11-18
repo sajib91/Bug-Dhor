@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import torch
 
-from craftsec.counterfactual.higher_order import (
+from bugdhor.counterfactual.higher_order import (
     HigherOrderInteractionEngine,
     generate_feature_subsets,
 )
-from craftsec.counterfactual.pairwise import FeaturePair, PairwiseInteractionEngine
-from craftsec.sae.association import (
+from bugdhor.counterfactual.pairwise import FeaturePair, PairwiseInteractionEngine
+from bugdhor.sae.association import (
     CodeSampleLabel,
     FeatureExperimentMetadata,
     FeatureSample,
     analyze_features,
 )
-from craftsec.steering import (
+from bugdhor.steering import (
     AdaptiveSteeringConfig,
     AdaptiveSteeringContext,
     AdaptiveSteeringPolicy,

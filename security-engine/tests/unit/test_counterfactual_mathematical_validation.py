@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from craftsec.counterfactual import (
+from bugdhor.counterfactual import (
     FeaturePair,
     PairwiseInteractionEngine,
     estimate_higher_order_contrast,
@@ -23,7 +23,7 @@ from craftsec.counterfactual import (
     sigmoid,
     stability_summary,
 )
-from craftsec.counterfactual.validation import bootstrap_mean_interval
+from bugdhor.counterfactual.validation import bootstrap_mean_interval
 
 
 def test_baseline_is_the_reference_cell_not_zero_and_constant_shifts_cancel() -> None:

@@ -7,9 +7,9 @@ const { COMMANDS } = require('../constants');
 class StatusBar {
   constructor() {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    this.item.name = 'CRAFT-Sec';
-    this.item.text = '$(shield) CRAFT-Sec';
-    this.item.tooltip = 'CRAFT-Sec Security Framework. Click to check backend status.';
+    this.item.name = 'Bug Dhor';
+    this.item.text = '$(shield) Bug Dhor';
+    this.item.tooltip = 'Bug Dhor Security Framework. Click to check backend status.';
     this.item.command = COMMANDS.showStatus;
     this.applySettings();
   }
@@ -22,17 +22,17 @@ class StatusBar {
    */
   setBackendStatus(state, detail) {
     if (state === 'checking') {
-      this.item.text = '$(sync~spin) CRAFT-Sec';
-      this.item.tooltip = 'Checking the CRAFT-Sec backend connection.';
+      this.item.text = '$(sync~spin) Bug Dhor';
+      this.item.tooltip = 'Checking the Bug Dhor backend connection.';
     } else if (state === 'reachable') {
-      this.item.text = '$(shield) CRAFT-Sec';
+      this.item.text = '$(shield) Bug Dhor';
       this.item.tooltip =
         detail ??
-        'CRAFT-Sec backend reachable. Detection and AI analysis stages remain unavailable.';
+        'Bug Dhor backend reachable. Detection and AI analysis stages remain unavailable.';
     } else {
-      this.item.text = '$(shield) CRAFT-Sec';
+      this.item.text = '$(shield) Bug Dhor';
       this.item.tooltip =
-        detail ?? 'CRAFT-Sec backend unavailable. Click for status and troubleshooting.';
+        detail ?? 'Bug Dhor backend unavailable. Click for status and troubleshooting.';
     }
   }
 

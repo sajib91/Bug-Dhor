@@ -1,11 +1,11 @@
-# CRAFT-Sec — Software Architecture
+# Bug Dhor — Software Architecture
 
 **Status:** Phase 0 architecture approved for implementation, with a partial Phase 1 implementation. The extension shell, command registration, dashboard, backend-result diagnostics, versioned FastAPI API, and live local HTTP transport exist. File/workspace inspection, parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification are implemented and integrated. SAE, counterfactual, and activation-steering modules exist but are not wired into the orchestrator; those stages report explicit `unavailable`/`partial` statuses. No trained multi-view detector, calibrated probability, real model/SAE artifact, benchmark run, or Docker-backed execution has been validated. The dashboard renders backend state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results.
 **Version:** 0.1.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
 
-CRAFT-Sec (*Counterfactual Risk Analysis and Feature-aware Steering for Secure Code Generation*) is a local-first system composed of a JavaScript VS Code extension and a Python/FastAPI research engine. It detects vulnerability-relevant evidence, explains it with model-internal and static features, estimates counterfactual feature effects, applies interaction-aware activation steering where the model permits it, proposes repository-aware repairs, and verifies those repairs independently.
+Bug Dhor, a framework for counterfactual risk analysis and feature-aware steering for secure code generation, is a local-first system composed of a JavaScript VS Code extension and a Python/FastAPI research engine. It detects vulnerability-relevant evidence, explains it with model-internal and static features, estimates counterfactual feature effects, applies interaction-aware activation steering where the model permits it, proposes repository-aware repairs, and verifies those repairs independently.
 
 This document describes the target architecture and the current implementation boundary. Implementation status is tracked in [`implementation-mapping.md`](implementation-mapping.md), [`final-audit.md`](../final-audit.md), and [`research-compliance-report.md`](../research-compliance-report.md); this document does not claim that every described component is implemented, validated, or empirically effective.
 
@@ -80,10 +80,10 @@ The extension is the only component that writes to the user's workspace. The eng
 
 ## 4. Monorepo layout
 
-> **Target vs. implemented:** the tree below is the target layout. Entries not present in the current tree are **planned** and must not be cited as implemented. Current files are listed in `security-engine/src/craftsec/`; `features/`, `artifacts/`, `contracts/`, and `ingestion/` are scaffolds containing only `__init__.py`.
+> **Target vs. implemented:** the tree below is the target layout. Entries not present in the current tree are **planned** and must not be cited as implemented. Current files are listed in `security-engine/src/bugdhor/`; `features/`, `artifacts/`, `contracts/`, and `ingestion/` are scaffolds containing only `__init__.py`.
 
 ```text
-CRAFT-Sec/
+Bug Dhor/
 ├── README.md
 ├── docs/
 │   ├── README.md
@@ -152,7 +152,7 @@ CRAFT-Sec/
 ├── security-engine/
 │   ├── pyproject.toml
 │   ├── migrations/                  # Alembic revisions
-│   ├── src/craftsec/
+│   ├── src/bugdhor/
 │   │   ├── __main__.py
 │   │   ├── server.py                # app factory, lifespan, middleware
 │   │   ├── api/
@@ -284,7 +284,7 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 |--------|------------------|----------|
 | `src/extension.js` | Activate/deactivate, construct services, register disposables, enforce single instance | Contain analysis logic |
 | `config.js` | Read settings, validate backend URL/timeouts/source-sharing rules, bridge environment tokens to the API client | Persist secrets in settings or logs |
-| `backend/manager.js` | Locate Python, spawn `python -m craftsec`, pass handshake via stdin, capture stdout/stderr, health poll, restart with backoff, terminate process group (future; current builds connect to an already-running backend) | Bind a fixed public port; ignore crash loops |
+| `backend/manager.js` | Locate Python, spawn `python -m bugdhor`, pass handshake via stdin, capture stdout/stderr, health poll, restart with backoff, terminate process group (future; current builds connect to an already-running backend) | Bind a fixed public port; ignore crash loops |
 | `api/apiClient.js` | Platform-fetch transport with timeouts, cancellation, optional bearer auth, bounded responses, and RFC 9457 problem parsing | Retry non-idempotent requests blindly; log request bodies or tokens |
 | `api/configurationService.js` | Validate the backend origin, normalize timeouts, read the environment token and source-sharing consent | Accept credentialed, pathed, or non-HTTP URLs |
 | `api/securityResultService.js` | Validate health, operation envelopes, stages, scans, detection findings, and analysis results | Convert `unavailable` or `analysisAvailable: false` into a clean result |
@@ -396,7 +396,7 @@ sequenceDiagram
     participant U as User
     participant E as VS Code Extension
     participant P as Python Engine
-    U->>E: Activate CRAFT-Sec
+    U->>E: Activate Bug Dhor
     E->>E: Generate 256-bit token
     E->>P: spawn(handshake on stdin: token, roots, data dir, log level)
     P->>P: Bind 127.0.0.1:0, initialize DB, inspect capabilities
@@ -555,7 +555,7 @@ All errors use `application/problem+json`:
 
 ```json
 {
-  "type": "https://craftsec.local/errors/E_SAE_UNAVAILABLE",
+  "type": "https://bugdhor.local/errors/E_SAE_UNAVAILABLE",
   "title": "SAE unavailable",
   "status": 409,
   "code": "E_SAE_UNAVAILABLE",
@@ -633,7 +633,7 @@ Rules:
 ### 8.3 Snapshot semantics
 
 - A snapshot is a manifest of `relative_path`, `sha256`, `size`, `mode`, plus `git_commit` and `dirty` when available.
-- Ignore rules combine `.gitignore`, built-in excludes (`.git`, `node_modules`, virtualenvs, build outputs, `.craftsec`), and user excludes.
+- Ignore rules combine `.gitignore`, built-in excludes (`.git`, `node_modules`, virtualenvs, build outputs, `.bugdhor`), and user excludes.
 - Symlinks are recorded but not followed outside the root; escaping links are skipped with a warning.
 - Analysis results are tied to the snapshot hash. If files change, the extension warns and requires a fresh snapshot; results are never silently reused.
 
@@ -896,8 +896,8 @@ The implemented dashboard uses validated messages rather than a generic request 
 | `refresh` | none | Rebuild the current state and post it. |
 | `setDemoMode` | `enabled: boolean` | Switch between the empty and explicitly labeled demo state. |
 | `executeCommand` | `command: string` | Execute only a command with a declared engine service method, with no arguments. |
-| `openSettings` | none | Open VS Code settings filtered to `craftsec`. |
-| `showLogs` | none | Reveal the CRAFT-Sec output channel. |
+| `openSettings` | none | Open VS Code settings filtered to `bugdhor`. |
+| `showLogs` | none | Reveal the Bug Dhor output channel. |
 
 The host sends `{ type: 'state', state }` and `{ type: 'notice', level, message }`. The initial state is also embedded in the document as escaped `application/json` data. Unknown or malformed messages are logged and ignored. The panel rejects command IDs outside its allowlist and never accepts command arguments from the webview.
 
@@ -947,7 +947,7 @@ Rules:
 6. A malformed finding is rejected and logged; a malformed envelope or scope rejects the whole result without replacing existing diagnostics.
 7. `repair.eligible` must be an explicit boolean. No severity, message, or heuristic is used to infer repair eligibility.
 8. `scope.uris`, or the scanned document URI for file/selection scans, replaces diagnostics for those files; an empty result clears them. A workspace scan without scope cannot clear files it does not mention.
-9. A repair Quick Fix invokes `craftsec.repairVulnerability` with `{ findingId, documentUri, range, cwe?, ruleId? }`. The command validates that the finding belongs to the active saved file and then includes the validated context in the engine request. It does not edit source.
+9. A repair Quick Fix invokes `bugdhor.repairVulnerability` with `{ findingId, documentUri, range, cwe?, ruleId? }`. The command validates that the finding belongs to the active saved file and then includes the validated context in the engine request. It does not edit source.
 
 The Problems panel is populated solely by the `DiagnosticCollection`. Hover and code actions read the same normalized finding store, so all three surfaces agree on the backend data.
 
@@ -1005,7 +1005,7 @@ Application rules:
 | `E_SECURITY` | Auth, path containment, policy refusal | Report; do not bypass |
 | `E_INTERNAL` | Unexpected defect | Capture `request_id`; report issue |
 
-Exceptions derive from `CraftSecError` and carry `code`, `http_status`, `retryable`, `user_message`, `details`, and `cause`. FastAPI handlers convert them to problem details; unexpected exceptions become `E_INTERNAL` with a sanitized message and a full log entry.
+Exceptions derive from `BugDhorError` and carry `code`, `http_status`, `retryable`, `user_message`, `details`, and `cause`. FastAPI handlers convert them to problem details; unexpected exceptions become `E_INTERNAL` with a sanitized message and a full log entry.
 
 ### 12.2 Degradation matrix
 
@@ -1199,7 +1199,7 @@ Exact boundaries follow the user's prompts. If a phase fails its exit criteria, 
 3. **Repair generator:** local HF model vs external provider. External calls require explicit consent, data-egress disclosure, and a redaction policy.
 4. **Sandbox default:** Docker/Podman detection and fallback UX.
 5. **Calibration data:** which labelled dataset, license, and split; without it, all scores remain heuristic.
-6. **SAE training:** whether CRAFT-Sec trains its own SAE or only registers external artifacts.
+6. **SAE training:** whether Bug Dhor trains its own SAE or only registers external artifacts.
 7. **CodeQL/Joern priority:** optional adapters, scheduled after the core verified-repair flow.
 8. **Multi-root workspaces:** one project per root initially; cross-root context is out of scope.
 9. **Feature labelling:** whether auto-interp is in scope; if yes, its model and prompts must be recorded.

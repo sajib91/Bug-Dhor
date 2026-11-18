@@ -1,4 +1,4 @@
-# CRAFT-Sec — Final Strict Audit
+# Bug Dhor — Final Strict Audit
 
 **Audit date:** 2026-11-16  
 **Audited against:** *An Explainable Multi-Feature Security Framework for Vulnerability Detection, Prevention, and Automated Repair in Large Language Models* (`Research.txt`, 6,232 lines)  
@@ -300,7 +300,7 @@ Paper-contribution coverage (detail in `research-compliance-report.md`):
 - `evaluation/ablation.py`, `comparisons.py`, `reporting.py`.
 
 **Evidence**
-- `grep -rln "craftsec.experiments\|craftsec.evaluation" security-engine/tests` → only `tests/integration/INTEGRATION_TEST_REPORT.md`; **no automated tests** for these packages.
+- `grep -rln "bugdhor.experiments\|bugdhor.evaluation" security-engine/tests` → only `tests/integration/INTEGRATION_TEST_REPORT.md`; **no automated tests** for these packages.
 - No datasets, checkpoints, run manifests, or results are present.
 
 **Gaps / findings**
@@ -373,13 +373,13 @@ Paper-contribution coverage (detail in `research-compliance-report.md`):
 ### 2.17 Extension installation — IMPLEMENTED AND VERIFIED
 
 **What exists**
-- VSIX: `vscode-extension/craft-sec-0.1.0.vsix`, **45 files, 104,319 bytes**.
+- VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`, **45 files, 104,319 bytes**.
 - SHA-256: `6ee5a897fe886634a56f8d34aa9af6a26ff8d974f1956b657abf34d4e40875d3`.
-- Manifest: `name: craft-sec`, `version: 0.1.0`, 12 commands, `engines.vscode: ^1.90.0`, no runtime npm dependencies.
+- Manifest: `name: bug-dhor`, `version: 0.1.0`, 12 commands, `engines.vscode: ^1.90.0`, no runtime npm dependencies.
 
 **Evidence**
 - Archive inspected: required `package.json`, `README.md`, six `media/*` assets, `src/**`; no secrets/tests/weights/datasets/nested VSIX.
-- Clean install into temporary VS Code extensions/user-data dirs succeeded; extension listed as `your-publisher-id.craft-sec@0.1.0`; temp dirs removed.
+- Clean install into temporary VS Code extensions/user-data dirs succeeded; extension listed as `your-publisher-id.bug-dhor@0.1.0`; temp dirs removed.
 - Extension unit tests: 230 passed.
 
 **Gaps / findings**
@@ -410,7 +410,7 @@ Paper-contribution coverage (detail in `research-compliance-report.md`):
 
 | Item | Finding |
 |---|---|
-| `security-engine/src/craftsec/features/__init__.py` | Scaffold only; no feature extraction/aggregation/cards. |
+| `security-engine/src/bugdhor/features/__init__.py` | Scaffold only; no feature extraction/aggregation/cards. |
 | `artifacts/`, `contracts/`, `ingestion/` | Empty scaffolds (`__init__.py` only). |
 | `core/orchestrator.py` | `model_capture`, `sae_features`, `feature_aggregation`, `counterfactual`, `steering_plan`, `steering_evaluation` are default `UnavailableStage`. |
 | `prevention/steer` | Returns `plan=None`; no paper prevention loop. |
@@ -438,7 +438,7 @@ No hard-coded fake metrics, invented citations, or simulated benchmark outputs w
 
 ## 5. Audit conclusion
 
-CRAFT-Sec is a substantial, largely honest engineering scaffold with genuine implementations of SAE math, program analysis, evidence fusion, repair workflow, independent verification, and evaluation helpers. It is **not** a complete or validated implementation of the paper:
+Bug Dhor is a substantial, largely honest engineering scaffold with genuine implementations of SAE math, program analysis, evidence fusion, repair workflow, independent verification, and evaluation helpers. It is **not** a complete or validated implementation of the paper:
 
 - The paper's central learned detection model, interaction-screening methodology, prevention loop, and localization attribution are missing.
 - The operational pipeline deliberately reports unimplemented research stages as `unavailable`; this is correct behavior, not completion.

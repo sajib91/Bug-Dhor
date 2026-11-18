@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/counterfactual-result.json",
+  "$id": "https://bugdhor.local/schemas/v1/counterfactual-result.json",
   "title": "CounterfactualResult",
   "description": "Model-internal intervention effects. These are not real-world causal effects. An unavailable analysis must not contain effects.",
   "type": "object",

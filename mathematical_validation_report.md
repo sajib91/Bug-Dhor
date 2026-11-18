@@ -1,9 +1,9 @@
-# Mathematical and Experimental Validation of CRAFT-Sec Counterfactual Feature Interaction Analysis
+# Mathematical and Experimental Validation of Bug Dhor Counterfactual Feature Interaction Analysis
 
 **Status:** Validation report with synthetic ground-truth checks and a real-model
 activation-intervention experiment.
 **Date:** 2026-11-17
-**Repository:** CRAFT-Sec
+**Repository:** Bug Dhor
 **Scope:** The arithmetic, estimands, intervention-cell construction, uncertainty
 estimation, and stability behaviour of the counterfactual feature interaction
 analysis. This report does **not** validate semantic claims that an SAE feature
@@ -202,7 +202,7 @@ synthetic suite demonstrates this explicitly (Section 4.3).
 
 | Concept | Location |
 |---|---|
-| Paired per-unit factorial contrasts | `security-engine/src/craftsec/counterfactual/validation.py::factorial_unit_contrasts` |
+| Paired per-unit factorial contrasts | `security-engine/src/bugdhor/counterfactual/validation.py::factorial_unit_contrasts` |
 | Pairwise paired estimator | `.../validation.py::estimate_pairwise_contrast` |
 | Higher-order paired estimator | `.../validation.py::estimate_higher_order_contrast` |
 | Percentile bootstrap over units | `.../validation.py::bootstrap_mean_interval` |
@@ -334,7 +334,7 @@ construction, and single-token label resolution.
 All 20 tests pass.
 
 A separate independent suite, `mathematical-regression-tests/`, re-derives the
-production arithmetic in NumPy/closed form (without importing `craftsec`),
+production arithmetic in NumPy/closed form (without importing `bugdhor`),
 exercises boundary and degenerate cases, and recomputes the saved real-model
 artifact. It passes 80 tests and is summarised in
 `mathematical-consistency-report.md`. The equation-to-symbol mapping is in

@@ -51,7 +51,7 @@ function registerDiagnostics({ vscode, logger }) {
     throw error;
   }
 
-  logger.debug('Registered CRAFT-Sec diagnostics, hover explanations, and repair code actions.');
+  logger.debug('Registered Bug Dhor diagnostics, hover explanations, and repair code actions.');
 
   let disposed = false;
   return {
@@ -67,7 +67,7 @@ function registerDiagnostics({ vscode, logger }) {
         try {
           disposable.dispose();
         } catch (error) {
-          logger.error('Failed to dispose a CRAFT-Sec diagnostics registration.', error);
+          logger.error('Failed to dispose a Bug Dhor diagnostics registration.', error);
         }
       }
     }

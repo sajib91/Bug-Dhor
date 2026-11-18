@@ -1,6 +1,6 @@
-# CRAFT-Sec Mathematical Implementation Report
+# Bug Dhor Mathematical Implementation Report
 
-This report maps the implemented CRAFT-Sec mathematical formulations to their
+This report maps the implemented Bug Dhor mathematical formulations to their
 Python functions, tests, numerical behaviour, and complexity. The authoritative
 equation reference is [`research/mathematical-formulations.md`](../../research/mathematical-formulations.md);
 the package described here is [`security-engine/mathematics/`](.).

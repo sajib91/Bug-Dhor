@@ -1,4 +1,4 @@
-# CRAFT-Sec HTTP API
+# Bug Dhor HTTP API
 
 **Status:** Versioned FastAPI transport implemented and tested. File inspection and
 workspace discovery are real. Detection, explanation, SAE features, counterfactuals,
@@ -21,17 +21,17 @@ complete set exposed by the current server.
 From `security-engine/`:
 
 ```bash
-../.venv/bin/python -m craftsec
+../.venv/bin/python -m bugdhor
 # or, when the package is installed:
-../.venv/bin/craftsec
+../.venv/bin/bugdhor
 ```
 
 Host and port are configurable:
 
 ```bash
-../.venv/bin/python -m craftsec --host 127.0.0.1 --port 8765
+../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765
 # or
-CRAFTSEC_HOST=127.0.0.1 CRAFTSEC_PORT=8765 ../.venv/bin/python -m craftsec
+BUGDHOR_HOST=127.0.0.1 BUGDHOR_PORT=8765 ../.venv/bin/python -m bugdhor
 ```
 
 The server is local-first. The default bind address is loopback, CORS is disabled
@@ -39,15 +39,15 @@ unless explicit origins are configured, and there is no hardcoded secret.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CRAFTSEC_HOST` | `127.0.0.1` | Bind address |
-| `CRAFTSEC_PORT` | `8765` | Bind port (`0` selects an ephemeral port) |
-| `CRAFTSEC_CORS_ORIGINS` | empty | Comma-separated or JSON-array origin allowlist; `*` is rejected |
-| `CRAFTSEC_WORKSPACE_ROOTS` | process working directory | Comma-separated or JSON-array roots allowed for scans |
-| `CRAFTSEC_MAX_REQUEST_BYTES` | `2097152` (2 MB) | Maximum JSON request body |
-| `CRAFTSEC_MAX_FILE_BYTES` | `1048576` (1 MB) | Maximum inspected file size |
-| `CRAFTSEC_MAX_WORKSPACE_FILES` | `50000` | Maximum files discovered in one workspace scan |
-| `CRAFTSEC_API_TOKEN` | unset | Optional bearer token for `/api/*` requests |
-| `CRAFTSEC_SANDBOX_BACKEND` | `docker` | Reported sandbox backend |
+| `BUGDHOR_HOST` | `127.0.0.1` | Bind address |
+| `BUGDHOR_PORT` | `8765` | Bind port (`0` selects an ephemeral port) |
+| `BUGDHOR_CORS_ORIGINS` | empty | Comma-separated or JSON-array origin allowlist; `*` is rejected |
+| `BUGDHOR_WORKSPACE_ROOTS` | process working directory | Comma-separated or JSON-array roots allowed for scans |
+| `BUGDHOR_MAX_REQUEST_BYTES` | `2097152` (2 MB) | Maximum JSON request body |
+| `BUGDHOR_MAX_FILE_BYTES` | `1048576` (1 MB) | Maximum inspected file size |
+| `BUGDHOR_MAX_WORKSPACE_FILES` | `50000` | Maximum files discovered in one workspace scan |
+| `BUGDHOR_API_TOKEN` | unset | Optional bearer token for `/api/*` requests |
+| `BUGDHOR_SANDBOX_BACKEND` | `docker` | Reported sandbox backend |
 
 All settings may also be supplied in a local `.env` file. See
 [`.env.example`](../.env.example).
@@ -58,7 +58,7 @@ File-oriented endpoints accept this common context, using camelCase JSON:
 
 | Field | Required | Description |
 |---|---|---|
-| `workspaceRoot` | yes | Workspace root; must resolve inside `CRAFTSEC_WORKSPACE_ROOTS` |
+| `workspaceRoot` | yes | Workspace root; must resolve inside `BUGDHOR_WORKSPACE_ROOTS` |
 | `filePath` | yes | Absolute path or path relative to `workspaceRoot` |
 | `documentUri` | no | Editor document URI; validated findings must match the inspected file |
 | `languageId` | no | Editor language identifier; otherwise inferred from the extension |
@@ -72,7 +72,7 @@ root are rejected. Binary and non-UTF-8 files are rejected.
 
 `sourceText` lets an editor scan unsaved changes. The path must still exist and
 resolve inside the allowed workspace root; the configured
-`CRAFTSEC_MAX_FILE_BYTES` limit applies to the supplied UTF-8 text, and NUL bytes
+`BUGDHOR_MAX_FILE_BYTES` limit applies to the supplied UTF-8 text, and NUL bytes
 are rejected. The response `file.sha256` and `file.size` describe the supplied
 text, not the disk copy. Clients should send `sourceText` and `selectedText`
 only after explicit user action and only when source sharing is enabled.
@@ -154,7 +154,7 @@ derived from the registered operation stages, not from optimistic configuration.
 
 ```json
 {
-  "service": "craftsec-engine",
+  "service": "bugdhor-engine",
   "status": "ok",
   "version": "0.1.0",
   "apiVersion": "v1",
@@ -225,7 +225,7 @@ Errors use RFC 9457 problem details with `application/problem+json`:
 
 ```json
 {
-  "type": "https://craftsec.local/errors/E_VALIDATION",
+  "type": "https://bugdhor.local/errors/E_VALIDATION",
   "title": "Request validation failed",
   "status": 422,
   "code": "E_VALIDATION",
@@ -265,7 +265,7 @@ returned in problem details.
 
 ## Authentication
 
-When `CRAFTSEC_API_TOKEN` is set, all `/api/*` requests require:
+When `BUGDHOR_API_TOKEN` is set, all `/api/*` requests require:
 
 ```http
 Authorization: Bearer <token>

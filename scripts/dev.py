@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform development task runner for CRAFT-Sec.
+"""Cross-platform development task runner for Bug Dhor.
 
 Examples:
     python3 scripts/dev.py setup --cpu --with-analyzers
@@ -222,7 +222,7 @@ def tool_version(command: str, arguments: list[str], label: str | None = None) -
 
 
 def doctor(_: argparse.Namespace | None = None) -> None:
-    print("CRAFT-Sec development environment")
+    print("Bug Dhor development environment")
     print(f"Platform: {platform.platform()}")
     print(f"Machine: {platform.machine()}")
     print(f"Project: {ROOT}")

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/steering-result.json",
+  "$id": "https://bugdhor.local/schemas/v1/steering-result.json",
   "title": "SteeringResult",
   "description": "An activation-steering plan and its limited evaluation. A plan is only valid with explicit opt-in; an unavailable result must not contain a plan.",
   "type": "object",

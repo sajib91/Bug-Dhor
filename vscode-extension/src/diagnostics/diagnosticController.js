@@ -10,7 +10,7 @@ const {
 } = require('./findingModel');
 const { isFileUriWithinFolders } = require('../security/paths');
 
-const DIAGNOSTIC_COLLECTION_NAME = 'craftsec';
+const DIAGNOSTIC_COLLECTION_NAME = 'bugdhor';
 
 /**
  * @param {import('vscode')} vscode
@@ -27,7 +27,7 @@ function defaultIsWithinWorkspace(vscode, uri) {
 }
 
 /**
- * Owns the CRAFT-Sec DiagnosticCollection and the finding store used by the
+ * Owns the Bug Dhor DiagnosticCollection and the finding store used by the
  * hover and code-action providers.
  *
  * Only findings supplied by a backend scan result are published. Invalid or
@@ -147,7 +147,7 @@ class DiagnosticController {
       const uri = this.vscode.Uri.parse(uriText);
       if (!this.isAllowedUri(uri)) {
         this.logger.warn(
-          `Discarded an out-of-workspace CRAFT-Sec diagnostic scope URI: ${uriText}`
+          `Discarded an out-of-workspace Bug Dhor diagnostic scope URI: ${uriText}`
         );
         return;
       }
@@ -167,10 +167,10 @@ class DiagnosticController {
 
     if (accepted.length > 0) {
       this.logger.info(
-        `Published ${accepted.length} CRAFT-Sec finding(s) across ${groups.size} file(s).`
+        `Published ${accepted.length} Bug Dhor finding(s) across ${groups.size} file(s).`
       );
     } else {
-      this.logger.debug('No CRAFT-Sec findings were published for this scan result.');
+      this.logger.debug('No Bug Dhor findings were published for this scan result.');
     }
     if (rejected.length > 0) {
       const preview = rejected
@@ -178,7 +178,7 @@ class DiagnosticController {
         .map((entry) => entry.reason)
         .join('; ');
       this.logger.warn(
-        `Discarded ${rejected.length} invalid CRAFT-Sec finding(s): ${preview}` +
+        `Discarded ${rejected.length} invalid Bug Dhor finding(s): ${preview}` +
           (rejected.length > 5 ? '; ...' : '')
       );
     }
@@ -384,7 +384,7 @@ class DiagnosticController {
     }
   }
 
-  /** Clear every published CRAFT-Sec diagnostic. */
+  /** Clear every published Bug Dhor diagnostic. */
   clearAll() {
     this.assertActive();
     this.collection.clear();
@@ -402,7 +402,7 @@ class DiagnosticController {
 
   assertActive() {
     if (this.disposed) {
-      throw new Error('The CRAFT-Sec diagnostic controller has been disposed.');
+      throw new Error('The Bug Dhor diagnostic controller has been disposed.');
     }
   }
 

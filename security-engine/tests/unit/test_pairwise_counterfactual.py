@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.counterfactual import (
+from bugdhor.counterfactual import (
     FeaturePair,
     PairwiseCell,
     PairwiseInteractionEngine,

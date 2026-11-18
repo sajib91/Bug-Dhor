@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from craftsec.static.cwe import extract_cwes, normalize_cwe
-from craftsec.static.normalize import (
+from bugdhor.static.cwe import extract_cwes, normalize_cwe
+from bugdhor.static.normalize import (
     deduplicate_findings,
     normalize_path,
     normalize_severity,

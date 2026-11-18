@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Safe construction of workspace and editor requests for the CRAFT-Sec API.
+ * Safe construction of workspace and editor requests for the Bug Dhor API.
  *
  * Source text is included only when the user-invoked command's configuration
  * permits it. Workspace scans send folder metadata only, never file contents.

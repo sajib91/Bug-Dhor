@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.detection.classification import (
+from bugdhor.detection.classification import (
     CATEGORY_INFO,
     CATEGORY_ORDER,
     category_for_cwe,
@@ -18,7 +18,7 @@ from craftsec.detection.classification import (
     default_cwe,
     infer_category,
 )
-from craftsec.detection.models import VulnerabilityCategory
+from bugdhor.detection.models import VulnerabilityCategory
 
 
 @pytest.mark.parametrize(
@@ -106,8 +106,8 @@ def test_explicit_cwe_metadata_wins_over_ambiguous_rule_text() -> None:
 
 
 def test_conflicting_cwe_is_retained_instead_of_silently_dropped() -> None:
-    from craftsec.detection.classification import classify_evidence
-    from craftsec.detection.models import (
+    from bugdhor.detection.classification import classify_evidence
+    from bugdhor.detection.models import (
         ClaimKind,
         EvidenceFamily,
         EvidenceItem,
@@ -127,7 +127,7 @@ def test_conflicting_cwe_is_retained_instead_of_silently_dropped() -> None:
         evidence_type=EvidenceType.TAINT,
         family=EvidenceFamily.PROGRAM_ANALYSIS,
         claim_kind=ClaimKind.INFERENCE,
-        source="craftsec.taint",
+        source="bugdhor.taint",
         location=location,
         category=VulnerabilityCategory.SQL_INJECTION,
         cwe="CWE-89",

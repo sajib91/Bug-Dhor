@@ -16,7 +16,7 @@ const { onSettingsChanged, readSettings } = require('./config');
 let logger;
 
 /**
- * Activate the CRAFT-Sec extension.
+ * Activate the Bug Dhor extension.
  *
  * This starts no Python process and performs no analysis. It connects to an
  * already-running backend, checks its health without sending source code, and
@@ -26,7 +26,7 @@ let logger;
  */
 function activate(context) {
   logger = createLogger();
-  logger.info('Activating CRAFT-Sec Security Framework.');
+  logger.info('Activating Bug Dhor Security Framework.');
 
   const statusBar = createStatusBar();
   const configurationService = createConfigurationService({ vscode });
@@ -43,25 +43,25 @@ function activate(context) {
     try {
       const health = await service.health({});
       const detail =
-        `CRAFT-Sec backend v${health.version} reachable. ` +
+        `Bug Dhor backend v${health.version} reachable. ` +
         'Analysis stages are reported individually by the backend.';
       statusBar.setBackendStatus('reachable', detail);
       logger.info(
-        `CRAFT-Sec backend v${health.version} reachable at the configured URL ` +
+        `Bug Dhor backend v${health.version} reachable at the configured URL ` +
           `(API ${health.apiVersion}).`
       );
       const settings = readSettings();
       if (!isLoopbackBackendUrl(settings.backendUrl)) {
         logger.warn(
-          'craftsec.backend.url points outside loopback. Source text is sent only for explicit ' +
-            'user-invoked commands and only when craftsec.privacy.sendSourceText is enabled.'
+          'bugdhor.backend.url points outside loopback. Source text is sent only for explicit ' +
+            'user-invoked commands and only when bugdhor.privacy.sendSourceText is enabled.'
         );
       }
       return health;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       statusBar.setBackendStatus('unavailable', message);
-      logger.warn(`CRAFT-Sec backend health check failed: ${message}`);
+      logger.warn(`Bug Dhor backend health check failed: ${message}`);
       return undefined;
     }
   }
@@ -87,23 +87,23 @@ function activate(context) {
   const sidebarRegistration = registerSidebarView(context, logger);
 
   const settingsSubscription = onSettingsChanged((event) => {
-    if (event.affectsConfiguration('craftsec.logging.level')) {
+    if (event.affectsConfiguration('bugdhor.logging.level')) {
       logger.applySettings();
     }
-    if (event.affectsConfiguration('craftsec.ui.showStatusBarItem')) {
+    if (event.affectsConfiguration('bugdhor.ui.showStatusBarItem')) {
       statusBar.applySettings();
     }
-    if (event.affectsConfiguration('craftsec')) {
+    if (event.affectsConfiguration('bugdhor')) {
       dashboard.refresh();
     }
     if (
-      event.affectsConfiguration('craftsec.backend.url') ||
-      event.affectsConfiguration('craftsec.backend.requestTimeoutMs') ||
-      event.affectsConfiguration('craftsec.backend.healthTimeoutMs')
+      event.affectsConfiguration('bugdhor.backend.url') ||
+      event.affectsConfiguration('bugdhor.backend.requestTimeoutMs') ||
+      event.affectsConfiguration('bugdhor.backend.healthTimeoutMs')
     ) {
       void checkBackendHealth();
     }
-    logger.debug('CRAFT-Sec settings updated.');
+    logger.debug('Bug Dhor settings updated.');
   });
 
   context.subscriptions.push(
@@ -118,13 +118,13 @@ function activate(context) {
 
   if (readSettings().autoStart) {
     logger.warn(
-      'craftsec.backend.autoStart is reserved for a future process manager. The extension ' +
+      'bugdhor.backend.autoStart is reserved for a future process manager. The extension ' +
         'connects to an already-running backend and does not start one.'
     );
   }
 
   void checkBackendHealth();
-  logger.info('CRAFT-Sec activated.');
+  logger.info('Bug Dhor activated.');
 
   return { service, configurationService, checkBackendHealth };
 }
@@ -135,7 +135,7 @@ function activate(context) {
  */
 function deactivate() {
   if (logger) {
-    logger.info('CRAFT-Sec deactivated.');
+    logger.info('Bug Dhor deactivated.');
     logger = undefined;
   }
 }

@@ -1,4 +1,4 @@
-# CRAFT-Sec Security Engine
+# Bug Dhor Security Engine
 
 Local FastAPI research engine for vulnerability evidence, SAE feature extraction, counterfactual analysis, activation steering, repository-aware repair, and independent verification.
 
@@ -21,29 +21,29 @@ Those stages return explicit
 
 Implemented and tested:
 
-- `src/craftsec/api/` — app factory, `/api/v1` routes, Pydantic schemas,
+- `src/bugdhor/api/` — app factory, `/api/v1` routes, Pydantic schemas,
   request-ID/access-log middleware, optional bearer auth, streaming body limits,
   and RFC 9457 problem-detail handlers.
-- `src/craftsec/core/` — settings, typed errors, logging, path containment,
+- `src/bugdhor/core/` — settings, typed errors, logging, path containment,
   pipeline primitives, and the operation orchestrator.
-- `src/craftsec/parsing/` — Python/JavaScript detection, BOM and line-ending
+- `src/bugdhor/parsing/` — Python/JavaScript detection, BOM and line-ending
   normalization with a lossless source map, exact UTF-8/UTF-16 spans,
   tokenization, function/method/lambda extraction, AST-aware chunking,
   repository metadata, and recoverable syntax-error diagnostics.
-- `src/craftsec/program_analysis/` — module/function CFGs with basic blocks,
+- `src/bugdhor/program_analysis/` — module/function CFGs with basic blocks,
   branches, loops, exceptions, returns, and break/continue; reaching-definition
   DFGs with def-use, parameter, call, return, raise, and closure edges; a taint
   graph with explicit source, sanitizer, validator, propagator, and sink rules,
   per-kind gating, direct same-file interprocedural propagation, evidence paths,
   confidence notes, and limitation disclosures; exact spans and NetworkX
   `DiGraph` products.
-- `src/craftsec/static/` — Semgrep and Bandit adapters, plus optional CodeQL and
+- `src/bugdhor/static/` — Semgrep and Bandit adapters, plus optional CodeQL and
   Joern adapters, with executable/version detection, argv-only sanitized
   subprocess execution, timeouts, bounded stdout/stderr capture, native-output
   parsing, shared normalized findings, conservative CWE extraction, and
   deduplication. Missing, failed, and timed-out tools are explicit statuses, never
   empty successful scans.
-- `src/craftsec/main.py` — Uvicorn entry point with configurable host and port.
+- `src/bugdhor/main.py` — Uvicorn entry point with configurable host and port.
 - File scans — allowlisted-root validation, path/symlink containment, UTF-8 and
   size checks, SHA-256 computation, and language detection.
 - Workspace scans — symlink-safe source discovery with ignored generated
@@ -69,20 +69,20 @@ chunks, syntax diagnostics, CFGs, DFGs, taint flows, or static-analyzer findings
 From `security-engine/`:
 
 ```bash
-../.venv/bin/python -m craftsec
+../.venv/bin/python -m bugdhor
 # or
-../.venv/bin/craftsec
+../.venv/bin/bugdhor
 ```
 
 Defaults: `127.0.0.1:8765`, 2 MB request body, 1 MB file, 50,000 workspace files,
 no CORS origins, and workspace roots set to the process working directory. Set
-`CRAFTSEC_API_TOKEN` to require `Authorization: Bearer <token>` on `/api/*`
+`BUGDHOR_API_TOKEN` to require `Authorization: Bearer <token>` on `/api/*`
 requests. See [../docs/api.md](../docs/api.md) and [../.env.example](../.env.example).
 
 ## Layout
 
 ```text
-src/craftsec/
+src/bugdhor/
   api/                FastAPI app, routes, schemas, middleware
   artifacts/          content-addressed artifact store
   contracts/          generated Pydantic models from shared JSON Schema
@@ -165,7 +165,7 @@ analyzer products.
 npm run build
 ```
 
-This produces `security-engine/dist/craftsec_engine-0.1.0-py3-none-any.whl` and a development VSIX. It does not download models.
+This produces `security-engine/dist/bugdhor_engine-0.1.0-py3-none-any.whl` and a development VSIX. It does not download models.
 
 ## Limitations
 

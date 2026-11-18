@@ -4,7 +4,7 @@
 `RepositoryContext` object. It starts at the requested target file, follows
 resolvable imports, and then adds narrowly related tests, configuration files,
 and security utilities. Workspace discovery reuses the containment and
-exclusion rules from `craftsec.core.paths`; symlinks, ignored directories, and
+exclusion rules from `bugdhor.core.paths`; symlinks, ignored directories, and
 files outside the configured workspace are not followed.
 
 Each context file contains relative path, language, size, SHA-256, role,

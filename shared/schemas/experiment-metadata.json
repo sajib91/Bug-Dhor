@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/experiment-metadata.json",
+  "$id": "https://bugdhor.local/schemas/v1/experiment-metadata.json",
   "title": "ExperimentMetadata",
   "description": "Reproducibility metadata for one experiment. Hashes identify configuration and data splits without embedding source code or credentials.",
   "type": "object",

@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pytest
 import reference as ref
-from craftsec.counterfactual.validation import (
+from bugdhor.counterfactual.validation import (
     BootstrapContrast,
     bootstrap_mean_interval,
     estimate_pairwise_contrast,

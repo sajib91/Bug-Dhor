@@ -4,8 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from craftsec.api.app import create_app
-from craftsec.core.settings import Settings
+from bugdhor.api.app import create_app
+from bugdhor.core.settings import Settings
 
 
 def test_validation_errors_use_rfc9457_problem_details(api) -> None:
@@ -14,7 +14,7 @@ def test_validation_errors_use_rfc9457_problem_details(api) -> None:
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
     body = response.json()
-    assert body["type"] == "https://craftsec.local/errors/E_VALIDATION"
+    assert body["type"] == "https://bugdhor.local/errors/E_VALIDATION"
     assert body["title"] == "Request validation failed"
     assert body["status"] == 422
     assert body["code"] == "E_VALIDATION"

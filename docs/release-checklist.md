@@ -1,6 +1,6 @@
-# CRAFT-Sec VS Code Extension Release Checklist
+# Bug Dhor VS Code Extension Release Checklist
 
-This checklist covers packaging the CRAFT-Sec VS Code extension as a VSIX. It
+This checklist covers packaging the Bug Dhor VS Code extension as a VSIX. It
 does **not** cover Marketplace publication. The current manifest still uses the
 placeholder publisher `your-publisher-id` and has no repository URL or license,
 so every build is a development artifact until those fields are resolved.
@@ -57,7 +57,7 @@ Manually inspect `vscode-extension/package.json` for the `publisher`,
 
 The manifest currently contributes 12 commands and activates on
 `onStartupFinished`, the 12 `onCommand:` events, and
-`onView:craftsec.sidebar`. There is no `*` activation event.
+`onView:bugdhor.sidebar`. There is no `*` activation event.
 
 Check that:
 
@@ -65,8 +65,8 @@ Check that:
 - Every command is registered by `src/commands/index.js`; the manifest test
   compares the manifest against `src/commands/definitions.js`.
 - No duplicate command ID exists.
-- `craftsec.openSecurityDashboard` can open or reveal the singleton panel.
-- `craftsec.sidebar` is declared under the `craftsec` activity-bar container.
+- `bugdhor.openSecurityDashboard` can open or reveal the singleton panel.
+- `bugdhor.sidebar` is declared under the `bugdhor` activity-bar container.
 - The `view/title` menu entry only references a contributed command.
 
 ## 4. Webview resources
@@ -98,8 +98,8 @@ Build a candidate archive and inspect it:
 
 ```bash
 cd vscode-extension
-npm run package:vsix -- --out /tmp/craftsec-candidate.vsix
-unzip -l /tmp/craftsec-candidate.vsix
+npm run package:vsix -- --out /tmp/bugdhor-candidate.vsix
+unzip -l /tmp/bugdhor-candidate.vsix
 ```
 
 Confirm the archive does **not** contain:
@@ -120,7 +120,7 @@ may display parent-workspace files. The packaged archive is authoritative.
 
 ## 6. Backend connection configuration
 
-The extension appends `/api/v1` to `craftsec.backend.url`, which defaults to
+The extension appends `/api/v1` to `bugdhor.backend.url`, which defaults to
 `http://127.0.0.1:8765`. The URL must be an HTTP(S) origin with no credentials,
 path, query, or fragment.
 
@@ -141,16 +141,16 @@ scanning, or packaging.
 Start the backend from `security-engine/`:
 
 ```bash
-../.venv/bin/python -m craftsec --host 127.0.0.1 --port 8765
+../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765
 ```
 
-Or, if `craftsec` is installed on `PATH`:
+Or, if `bugdhor` is installed on `PATH`:
 
 ```bash
-craftsec --host 127.0.0.1 --port 8765
+bugdhor --host 127.0.0.1 --port 8765
 ```
 
-Set `CRAFTSEC_WORKSPACE_ROOTS` to the folders the backend may inspect. Never
+Set `BUGDHOR_WORKSPACE_ROOTS` to the folders the backend may inspect. Never
 point it at a broader path than intended.
 
 Verify the health endpoint:
@@ -165,7 +165,7 @@ extension host.
 
 ### 6.2 Optional bearer token
 
-If `CRAFTSEC_API_TOKEN` (or the legacy `CRAFTSEC_ENGINE_TOKEN`) is set on the
+If `BUGDHOR_API_TOKEN` (or the legacy `BUGDHOR_ENGINE_TOKEN`) is set on the
 backend, set the same variable in the environment that launches VS Code. The
 token is read from the environment, not from a setting, and is not written to
 the VSIX. Restart VS Code after changing it. Without a matching token, API
@@ -179,17 +179,17 @@ A remote backend is supported when it exposes the same `/api/v1` HTTP API:
    the VS Code machine.
 2. Put it behind HTTPS (a reverse proxy is recommended). The extension does not
    manage TLS certificates.
-3. Set `CRAFTSEC_WORKSPACE_ROOTS` on the remote host to the paths it may inspect.
-4. In VS Code, set `craftsec.backend.url` to the remote origin, for example
-   `https://craftsec.example.internal:8443`. Do not include a path, query, or
+3. Set `BUGDHOR_WORKSPACE_ROOTS` on the remote host to the paths it may inspect.
+4. In VS Code, set `bugdhor.backend.url` to the remote origin, for example
+   `https://bugdhor.example.internal:8443`. Do not include a path, query, or
    credentials.
-5. Set `CRAFTSEC_API_TOKEN` in the environment that launches VS Code.
+5. Set `BUGDHOR_API_TOKEN` in the environment that launches VS Code.
 6. Allow the connection through the firewall or VPN. Configure
-   `CRAFTSEC_CORS_ORIGINS` only if a browser client also calls the API; the
+   `BUGDHOR_CORS_ORIGINS` only if a browser client also calls the API; the
    extension's own fetch does not require CORS.
 7. Remember that file paths are resolved on the backend host. A remote backend
    cannot read local files unless the same paths exist there, so enable source
-   sharing (`craftsec.privacy.sendSourceText`) if the backend should analyze the
+   sharing (`bugdhor.privacy.sendSourceText`) if the backend should analyze the
    current buffer.
 
 Avoid exposing the backend to the public internet. Prefer a private network, a
@@ -213,12 +213,12 @@ vsce package --no-dependencies --allow-missing-repository --skip-license
 the repository root. The extension has no runtime npm dependency; `ajv` is used
 only by tests. Add bundling before importing a runtime dependency.
 
-The default output is `vscode-extension/craft-sec-<version>.vsix`. Confirm the
+The default output is `vscode-extension/bug-dhor-<version>.vsix`. Confirm the
 file exists, is non-zero, and contains the expected files from section 5.
 Record the SHA-256 checksum for the artifact you intend to distribute:
 
 ```bash
-shasum -a 256 vscode-extension/craft-sec-0.1.0.vsix
+shasum -a 256 vscode-extension/bug-dhor-0.1.0.vsix
 ```
 
 ## 8. Clean VS Code installation verification
@@ -232,18 +232,18 @@ CODE_BIN="$(command -v code || true)"
 if [ -z "$CODE_BIN" ] && [ -x "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" ]; then
   CODE_BIN="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
 fi
-"$CODE_BIN" --extensions-dir "$TMP_EXT_DIR" --install-extension vscode-extension/craft-sec-0.1.0.vsix
+"$CODE_BIN" --extensions-dir "$TMP_EXT_DIR" --install-extension vscode-extension/bug-dhor-0.1.0.vsix
 "$CODE_BIN" --extensions-dir "$TMP_EXT_DIR" --list-extensions --show-versions
 ```
 
 If the `code` CLI is unavailable, install manually through **Extensions →
 Views and More Actions → Install from VSIX…** and verify:
 
-- The extension appears as **CRAFT-Sec Security Framework**.
-- The CRAFT-Sec shield appears in the Activity Bar.
-- `CRAFT-Sec: Open Security Dashboard` opens the singleton panel.
+- The extension appears as **Bug Dhor Security Framework**.
+- The Bug Dhor shield appears in the Activity Bar.
+- `Bug Dhor: Open Security Dashboard` opens the singleton panel.
 - The dashboard renders with local styles and no CSP errors.
-- `CRAFT-Sec: Show Status` reports the configured backend state and fails
+- `Bug Dhor: Show Status` reports the configured backend state and fails
   gracefully when the backend is unreachable.
 - With the backend running and healthy, a scan reaches the backend. Detection
   may still report `analysisAvailable: false`; that is expected while the
@@ -251,9 +251,9 @@ Views and More Actions → Install from VSIX…** and verify:
 - No finding is fabricated when analysis is unavailable.
 
 A clean installation was verified in the current macOS environment by installing
-`craft-sec-0.1.0.vsix` into a temporary `--extensions-dir` with a temporary
+`bug-dhor-0.1.0.vsix` into a temporary `--extensions-dir` with a temporary
 `--user-data-dir`; the result listed as
-`your-publisher-id.craft-sec@0.1.0`. The temporary profile was removed afterward.
+`your-publisher-id.bug-dhor@0.1.0`. The temporary profile was removed afterward.
 Interactive activation checks still need to be repeated in the target VS Code
 version and OS.
 
@@ -297,11 +297,11 @@ from a previous build.
 | `.vscodeignore` excludes dev files, secrets, weights | Archive listing | Pass |
 | Version updated consistently | `package.json` + manifest test | Pass (0.1.0) |
 | Backend unit/API suite | `cd security-engine && ../.venv/bin/python -m pytest -q` | **Fail (6 failed, 448 passed)** |
-| Backend starts locally | `../.venv/bin/python -m craftsec --host 127.0.0.1 --port 8765` | Pass (started) |
+| Backend starts locally | `../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765` | Pass (started) |
 | Backend health reachable | `curl http://127.0.0.1:8765/api/v1/health` | Pass (HTTP 200) |
-| Optional token behavior | Set `CRAFTSEC_API_TOKEN` on both sides | Pass (401 without, 200 with) |
-| Optional remote backend | Set `craftsec.backend.url` + token + TLS | Documented; not tested |
+| Optional token behavior | Set `BUGDHOR_API_TOKEN` on both sides | Pass (401 without, 200 with) |
+| Optional remote backend | Set `bugdhor.backend.url` + token + TLS | Documented; not tested |
 | VSIX builds cleanly | `npm run package:vsix` | Pass (45 files, 101.87 KB) |
-| Clean VS Code install | Temporary `--extensions-dir` install | Pass (listed `your-publisher-id.craft-sec@0.1.0`) |
+| Clean VS Code install | Temporary `--extensions-dir` install | Pass (listed `your-publisher-id.bug-dhor@0.1.0`) |
 | Interactive activation/UI checks | Launch the installed extension and run a command | Verify per machine |
 | Marketplace fields complete | Publisher, repository, license | **Blocked** |

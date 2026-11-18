@@ -5,33 +5,33 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from craftsec.core.settings import Settings
+from bugdhor.core.settings import Settings
 
 ENV_VARS = [
-    "CRAFTSEC_LOG_LEVEL",
-    "CRAFTSEC_DATA_DIR",
-    "CRAFTSEC_LOG_DIR",
-    "CRAFTSEC_HOST",
-    "CRAFTSEC_PORT",
-    "CRAFTSEC_CORS_ORIGINS",
-    "CRAFTSEC_WORKSPACE_ROOTS",
-    "CRAFTSEC_MAX_REQUEST_BYTES",
-    "CRAFTSEC_MAX_FILE_BYTES",
-    "CRAFTSEC_MAX_WORKSPACE_FILES",
-    "CRAFTSEC_API_TOKEN",
-    "CRAFTSEC_ENGINE_TOKEN",
-    "CRAFTSEC_MODEL_ID",
-    "CRAFTSEC_MODEL_REVISION",
-    "CRAFTSEC_DEVICE",
-    "CRAFTSEC_GPU_CONCURRENCY",
-    "CRAFTSEC_SAE_MANIFEST",
-    "CRAFTSEC_SANDBOX_BACKEND",
-    "CRAFTSEC_SANDBOX_TIMEOUT_SECONDS",
-    "CRAFTSEC_SEMGREP_PATH",
-    "CRAFTSEC_BANDIT_PATH",
-    "CRAFTSEC_CODEQL_PATH",
-    "CRAFTSEC_JOERN_PATH",
-    "CRAFTSEC_HF_TOKEN",
+    "BUGDHOR_LOG_LEVEL",
+    "BUGDHOR_DATA_DIR",
+    "BUGDHOR_LOG_DIR",
+    "BUGDHOR_HOST",
+    "BUGDHOR_PORT",
+    "BUGDHOR_CORS_ORIGINS",
+    "BUGDHOR_WORKSPACE_ROOTS",
+    "BUGDHOR_MAX_REQUEST_BYTES",
+    "BUGDHOR_MAX_FILE_BYTES",
+    "BUGDHOR_MAX_WORKSPACE_FILES",
+    "BUGDHOR_API_TOKEN",
+    "BUGDHOR_ENGINE_TOKEN",
+    "BUGDHOR_MODEL_ID",
+    "BUGDHOR_MODEL_REVISION",
+    "BUGDHOR_DEVICE",
+    "BUGDHOR_GPU_CONCURRENCY",
+    "BUGDHOR_SAE_MANIFEST",
+    "BUGDHOR_SANDBOX_BACKEND",
+    "BUGDHOR_SANDBOX_TIMEOUT_SECONDS",
+    "BUGDHOR_SEMGREP_PATH",
+    "BUGDHOR_BANDIT_PATH",
+    "BUGDHOR_CODEQL_PATH",
+    "BUGDHOR_JOERN_PATH",
+    "BUGDHOR_HF_TOKEN",
     "HF_TOKEN",
 ]
 
@@ -62,11 +62,11 @@ def test_defaults() -> None:
 
 
 def test_environment_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("CRAFTSEC_LOG_LEVEL", "debug")
-    monkeypatch.setenv("CRAFTSEC_DEVICE", "CPU")
-    monkeypatch.setenv("CRAFTSEC_SANDBOX_BACKEND", "process")
-    monkeypatch.setenv("CRAFTSEC_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("CRAFTSEC_GPU_CONCURRENCY", "2")
+    monkeypatch.setenv("BUGDHOR_LOG_LEVEL", "debug")
+    monkeypatch.setenv("BUGDHOR_DEVICE", "CPU")
+    monkeypatch.setenv("BUGDHOR_SANDBOX_BACKEND", "process")
+    monkeypatch.setenv("BUGDHOR_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("BUGDHOR_GPU_CONCURRENCY", "2")
 
     settings = Settings(_env_file=None)
 
@@ -78,12 +78,12 @@ def test_environment_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
 
 def test_invalid_values_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CRAFTSEC_SANDBOX_BACKEND", "magic")
+    monkeypatch.setenv("BUGDHOR_SANDBOX_BACKEND", "magic")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
-    monkeypatch.setenv("CRAFTSEC_SANDBOX_BACKEND", "none")
-    monkeypatch.setenv("CRAFTSEC_GPU_CONCURRENCY", "0")
+    monkeypatch.setenv("BUGDHOR_SANDBOX_BACKEND", "none")
+    monkeypatch.setenv("BUGDHOR_GPU_CONCURRENCY", "0")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
@@ -100,7 +100,7 @@ def test_hf_token_is_accepted_and_redacted(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_prefixed_hf_token_is_supported(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CRAFTSEC_HF_TOKEN", "prefixed-token")
+    monkeypatch.setenv("BUGDHOR_HF_TOKEN", "prefixed-token")
 
     settings = Settings(_env_file=None)
 
@@ -111,7 +111,7 @@ def test_prefixed_hf_token_is_supported(monkeypatch: pytest.MonkeyPatch) -> None
 def test_dotenv_loading(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "CRAFTSEC_LOG_LEVEL=warning\nCRAFTSEC_DEVICE=cpu\n",
+        "BUGDHOR_LOG_LEVEL=warning\nBUGDHOR_DEVICE=cpu\n",
         encoding="utf-8",
     )
 
@@ -135,16 +135,16 @@ def test_ensure_directories(tmp_path: Path) -> None:
 
 
 def test_http_settings_from_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("CRAFTSEC_HOST", "localhost")
-    monkeypatch.setenv("CRAFTSEC_PORT", "9000")
-    monkeypatch.setenv("CRAFTSEC_CORS_ORIGINS", "http://localhost:3000,https://example.com")
+    monkeypatch.setenv("BUGDHOR_HOST", "localhost")
+    monkeypatch.setenv("BUGDHOR_PORT", "9000")
+    monkeypatch.setenv("BUGDHOR_CORS_ORIGINS", "http://localhost:3000,https://example.com")
     monkeypatch.setenv(
-        "CRAFTSEC_WORKSPACE_ROOTS",
+        "BUGDHOR_WORKSPACE_ROOTS",
         f"{tmp_path / 'one'},{tmp_path / 'two'}",
     )
-    monkeypatch.setenv("CRAFTSEC_MAX_REQUEST_BYTES", "4096")
-    monkeypatch.setenv("CRAFTSEC_MAX_FILE_BYTES", "2048")
-    monkeypatch.setenv("CRAFTSEC_MAX_WORKSPACE_FILES", "10")
+    monkeypatch.setenv("BUGDHOR_MAX_REQUEST_BYTES", "4096")
+    monkeypatch.setenv("BUGDHOR_MAX_FILE_BYTES", "2048")
+    monkeypatch.setenv("BUGDHOR_MAX_WORKSPACE_FILES", "10")
 
     settings = Settings(_env_file=None)
 
@@ -161,7 +161,7 @@ def test_cors_origins_accept_a_json_array_and_are_normalized(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(
-        "CRAFTSEC_CORS_ORIGINS",
+        "BUGDHOR_CORS_ORIGINS",
         '["HTTP://localhost:3000/", "http://localhost:3000"]',
     )
 
@@ -173,8 +173,8 @@ def test_cors_origins_accept_a_json_array_and_are_normalized(
 def test_empty_cors_origins_and_workspace_roots_are_supported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CRAFTSEC_CORS_ORIGINS", "")
-    monkeypatch.setenv("CRAFTSEC_WORKSPACE_ROOTS", "")
+    monkeypatch.setenv("BUGDHOR_CORS_ORIGINS", "")
+    monkeypatch.setenv("BUGDHOR_WORKSPACE_ROOTS", "")
 
     settings = Settings(_env_file=None)
 
@@ -196,24 +196,24 @@ def test_unsafe_cors_origins_are_rejected(
     monkeypatch: pytest.MonkeyPatch,
     origin: str,
 ) -> None:
-    monkeypatch.setenv("CRAFTSEC_CORS_ORIGINS", origin)
+    monkeypatch.setenv("BUGDHOR_CORS_ORIGINS", origin)
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
 
 def test_invalid_http_limits_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CRAFTSEC_PORT", "70000")
+    monkeypatch.setenv("BUGDHOR_PORT", "70000")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
-    monkeypatch.setenv("CRAFTSEC_PORT", "8765")
-    monkeypatch.setenv("CRAFTSEC_MAX_REQUEST_BYTES", "10")
+    monkeypatch.setenv("BUGDHOR_PORT", "8765")
+    monkeypatch.setenv("BUGDHOR_MAX_REQUEST_BYTES", "10")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
-    monkeypatch.setenv("CRAFTSEC_MAX_REQUEST_BYTES", "4096")
-    monkeypatch.setenv("CRAFTSEC_MAX_WORKSPACE_FILES", "0")
+    monkeypatch.setenv("BUGDHOR_MAX_REQUEST_BYTES", "4096")
+    monkeypatch.setenv("BUGDHOR_MAX_WORKSPACE_FILES", "0")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
@@ -221,7 +221,7 @@ def test_invalid_http_limits_are_rejected(monkeypatch: pytest.MonkeyPatch) -> No
 def test_api_token_is_accepted_under_both_names_and_redacted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CRAFTSEC_API_TOKEN", "api-secret-value")
+    monkeypatch.setenv("BUGDHOR_API_TOKEN", "api-secret-value")
 
     settings = Settings(_env_file=None)
 
@@ -230,8 +230,8 @@ def test_api_token_is_accepted_under_both_names_and_redacted(
     assert "api_token" not in settings.redacted()
     assert "api-secret-value" not in str(settings.redacted())
 
-    monkeypatch.delenv("CRAFTSEC_API_TOKEN")
-    monkeypatch.setenv("CRAFTSEC_ENGINE_TOKEN", "engine-secret-value")
+    monkeypatch.delenv("BUGDHOR_API_TOKEN")
+    monkeypatch.setenv("BUGDHOR_ENGINE_TOKEN", "engine-secret-value")
     settings = Settings(_env_file=None)
     assert settings.api_token is not None
     assert settings.api_token.get_secret_value() == "engine-secret-value"

@@ -42,7 +42,7 @@ function readSettings() {
 }
 
 /**
- * Subscribe to CRAFT-Sec configuration changes.
+ * Subscribe to Bug Dhor configuration changes.
  *
  * @param {(event: vscode.ConfigurationChangeEvent, settings: ExtensionSettings) => void} listener
  * @returns {vscode.Disposable}

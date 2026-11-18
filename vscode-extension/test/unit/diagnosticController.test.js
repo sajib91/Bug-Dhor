@@ -37,7 +37,7 @@ test('publishes backend findings as diagnostics with CWE, evidence, and sources'
   const [diagnostic] = collection.entries.get(uri);
   assert.equal(diagnostic.message, 'User input reaches a SQL query.');
   assert.equal(diagnostic.severity, 0, 'high severity must map to Error');
-  assert.equal(diagnostic.source, 'CRAFT-Sec');
+  assert.equal(diagnostic.source, 'Bug Dhor');
   assert.equal(diagnostic.code.value, 'CWE-89');
   assert.equal(diagnostic.code.target.toString(), 'https://cwe.mitre.org/data/definitions/89.html');
   assert.deepEqual(diagnostic.range.start, { line: 4, character: 2 });
@@ -59,7 +59,7 @@ test('publishes backend findings as diagnostics with CWE, evidence, and sources'
   assert.equal(harness.controller.findAt(uri, { line: 4, character: 50 }).length, 0);
 
   const info = harness.logger.entries.find((entry) => entry.level === 'info');
-  assert.match(info.message, /Published 1 CRAFT-Sec finding/);
+  assert.match(info.message, /Published 1 Bug Dhor finding/);
 
   harness.controller.dispose();
 });
@@ -151,7 +151,7 @@ test('empty results clear diagnostics for the scan scope', () => {
   assert.deepEqual(harness.controller.getFindingsForUri(uri), []);
   assert.ok(
     harness.logger.entries.some(
-      (entry) => entry.level === 'debug' && /No CRAFT-Sec findings/.test(entry.message)
+      (entry) => entry.level === 'debug' && /No Bug Dhor findings/.test(entry.message)
     )
   );
 
@@ -232,7 +232,7 @@ test('malformed findings are discarded while valid findings are published', () =
   assert.ok(
     harness.logger.entries.some(
       (entry) =>
-        entry.level === 'warn' && /Discarded 1 invalid CRAFT-Sec finding/.test(entry.message)
+        entry.level === 'warn' && /Discarded 1 invalid Bug Dhor finding/.test(entry.message)
     )
   );
 

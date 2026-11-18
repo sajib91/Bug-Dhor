@@ -39,17 +39,17 @@ function assertCompleteRegistry(registry) {
 
   const missing = [...expected].filter((commandId) => !actual.has(commandId));
   if (missing.length > 0) {
-    throw new Error(`CRAFT-Sec commands were not registered: ${missing.join(', ')}`);
+    throw new Error(`Bug Dhor commands were not registered: ${missing.join(', ')}`);
   }
 
   const unexpected = [...actual].filter((commandId) => !expected.has(commandId));
   if (unexpected.length > 0) {
-    throw new Error(`CRAFT-Sec registered undeclared commands: ${unexpected.join(', ')}`);
+    throw new Error(`Bug Dhor registered undeclared commands: ${unexpected.join(', ')}`);
   }
 }
 
 /**
- * Register every CRAFT-Sec command.
+ * Register every Bug Dhor command.
  *
  * Dependencies are injected so unit tests can register commands against fake
  * VS Code and service objects without importing the VS Code runtime.
@@ -96,7 +96,7 @@ function registerCommands({ vscode, service, logger, dashboard, diagnostics }) {
     throw error;
   }
 
-  logger.debug(`Registered ${registry.size} CRAFT-Sec commands.`);
+  logger.debug(`Registered ${registry.size} Bug Dhor commands.`);
   return registry;
 }
 

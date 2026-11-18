@@ -76,6 +76,6 @@ test('dashboard client renders explainability evidence sections and source navig
 
 test('dashboard client validates commands before posting them', () => {
   assert.ok(source.includes('safeCommandPattern'));
-  assert.ok(source.includes('/^craftsec\\.[A-Za-z][A-Za-z0-9]*$/'));
+  assert.ok(source.includes('/^bugdhor\\.[A-Za-z][A-Za-z0-9]*$/'));
   assert.ok(source.includes('command: action.command'));
 });

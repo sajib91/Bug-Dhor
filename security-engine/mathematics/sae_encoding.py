@@ -110,7 +110,7 @@ class SAEParameters:
         """Build parameters from a compatible PyTorch SAE module.
 
         The module must expose ``encoder`` and ``decoder`` ``nn.Linear``
-        layers, matching ``craftsec.sae.model.SparseAutoencoder``.
+        layers, matching ``bugdhor.sae.model.SparseAutoencoder``.
         """
         if not hasattr(module, "encoder") or not hasattr(module, "decoder"):
             raise TypeError("module must expose encoder and decoder linear layers")

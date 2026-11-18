@@ -58,7 +58,7 @@ test('hover explains a finding with severity, CWE, evidence, sources, and repair
 
   assert.ok(hover);
   assert.equal(hover.contents.isTrusted, false);
-  assert.ok(hover.contents.value.includes('CRAFT-Sec: User input reaches a SQL query\\.'));
+  assert.ok(hover.contents.value.includes('Bug Dhor: User input reaches a SQL query\\.'));
   assert.match(hover.contents.value, /\*\*Severity:\*\* High/);
   assert.match(
     hover.contents.value,
@@ -70,7 +70,7 @@ test('hover explains a finding with severity, CWE, evidence, sources, and repair
   assert.match(hover.contents.value, /SELECT \* FROM users/);
   assert.match(hover.contents.value, /\*\*Sources\*\*/);
   assert.match(hover.contents.value, /<https:\/\/cwe\.mitre\.org\/data\/definitions\/89\.html>/);
-  assert.match(hover.contents.value, /Available from the CRAFT-Sec Quick Fix menu/);
+  assert.match(hover.contents.value, /Available from the Bug Dhor Quick Fix menu/);
   assert.ok(hover.contents.value.includes('Use a parameterized query\\.'));
   assert.deepEqual(hover.range.start, { line: 4, character: 2 });
   assert.deepEqual(hover.range.end, { line: 4, character: 42 });
@@ -155,12 +155,12 @@ test('hover escapes backend Markdown and combines overlapping findings', () => {
   assert.deepEqual(hover.range.start, { line: 4, character: 2 });
   assert.deepEqual(hover.range.end, { line: 6, character: 10 });
   assert.equal(escapeMarkdown('a_b'), 'a\\_b');
-  assert.match(buildHoverMarkdown([first]), /CRAFT-Sec/);
+  assert.match(buildHoverMarkdown([first]), /Bug Dhor/);
 });
 
 test('a repair Quick Fix is offered only for explicitly eligible findings', () => {
   const finding = createFinding();
-  const diagnostic = { source: 'CRAFT-Sec' };
+  const diagnostic = { source: 'Bug Dhor' };
   const { provider } = createCodeActionProvider([finding], new Map([[finding, diagnostic]]));
 
   const actions = provider.provideCodeActions(
@@ -173,7 +173,7 @@ test('a repair Quick Fix is offered only for explicitly eligible findings', () =
 
   assert.equal(actions.length, 1);
   const [action] = actions;
-  assert.equal(action.title, 'CRAFT-Sec: Repair CWE-89');
+  assert.equal(action.title, 'Bug Dhor: Repair CWE-89');
   assert.equal(action.kind, 'quickfix');
   assert.equal(action.command.command, COMMANDS.repairVulnerability);
   assert.equal(action.command.title, action.title);
@@ -222,7 +222,7 @@ test('registerDiagnostics registers one collection, hover provider, and Quick Fi
   const feature = registerDiagnostics({ vscode: fake.vscode, logger: fake.logger });
 
   assert.equal(fake.collections.length, 1);
-  assert.equal(fake.collections[0].name, 'craftsec');
+  assert.equal(fake.collections[0].name, 'bugdhor');
   assert.equal(fake.registry.registrations.length, 2);
 
   const hover = fake.registry.registrations.find((entry) => entry.kind === 'hover');

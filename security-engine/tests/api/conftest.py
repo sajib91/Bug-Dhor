@@ -8,8 +8,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from craftsec.api.app import create_app
-from craftsec.core.settings import Settings
+from bugdhor.api.app import create_app
+from bugdhor.core.settings import Settings
 
 SAMPLE_SOURCE = """\
 import sqlite3

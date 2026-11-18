@@ -5,7 +5,7 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from craftsec.static import (
+from bugdhor.static import (
     BanditAdapter,
     BanditConfig,
     CodeQLAdapter,

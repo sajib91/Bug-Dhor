@@ -9,17 +9,17 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from craftsec.counterfactual.higher_order import (
+from bugdhor.counterfactual.higher_order import (
     FeatureSubset,
     estimate_higher_order,
     generate_feature_subsets,
 )
-from craftsec.counterfactual.pairwise import (
+from bugdhor.counterfactual.pairwise import (
     PairwiseCell,
     estimate_interaction,
     select_feature_pairs,
 )
-from craftsec.counterfactual.validation import (
+from bugdhor.counterfactual.validation import (
     BootstrapContrast,
     bootstrap_mean_interval,
     factorial_unit_contrasts,
@@ -28,22 +28,22 @@ from craftsec.counterfactual.validation import (
     sigmoid,
     stability_summary,
 )
-from craftsec.evaluation.statistics import (
+from bugdhor.evaluation.statistics import (
     benjamini_hochberg,
     bootstrap_ci,
     holm_bonferroni,
     paired_comparison,
     paired_t_test,
 )
-from craftsec.sae import SAEConfig, SparseAutoencoder
-from craftsec.sae.association import (
+from bugdhor.sae import SAEConfig, SparseAutoencoder
+from bugdhor.sae.association import (
     CodeSampleLabel,
     FeatureExperimentMetadata,
     FeatureSample,
     analyze_features,
 )
-from craftsec.sae.metrics import feature_statistics, validation_metrics
-from craftsec.steering.engine import SteeringSpec
+from bugdhor.sae.metrics import feature_statistics, validation_metrics
+from bugdhor.steering.engine import SteeringSpec
 
 # --- SAE boundaries --------------------------------------------------------
 

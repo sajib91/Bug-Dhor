@@ -7,15 +7,15 @@ import pytest
 torch = pytest.importorskip("torch")
 
 import reference as ref
-from craftsec.counterfactual.higher_order import preselect_features
-from craftsec.counterfactual.pairwise import select_association_pairs
-from craftsec.sae.association import (
+from bugdhor.counterfactual.higher_order import preselect_features
+from bugdhor.counterfactual.pairwise import select_association_pairs
+from bugdhor.sae.association import (
     CodeSampleLabel,
     FeatureExperimentMetadata,
     FeatureSample,
     analyze_features,
 )
-from craftsec.sae.metrics import feature_statistics
+from bugdhor.sae.metrics import feature_statistics
 
 
 def _metadata() -> FeatureExperimentMetadata:

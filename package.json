@@ -1,8 +1,8 @@
 {
-  "name": "craft-sec-monorepo",
+  "name": "bug-dhor-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "CRAFT-Sec monorepo: VS Code extension and Python security engine",
+  "description": "Bug Dhor monorepo: VS Code extension and Python security engine",
   "workspaces": [
     "vscode-extension"
   ],

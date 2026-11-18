@@ -73,7 +73,7 @@ class FindingCodeActionProvider {
    */
   createRepairAction(finding) {
     const label = finding.cwe ?? finding.ruleId ?? finding.id;
-    const title = `CRAFT-Sec: Repair ${label}`;
+    const title = `Bug Dhor: Repair ${label}`;
     const action = new this.vscode.CodeAction(title, this.vscode.CodeActionKind.QuickFix);
     action.command = {
       command: COMMANDS.repairVulnerability,

@@ -40,7 +40,7 @@
 /** @typedef {'critical' | 'high' | 'medium' | 'low' | 'info'} FindingSeverity */
 /** @typedef {'error' | 'warning' | 'information' | 'hint'} SeverityKind */
 
-const DIAGNOSTIC_SOURCE = 'CRAFT-Sec';
+const DIAGNOSTIC_SOURCE = 'Bug Dhor';
 
 /** @type {Readonly<Record<FindingSeverity, SeverityKind>>} */
 const SEVERITY_KINDS = Object.freeze({

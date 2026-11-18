@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from craftsec.api.schemas.scan import FileContext
+from bugdhor.api.schemas.scan import FileContext
 
 
 def _file_uri(api) -> str:

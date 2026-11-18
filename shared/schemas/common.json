@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/common.json",
-  "title": "CRAFT-Sec Common Contract Definitions",
-  "description": "Shared definitions for CRAFT-Sec frontend/backend payloads. Payload schemas reference these definitions by relative URI.",
+  "$id": "https://bugdhor.local/schemas/v1/common.json",
+  "title": "Bug Dhor Common Contract Definitions",
+  "description": "Shared definitions for Bug Dhor frontend/backend payloads. Payload schemas reference these definitions by relative URI.",
   "$defs": {
     "ContractVersion": {
       "const": "v1"

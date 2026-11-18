@@ -9,9 +9,9 @@ const { createNonce } = require('./csp');
 const { createDashboardHtml } = require('./dashboardHtml');
 const { createEmptyDashboardState } = require('./dashboardModel');
 
-const DASHBOARD_VIEW_TYPE = 'craftsec.dashboard';
-const DASHBOARD_TITLE = 'CRAFT-Sec Security Dashboard';
-const SETTINGS_QUERY = 'craftsec';
+const DASHBOARD_VIEW_TYPE = 'bugdhor.dashboard';
+const DASHBOARD_TITLE = 'Bug Dhor Security Dashboard';
+const SETTINGS_QUERY = 'bugdhor';
 
 function hashText(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
@@ -99,7 +99,7 @@ class DashboardPanelController {
       panel.onDidDispose(() => this.handleDispose(panel))
     ];
 
-    this.logger.info('Opened the CRAFT-Sec security dashboard.');
+    this.logger.info('Opened the Bug Dhor security dashboard.');
     return panel;
   }
 
@@ -216,7 +216,7 @@ class DashboardPanelController {
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       this.logger.error(`Unable to open dashboard source location: ${detail}`, error);
-      this.postNotice('error', 'Unable to open the requested source location. See CRAFT-Sec logs.');
+      this.postNotice('error', 'Unable to open the requested source location. See Bug Dhor logs.');
     }
   }
 
@@ -239,7 +239,7 @@ class DashboardPanelController {
     }
     this.state = this.buildCurrentState();
     this.postState();
-    this.logger.debug('Refreshed the CRAFT-Sec security dashboard.');
+    this.logger.debug('Refreshed the Bug Dhor security dashboard.');
   }
 
   postState() {
@@ -351,7 +351,7 @@ class DashboardPanelController {
           'vscode.diff',
           this.vscode.Uri.parse(record.uri),
           preview.uri,
-          `CRAFT-Sec Repair Preview: ${record.id}`
+          `Bug Dhor Repair Preview: ${record.id}`
         );
       } catch (error) {
         this.postNotice(
@@ -375,7 +375,7 @@ class DashboardPanelController {
         return;
       }
       const approval = await this.vscode.window.showWarningMessage(
-        'Apply this CRAFT-Sec repair patch to the source file?',
+        'Apply this Bug Dhor repair patch to the source file?',
         { modal: true },
         'Apply Patch'
       );
@@ -478,7 +478,7 @@ class DashboardPanelController {
         status: record.status,
         verificationStatus: record.verificationStatus,
         baseSnapshotId: record.baseHash,
-        generator: record.metadata.modelId ?? 'CRAFT-Sec backend',
+        generator: record.metadata.modelId ?? 'Bug Dhor backend',
         patch: record.patch,
         candidates: record.candidates,
         riskNotes: record.metadata.riskNotes ?? [],
@@ -512,7 +512,7 @@ class DashboardPanelController {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to start dashboard command ${command}: ${message}`, error);
-      this.postNotice('error', `Unable to run the requested command. See CRAFT-Sec logs.`);
+      this.postNotice('error', `Unable to run the requested command. See Bug Dhor logs.`);
     }
   }
 
@@ -521,8 +521,8 @@ class DashboardPanelController {
       await this.vscode.commands.executeCommand('workbench.action.openSettings', SETTINGS_QUERY);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Unable to open CRAFT-Sec settings: ${message}`, error);
-      this.postNotice('error', 'Unable to open VS Code settings. See CRAFT-Sec logs.');
+      this.logger.error(`Unable to open Bug Dhor settings: ${message}`, error);
+      this.postNotice('error', 'Unable to open VS Code settings. See Bug Dhor logs.');
     }
   }
 
@@ -550,7 +550,7 @@ class DashboardPanelController {
     this.repairRecords.clear();
     this.repairHistory = [];
     this.disposeListeners();
-    this.logger.debug('Closed the CRAFT-Sec security dashboard.');
+    this.logger.debug('Closed the Bug Dhor security dashboard.');
   }
 
   disposeListeners() {

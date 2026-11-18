@@ -4,8 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from craftsec.api.app import create_app
-from craftsec.core.settings import Settings
+from bugdhor.api.app import create_app
+from bugdhor.core.settings import Settings
 
 
 def _client(tmp_path: Path, **overrides: object) -> TestClient:
@@ -50,7 +50,7 @@ def test_auth_does_not_block_preflight_or_the_local_index(tmp_path: Path) -> Non
 
     assert preflight.status_code != 401
     assert index.status_code == 200
-    assert index.json()["service"] == "craftsec-engine"
+    assert index.json()["service"] == "bugdhor-engine"
 
 
 def test_cors_allows_only_configured_origins(tmp_path: Path) -> None:

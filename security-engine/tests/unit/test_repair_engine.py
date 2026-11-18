@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from craftsec.core.settings import Settings
-from craftsec.repair import (
+from bugdhor.core.settings import Settings
+from bugdhor.repair import (
     MandatoryConstraints,
     RepairConstraints,
     RepairEngine,

@@ -80,7 +80,7 @@ test('post sends JSON and a bearer token when configured', async () => {
 
 test('problem details become a typed error with code, details, and request ID', async () => {
   const problem = {
-    type: 'https://craftsec.local/problems/validation',
+    type: 'https://bugdhor.local/problems/validation',
     title: 'Request validation failed',
     status: 422,
     code: 'E_VALIDATION',

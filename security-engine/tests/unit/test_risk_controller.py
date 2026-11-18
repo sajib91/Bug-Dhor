@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from craftsec.steering import (
+from bugdhor.steering import (
     CalibrationRequest,
     CalibrationResult,
     CweRiskController,

@@ -21,7 +21,7 @@ def test_openapi_exposes_exactly_the_versioned_operations(api) -> None:
     schema = response.json()
     operations = {(method, path) for path, methods in schema["paths"].items() for method in methods}
     assert operations == REQUIRED_OPERATIONS
-    assert schema["info"]["title"] == "CRAFT-Sec Security Engine API"
+    assert schema["info"]["title"] == "Bug Dhor Security Engine API"
     assert schema["info"]["version"] == "0.1.0"
 
 

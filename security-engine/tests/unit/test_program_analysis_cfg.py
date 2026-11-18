@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.parsing.models import SupportedLanguage
-from craftsec.program_analysis import (
+from bugdhor.parsing.models import SupportedLanguage
+from bugdhor.program_analysis import (
     CFGEdgeKind,
     CFGNodeKind,
     InstructionKind,
@@ -12,7 +12,7 @@ from craftsec.program_analysis import (
     build_function_cfg,
     build_module_cfg,
 )
-from craftsec.program_analysis.cfg import ControlFlowGraph
+from bugdhor.program_analysis.cfg import ControlFlowGraph
 
 
 def block_with_text(graph: ControlFlowGraph, text: str):

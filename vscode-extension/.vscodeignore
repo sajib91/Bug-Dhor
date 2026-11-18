@@ -23,8 +23,8 @@ build/**
 *.env
 
 # Local data, databases, caches, and logs
-.craftsec-data/**
-.craftsec/**
+.bugdhor-data/**
+.bugdhor/**
 artifacts/**
 logs/**
 *.log

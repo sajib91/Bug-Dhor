@@ -8,7 +8,7 @@
  * configuration object when it creates a service.
  */
 
-const SECTION = 'craftsec';
+const SECTION = 'bugdhor';
 const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8765';
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_HEALTH_TIMEOUT_MS = 3_000;
@@ -42,7 +42,7 @@ class ConfigurationError extends Error {
 function normalizeBackendUrl(value) {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new ConfigurationError(
-      'craftsec.backend.url must be a non-empty HTTP or HTTPS URL.',
+      'bugdhor.backend.url must be a non-empty HTTP or HTTPS URL.',
       'E_INVALID_BACKEND_URL'
     );
   }
@@ -52,38 +52,38 @@ function normalizeBackendUrl(value) {
     parsed = new URL(value.trim());
   } catch {
     throw new ConfigurationError(
-      `craftsec.backend.url is not a valid URL: ${value}`,
+      `bugdhor.backend.url is not a valid URL: ${value}`,
       'E_INVALID_BACKEND_URL'
     );
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new ConfigurationError(
-      'craftsec.backend.url must use the http: or https: scheme.',
+      'bugdhor.backend.url must use the http: or https: scheme.',
       'E_INVALID_BACKEND_URL'
     );
   }
   if (!parsed.hostname) {
     throw new ConfigurationError(
-      'craftsec.backend.url must include a host name.',
+      'bugdhor.backend.url must include a host name.',
       'E_INVALID_BACKEND_URL'
     );
   }
   if (parsed.username || parsed.password) {
     throw new ConfigurationError(
-      'craftsec.backend.url must not contain credentials. Configure authentication separately.',
+      'bugdhor.backend.url must not contain credentials. Configure authentication separately.',
       'E_INVALID_BACKEND_URL'
     );
   }
   if (parsed.search || parsed.hash) {
     throw new ConfigurationError(
-      'craftsec.backend.url must not contain a query string or fragment.',
+      'bugdhor.backend.url must not contain a query string or fragment.',
       'E_INVALID_BACKEND_URL'
     );
   }
   if (parsed.pathname !== '' && parsed.pathname !== '/') {
     throw new ConfigurationError(
-      'craftsec.backend.url must not contain a path. The extension appends /api/v1 itself.',
+      'bugdhor.backend.url must not contain a path. The extension appends /api/v1 itself.',
       'E_INVALID_BACKEND_URL'
     );
   }
@@ -123,13 +123,13 @@ function normalizeToken(value) {
  * Read an optional bearer token from the extension host environment.
  *
  * Tokens are never written to settings, logs, or API responses. The backend
- * documents `CRAFTSEC_API_TOKEN`; the legacy engine alias is accepted too.
+ * documents `BUGDHOR_API_TOKEN`; the legacy engine alias is accepted too.
  *
  * @param {NodeJS.ProcessEnv} [environment]
  * @returns {string}
  */
 function getEnvironmentToken(environment = process.env) {
-  return normalizeToken(environment?.CRAFTSEC_API_TOKEN ?? environment?.CRAFTSEC_ENGINE_TOKEN);
+  return normalizeToken(environment?.BUGDHOR_API_TOKEN ?? environment?.BUGDHOR_ENGINE_TOKEN);
 }
 
 /**

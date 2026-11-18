@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from craftsec.detection.models import (
+from bugdhor.detection.models import (
     ClaimKind,
     EvidenceFamily,
     EvidenceItem,
@@ -12,14 +12,14 @@ from craftsec.detection.models import (
     VulnerabilityCategory,
     VulnerabilityFinding,
 )
-from craftsec.explain import (
+from bugdhor.explain import (
     CounterfactualReference,
     ExplainableVulnerabilityEngine,
     FeatureInteractionReference,
     SAEFeatureReference,
 )
-from craftsec.parsing.models import SourcePoint, SourceSpan
-from craftsec.program_analysis.taint import (
+from bugdhor.parsing.models import SourcePoint, SourceSpan
+from bugdhor.program_analysis.taint import (
     TaintConfidence,
     TaintFinding,
     TaintKind,
@@ -42,7 +42,7 @@ def test_explanation_separates_observed_hypothesis_and_validated_research() -> N
             evidence_type=EvidenceType.AST,
             family=EvidenceFamily.PROGRAM_ANALYSIS,
             claim_kind=ClaimKind.OBSERVATION,
-            source="craftsec.ast",
+            source="bugdhor.ast",
             location=location,
             category=VulnerabilityCategory.SQL_INJECTION,
             cwe="CWE-89",

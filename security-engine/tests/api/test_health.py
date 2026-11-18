@@ -4,10 +4,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from craftsec.api.app import create_app
-from craftsec.core.orchestrator import Orchestrator
-from craftsec.core.pipeline import StageResult, StageStatus
-from craftsec.core.settings import Settings
+from bugdhor.api.app import create_app
+from bugdhor.core.orchestrator import Orchestrator
+from bugdhor.core.pipeline import StageResult, StageStatus
+from bugdhor.core.settings import Settings
 
 EXPECTED_CAPABILITIES = {
     "scan_file",
@@ -38,7 +38,7 @@ def test_health_reports_service_and_capabilities(api) -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["service"] == "craftsec-engine"
+    assert body["service"] == "bugdhor-engine"
     assert body["status"] == "ok"
     assert body["version"]
     assert body["apiVersion"] == "v1"

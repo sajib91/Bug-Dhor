@@ -27,7 +27,7 @@ function reportScanAvailability({ vscode, logger }, label, result) {
     return;
   }
   const message =
-    `CRAFT-Sec: ${label} reached the backend, but analysis is unavailable. ` +
+    `Bug Dhor: ${label} reached the backend, but analysis is unavailable. ` +
     'No findings or security conclusion were produced.';
   logger.warn(message);
   void vscode.window.showWarningMessage(message);

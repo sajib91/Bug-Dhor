@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Validation for CRAFT-Sec HTTP response contracts.
+ * Validation for Bug Dhor HTTP response contracts.
  *
  * The backend reports unimplemented capabilities as `unavailable`. These
  * validators preserve that distinction: they never turn an unavailable stage

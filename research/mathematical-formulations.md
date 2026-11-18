@@ -1,4 +1,4 @@
-# CRAFT-Sec — Mathematical Formulations
+# Bug Dhor — Mathematical Formulations
 
 **Purpose.** A precise reference for every mathematical formulation in `Research.txt`, with variables, assumptions, correctness notes, and — where the paper is under-specified — a defensible operational form. This document is descriptive; it does not change any algorithm.
 

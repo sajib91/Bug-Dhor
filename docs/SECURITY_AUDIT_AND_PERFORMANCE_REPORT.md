@@ -1,14 +1,14 @@
-# CRAFT-Sec Security Audit and Performance Report
+# Bug Dhor Security Audit and Performance Report
 
 **Date:** 2026-11-16 (workspace local execution)  
-**Scope:** VS Code extension (`vscode-extension/`), FastAPI backend/API (`security-engine/src/craftsec/api`, `core`, routes/schemas), analysis/repair/verification/sandbox components, temp/log/persistence handling, dependencies, and local performance characteristics.  
+**Scope:** VS Code extension (`vscode-extension/`), FastAPI backend/API (`security-engine/src/bugdhor/api`, `core`, routes/schemas), analysis/repair/verification/sandbox components, temp/log/persistence handling, dependencies, and local performance characteristics.  
 **Method:** Static code review, targeted code hardening/optimization, available automated checks/tests, and controlled runtime measurements.
 
-> **Important:** This report does **not** claim that CRAFT-Sec is secure. Passing static analysis, linting, or targeted tests does **not** prove the absence of vulnerabilities, correctness issues, prompt-injection resilience, sandbox escapes, or unsafe behavior in untested environments/configurations.
+> **Important:** This report does **not** claim that Bug Dhor is secure. Passing static analysis, linting, or targeted tests does **not** prove the absence of vulnerabilities, correctness issues, prompt-injection resilience, sandbox escapes, or unsafe behavior in untested environments/configurations.
 
 ## 1. Executive Summary
 
-- **Implemented mitigations (this pass):** hardened LLM repair prompt construction against prompt injection by treating repository/source/evidence/finding content as untrusted data with explicit delimiters/instructions (`security-engine/src/craftsec/repair/engine.py`); tightened VS Code repair patch path normalization/validation before diff preview/apply (`vscode-extension/src/repair/patchApplication.js`); added in-process file-analysis caching and workspace scan efficiency controls (cached parse/AST-CFG-DFG/taint reuse, reduced progress overhead, bounded static-analyzer target fanout, cache metrics in stage reports) in `security-engine/src/craftsec/core/orchestrator.py`; updated affected API contract tests to match integrated honest behavior (`security-engine/tests/api/test_analysis.py`, `security-engine/tests/api/test_health.py`).
+- **Implemented mitigations (this pass):** hardened LLM repair prompt construction against prompt injection by treating repository/source/evidence/finding content as untrusted data with explicit delimiters/instructions (`security-engine/src/bugdhor/repair/engine.py`); tightened VS Code repair patch path normalization/validation before diff preview/apply (`vscode-extension/src/repair/patchApplication.js`); added in-process file-analysis caching and workspace scan efficiency controls (cached parse/AST-CFG-DFG/taint reuse, reduced progress overhead, bounded static-analyzer target fanout, cache metrics in stage reports) in `security-engine/src/bugdhor/core/orchestrator.py`; updated affected API contract tests to match integrated honest behavior (`security-engine/tests/api/test_analysis.py`, `security-engine/tests/api/test_health.py`).
 - **Validated:** `py_compile` for modified Python modules; `node --check` for modified extension module; extension unit tests (**230 passed**); focused backend API/integration suites (**30 passed**: `tests/api/test_analysis.py`, `tests/api/test_health.py`, `tests/integration`); `python -m pip check` clean; `npm audit --omit=dev` reports 0 vulnerabilities.
 - **Not fully validated / unavailable:** Semgrep/Bandit executables not installed in this environment; no CodeQL/Joern configured; no model/SAE/counterfactual/steering runtime artifacts; sandbox/functional execution environment-dependent (Docker/backend consent required); VS Code extension UI/runtime end-to-end flows not executed here; full regression suite not rerun after behavior/integration changes; no licensed benchmark dataset experiments executed.
 - **Residual risk remains** in auth deployment posture, LLM/prompt-injection handling, sandbox isolation guarantees, dependency supply chain, large-input/resource exhaustion, sensitive-data persistence, and untested integration paths.
@@ -40,7 +40,7 @@
 - **Residual risks:** CSP effectiveness depends on consistent use across all webviews and no unsafe dynamic HTML insertion outside escaping helpers.
 
 ### 3.3 Backend API authentication where required
-- **Observed:** Optional per-launch bearer token enforced by `BearerTokenMiddleware` for `/api/*` when `CRAFTSEC_API_TOKEN` is configured (`security-engine/src/craftsec/api/middleware/auth.py`, wired in `api/app.py`); constant-time comparison via `secrets.compare_digest`; 401 problem response on missing/invalid token.
+- **Observed:** Optional per-launch bearer token enforced by `BearerTokenMiddleware` for `/api/*` when `BUGDHOR_API_TOKEN` is configured (`security-engine/src/bugdhor/api/middleware/auth.py`, wired in `api/app.py`); constant-time comparison via `secrets.compare_digest`; 401 problem response on missing/invalid token.
 - **Residual risks:** **No auth by default** (local-development posture). No RBAC/multi-user auth, no rate limiting/throttling middleware observed, and CORS is configurable (wildcard rejected in settings validation). If exposed beyond trusted localhost, endpoints could be abused for resource consumption or unauthorized analysis/repair/verification operations.
 
 ### 3.4 API input validation
@@ -52,7 +52,7 @@
 - **Residual risks:** Any new file-write or artifact path handling must preserve containment checks; repair workflow/patch engines have complex diff parsing logic that should be fuzz-tested.
 
 ### 3.6 Command injection
-- **Observed:** Static/sandbox subprocess execution uses argv lists with `shell=False`, sanitized environments, NUL-byte checks, bounded capture, and timeouts (`security-engine/src/craftsec/static/execution.py`, `sandbox/executor.py`). No direct `os.system`/`shell=True` usage found in engine source review.
+- **Observed:** Static/sandbox subprocess execution uses argv lists with `shell=False`, sanitized environments, NUL-byte checks, bounded capture, and timeouts (`security-engine/src/bugdhor/static/execution.py`, `sandbox/executor.py`). No direct `os.system`/`shell=True` usage found in engine source review.
 - **Residual risks:** External analyzer binaries (semgrep/bandit/codeql/joern) and container runtime behavior are outside application control; misconfiguration of executable paths/arguments could still create risk.
 
 ### 3.7 Subprocess execution
@@ -69,11 +69,11 @@
 
 ### 3.10 LLM prompt injection
 - **Observed risk:** Repair prompt previously embedded source, findings, evidence, and repo context directly into prompt text.
-- **Mitigation implemented:** `RepairPromptBuilder.build` now frames system/task instructions, explicitly treats all `<untrusted_*>` content (finding, security evidence, repository context metadata, source file) as data, instructs model to ignore embedded instructions/role changes/secret requests, and requires unified-diff-only output (`security-engine/src/craftsec/repair/engine.py`).
+- **Mitigation implemented:** `RepairPromptBuilder.build` now frames system/task instructions, explicitly treats all `<untrusted_*>` content (finding, security evidence, repository context metadata, source file) as data, instructs model to ignore embedded instructions/role changes/secret requests, and requires unified-diff-only output (`security-engine/src/bugdhor/repair/engine.py`).
 - **Residual risks:** Prompt hardening **reduces but does not eliminate** prompt injection/jailbreak/model-misbehavior risk. Generated patches remain untrusted and must pass independent validation/verification and explicit user approval before application.
 
 ### 3.11 Workspace data exposure
-- **Observed controls:** `craftsec.privacy.sendSourceText` controls source/selection sharing from extension; workspace scans send folder metadata only per service comments; backend enforces workspace-root containment and file size/type limits; CORS/auth/size limits reduce exposure in configured deployments.
+- **Observed controls:** `bugdhor.privacy.sendSourceText` controls source/selection sharing from extension; workspace scans send folder metadata only per service comments; backend enforces workspace-root containment and file size/type limits; CORS/auth/size limits reduce exposure in configured deployments.
 - **Residual risks:** Source text may be transmitted to local backend when enabled; job/result artifacts and logs (on failure paths in dependencies) can expose sensitive project information to local disk/users with filesystem access.
 
 ### 3.12 Generated patch application
@@ -97,7 +97,7 @@
 
 | Check | Result |
 |---|---|
-| `python3 -m py_compile` (modified engine files) | Passed (`security-engine/src/craftsec/core/orchestrator.py`, `security-engine/src/craftsec/repair/engine.py`) |
+| `python3 -m py_compile` (modified engine files) | Passed (`security-engine/src/bugdhor/core/orchestrator.py`, `security-engine/src/bugdhor/repair/engine.py`) |
 | `node --check` (modified extension file) | Passed (`vscode-extension/src/repair/patchApplication.js`) |
 | `node --test vscode-extension/test/unit/*.test.js` | **230 passed, 0 failed** |
 | `pytest security-engine/tests/api/test_analysis.py security-engine/tests/api/test_health.py security-engine/tests/integration -q` | **30 passed, 0 failed** (after updating tests for honest integrated scan/detection/explanation/capability behavior) |
@@ -147,7 +147,7 @@ Measurements used FastAPI `TestClient` with a temporary workspace (2 controlled 
 
 ## 6. Unresolved Risks and Recommended Follow-ups
 
-1. **Default no-auth local API:** enforce/guide `CRAFTSEC_API_TOKEN`, bind to loopback, and add rate limiting/throttling for exposed deployments.
+1. **Default no-auth local API:** enforce/guide `BUGDHOR_API_TOKEN`, bind to loopback, and add rate limiting/throttling for exposed deployments.
 2. **Prompt injection / model safety:** add stricter output schema enforcement, allowlist-based diff constraints, content filtering/red-teaming, and never trust LLM output without independent checks.
 3. **Sandbox assurance:** validate Docker/VM isolation with adversarial tests; harden images, mounts, seccomp/apparmor, resource quotas, and egress controls per deployment.
 4. **Path/diff handling robustness:** fuzz unified-diff parsing/apply in both engine and extension; enforce canonical target mapping across multi-file scenarios (currently constrained).
@@ -159,4 +159,4 @@ Measurements used FastAPI `TestClient` with a temporary workspace (2 controlled 
 
 ## 7. Final Statement
 
-CRAFT-Sec includes meaningful safeguards (workspace containment, request limits, optional API token auth, strict webview CSP/command allowlisting, isolated execution controls, independent verification design, and honest unavailable-state reporting), but **it must not be claimed secure merely because static analysis passes**. Security depends on correct configuration, trusted deployment boundaries, sandbox/runtime guarantees, dependency hygiene, model/prompt robustness, and comprehensive validation that was only partially possible in this environment.
+Bug Dhor includes meaningful safeguards (workspace containment, request limits, optional API token auth, strict webview CSP/command allowlisting, isolated execution controls, independent verification design, and honest unavailable-state reporting), but **it must not be claimed secure merely because static analysis passes**. Security depends on correct configuration, trusted deployment boundaries, sandbox/runtime guarantees, dependency hygiene, model/prompt robustness, and comprehensive validation that was only partially possible in this environment.

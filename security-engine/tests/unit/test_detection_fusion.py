@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.detection.config import DetectionConfig, FusionWeights
-from craftsec.detection.context import ContextAssessor
-from craftsec.detection.fusion import (
+from bugdhor.detection.config import DetectionConfig, FusionWeights
+from bugdhor.detection.context import ContextAssessor
+from bugdhor.detection.fusion import (
     CalibrationProvider,
     fuse_evidence,
     with_calibration,
 )
-from craftsec.detection.models import (
+from bugdhor.detection.models import (
     CalibratedProbability,
     ClaimKind,
     EvidenceFamily,
@@ -29,8 +29,8 @@ from craftsec.detection.models import (
     VulnerabilityCategory,
     stable_finding_id,
 )
-from craftsec.parsing import parse_source
-from craftsec.program_analysis import analyze_parsed
+from bugdhor.parsing import parse_source
+from bugdhor.program_analysis import analyze_parsed
 
 _SPLIT_HASH = "a" * 64
 
@@ -67,7 +67,7 @@ def _item(
             if polarity is EvidencePolarity.SUPPORTS
             else ClaimKind.OBSERVATION
         ),
-        source="craftsec.ast" if family is EvidenceFamily.PROGRAM_ANALYSIS else "semgrep",
+        source="bugdhor.ast" if family is EvidenceFamily.PROGRAM_ANALYSIS else "semgrep",
         location=location or _location(),
         category=category,
         cwe=cwe,
@@ -111,7 +111,7 @@ class _FixedCalibrator:
             value=self.probability,
             calibrator_artifact_id="calibrator-2026-01",
             method="isotonic",
-            dataset_id="craftsec-bench-v3",
+            dataset_id="bugdhor-bench-v3",
             split_hash=_SPLIT_HASH,
             brier_score=0.08,
             expected_calibration_error=0.04,
@@ -371,7 +371,7 @@ def test_calibrated_probability_is_kept_separate_from_heuristic_risk() -> None:
     assert finding.risk.heuristic.value == pytest.approx(0.8)
     contract = finding.risk.to_contract_dict()
     assert contract["kind"] == "calibrated"
-    assert contract["calibrator"]["datasetId"] == "craftsec-bench-v3"
+    assert contract["calibrator"]["datasetId"] == "bugdhor-bench-v3"
     assert contract["calibrator"]["splitHash"] == _SPLIT_HASH
 
 

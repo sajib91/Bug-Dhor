@@ -13,8 +13,8 @@ const manifestPath = path.join(extensionRoot, 'package.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 test('identity fields match the approved extension identity', () => {
-  assert.equal(manifest.name, 'craft-sec');
-  assert.equal(manifest.displayName, 'CRAFT-Sec Security Framework');
+  assert.equal(manifest.name, 'bug-dhor');
+  assert.equal(manifest.displayName, 'Bug Dhor Security Framework');
   assert.equal(typeof manifest.description, 'string');
   assert.ok(manifest.description.length > 0);
   assert.equal(manifest.publisher, 'your-publisher-id');
@@ -45,7 +45,7 @@ test('commands are registered with a category and match shared IDs', () => {
   const commands = manifest.contributes?.commands ?? [];
   assert.deepEqual(commands.map((entry) => entry.command).sort(), [...expectedCommandIds()].sort());
   for (const entry of commands) {
-    assert.equal(entry.category, 'CRAFT-Sec');
+    assert.equal(entry.category, 'Bug Dhor');
     assert.equal(typeof entry.title, 'string');
   }
 });
@@ -65,7 +65,7 @@ test('command definitions are unique and match manifest titles and activation ev
     const contribution = contributions.get(definition.id);
     assert.ok(contribution, `${definition.id} must be contributed`);
     assert.equal(contribution.title, definition.title);
-    assert.equal(contribution.category, 'CRAFT-Sec');
+    assert.equal(contribution.category, 'Bug Dhor');
     assert.ok(
       activationEvents.includes(`onCommand:${definition.id}`),
       `${definition.id} must activate the extension`
@@ -105,18 +105,18 @@ test('activity bar container and sidebar webview are contributed', () => {
 test('configuration settings are declared', () => {
   const properties = manifest.contributes?.configuration?.properties ?? {};
   for (const key of [
-    'craftsec.backend.url',
-    'craftsec.backend.requestTimeoutMs',
-    'craftsec.backend.healthTimeoutMs',
-    'craftsec.privacy.sendSourceText',
-    'craftsec.backend.pythonPath',
-    'craftsec.backend.autoStart',
-    'craftsec.logging.level',
-    'craftsec.ui.showStatusBarItem'
+    'bugdhor.backend.url',
+    'bugdhor.backend.requestTimeoutMs',
+    'bugdhor.backend.healthTimeoutMs',
+    'bugdhor.privacy.sendSourceText',
+    'bugdhor.backend.pythonPath',
+    'bugdhor.backend.autoStart',
+    'bugdhor.logging.level',
+    'bugdhor.ui.showStatusBarItem'
   ]) {
     assert.ok(properties[key], `${key} must be declared`);
   }
-  assert.deepEqual(properties['craftsec.logging.level'].enum, [
+  assert.deepEqual(properties['bugdhor.logging.level'].enum, [
     'trace',
     'debug',
     'info',
@@ -124,10 +124,10 @@ test('configuration settings are declared', () => {
     'error',
     'off'
   ]);
-  assert.equal(properties['craftsec.backend.url'].default, 'http://127.0.0.1:8765');
-  assert.equal(properties['craftsec.backend.requestTimeoutMs'].default, 30000);
-  assert.equal(properties['craftsec.backend.healthTimeoutMs'].default, 3000);
-  assert.equal(properties['craftsec.privacy.sendSourceText'].default, true);
+  assert.equal(properties['bugdhor.backend.url'].default, 'http://127.0.0.1:8765');
+  assert.equal(properties['bugdhor.backend.requestTimeoutMs'].default, 30000);
+  assert.equal(properties['bugdhor.backend.healthTimeoutMs'].default, 3000);
+  assert.equal(properties['bugdhor.privacy.sendSourceText'].default, true);
 });
 
 test('extension icon is a valid 128x128 PNG', () => {

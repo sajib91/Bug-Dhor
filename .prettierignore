@@ -5,4 +5,4 @@ package-lock.json
 coverage/
 dist/
 build/
-.craftsec-data/
+.bugdhor-data/

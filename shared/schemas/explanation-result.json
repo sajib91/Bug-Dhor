@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/explanation-result.json",
+  "$id": "https://bugdhor.local/schemas/v1/explanation-result.json",
   "title": "ExplanationResult",
   "description": "An evidence-grounded explanation. Each claim retains its kind and evidence; an unavailable analysis must not contain claims or a graph.",
   "type": "object",

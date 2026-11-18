@@ -32,8 +32,8 @@ function isSupported(version) {
 }
 
 const candidates = [];
-if (process.env.CRAFTSEC_PYTHON) {
-  candidates.push({ command: process.env.CRAFTSEC_PYTHON, prefix: [] });
+if (process.env.BUGDHOR_PYTHON) {
+  candidates.push({ command: process.env.BUGDHOR_PYTHON, prefix: [] });
 }
 if (process.platform === 'win32') {
   candidates.push({ command: 'py', prefix: ['-3'] });
@@ -52,7 +52,7 @@ const selected = candidates.find(({ command, prefix }) =>
 if (!selected) {
   console.error(
     'Error: Python 3.11–3.14 is required. Install one from https://www.python.org/downloads/ ' +
-      'or set CRAFTSEC_PYTHON to its executable.'
+      'or set BUGDHOR_PYTHON to its executable.'
   );
   process.exit(1);
 }

@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from craftsec.core.errors import (
+from bugdhor.core.errors import (
     NotFoundAppError,
     ResourceLimitAppError,
     SecurityAppError,
     UnsupportedMediaAppError,
     ValidationAppError,
 )
-from craftsec.core.paths import (
+from bugdhor.core.paths import (
     ensure_allowed_root,
     enumerate_workspace_sources,
     inspect_source_file,
@@ -20,7 +20,7 @@ from craftsec.core.paths import (
     resolve_file,
     validate_selection,
 )
-from craftsec.core.settings import Settings
+from bugdhor.core.settings import Settings
 
 
 @pytest.fixture

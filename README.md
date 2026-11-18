@@ -1,8 +1,8 @@
-# CRAFT-Sec
+# Bug Dhor
 
 **Counterfactual Risk Analysis and Feature-aware Steering for Secure Code Generation.**
 
-CRAFT-Sec is a local-first research system for explainable vulnerability detection, SAE-based feature analysis, counterfactual multi-feature interaction analysis, interaction-aware activation steering, repository-aware repair, and independent security/functional verification. It is delivered as a JavaScript VS Code extension backed by a Python/FastAPI security engine.
+Bug Dhor is a local-first research system for explainable vulnerability detection, SAE-based feature analysis, counterfactual multi-feature interaction analysis, interaction-aware activation steering, repository-aware repair, and independent security/functional verification. It is delivered as a JavaScript VS Code extension backed by a Python/FastAPI security engine.
 
 ## Status
 
@@ -33,7 +33,7 @@ See [docs/research-alignment.md](docs/research-alignment.md) for the binding cla
 | `docs/` | Architecture, research alignment, ADRs |
 | `scripts/` | Development and validation tooling |
 
-Core research modules under `security-engine/src/craftsec/`:
+Core research modules under `security-engine/src/bugdhor/`:
 
 - `sae/` — genuine SAE model/training/association code; not yet wired to model capture or the API.
 - `features/` — **scaffold only**; feature extraction/aggregation is not implemented.
@@ -57,7 +57,7 @@ The engine server is runnable. From the repository root after setup:
 
 ```bash
 cd security-engine
-../.venv/bin/python -m craftsec
+../.venv/bin/python -m bugdhor
 ```
 
 It binds `127.0.0.1:8765` by default and serves OpenAPI at `/openapi.json` and `/docs`. See [docs/api.md](docs/api.md) for endpoints, limits, auth, and response contracts.

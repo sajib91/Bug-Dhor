@@ -26,9 +26,9 @@ npm-debug.log*
 *.vsix
 out/
 
-# CRAFT-Sec local data and artifacts
-.craftsec-data/
-.craftsec/
+# Bug Dhor local data and artifacts
+.bugdhor-data/
+.bugdhor/
 /artifacts/
 /models/
 /checkpoints/

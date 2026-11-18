@@ -1,9 +1,9 @@
 # Program analysis: CFG, DFG, and taint
 
-The Python package `craftsec.program_analysis` provides standalone
+The Python package `bugdhor.program_analysis` provides standalone
 intraprocedural control-flow graphs (CFGs) and data-flow graphs (DFGs), plus a
 configuration-driven taint analysis for the Python and JavaScript source that
-`craftsec.parsing` accepts. It is a library layer: no API route, workspace scan,
+`bugdhor.parsing` accepts. It is a library layer: no API route, workspace scan,
 detector, or VS Code command invokes it yet.
 
 The analysis is deliberately syntactic. It preserves exact source locations for
@@ -17,7 +17,7 @@ tracked by `LIM-PA-*` identifiers.
 ## Quick start
 
 ```python
-from craftsec.program_analysis import analyze_source
+from bugdhor.program_analysis import analyze_source
 
 source = """def classify(value):
     result = value + 1
@@ -37,13 +37,13 @@ print([(node.name, node.kind.value) for node in function_dfg.nodes])
 ```
 
 `analyze_file(path)` reads a UTF-8 file, and `analyze_parsed(parsed)` accepts an
-existing `craftsec.parsing.ParsedSource`. Callers handling untrusted paths must
-apply the workspace containment layer in `craftsec.core.paths` first.
+existing `bugdhor.parsing.ParsedSource`. Callers handling untrusted paths must
+apply the workspace containment layer in `bugdhor.core.paths` first.
 
 Taint analysis uses the same source input and an explicit rule set:
 
 ```python
-from craftsec.program_analysis import analyze_taint
+from bugdhor.program_analysis import analyze_taint
 
 source = """def handler(request):
     query = "SELECT * FROM users WHERE name = '" + request.args["name"] + "'"
@@ -244,7 +244,7 @@ rather than merging with them.
 | `TaintConfig` | Groups rules and caps path/finding output. It also has an `interprocedural` switch. |
 
 ```python
-from craftsec.program_analysis import (
+from bugdhor.program_analysis import (
     NameMatch,
     SanitizerRule,
     SinkRule,
@@ -362,7 +362,7 @@ spans and rule metadata; `json.dumps(analysis.to_dict())` is JSON-safe.
 
 Every instruction, basic block, CFG node/edge, DFG node/edge, taint graph
 node/edge, variable occurrence, call site, matched taint site, finding, and
-evidence-path step carries an exact `craftsec.parsing.SourceSpan`.
+evidence-path step carries an exact `bugdhor.parsing.SourceSpan`.
 Spans refer to the original source text, not the normalized parse buffer:
 
 - `byte_offset` is an absolute UTF-8 byte offset into the original source.

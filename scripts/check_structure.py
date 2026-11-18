@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the CRAFT-Sec monorepo scaffold.
+"""Validate the Bug Dhor monorepo scaffold.
 
 This is a structural check only. It does not import or execute application
 code, and it makes no claim about research functionality.
@@ -82,7 +82,7 @@ REQUIRED_DIRS = [
     "security-engine",
     "security-engine/migrations",
     "security-engine/src",
-    "security-engine/src/craftsec",
+    "security-engine/src/bugdhor",
     "security-engine/tests",
     "security-engine/tests/api",
     "security-engine/tests/unit",
@@ -204,36 +204,36 @@ REQUIRED_FILES = [
     "security-engine/README.md",
     "security-engine/LIMITATIONS.md",
     "security-engine/migrations/README.md",
-    "security-engine/src/craftsec/main.py",
-    "security-engine/src/craftsec/config.py",
-    "security-engine/src/craftsec/api/app.py",
-    "security-engine/src/craftsec/api/routes/__init__.py",
-    "security-engine/src/craftsec/api/schemas/common.py",
-    "security-engine/src/craftsec/api/middleware/__init__.py",
-    "security-engine/src/craftsec/core/errors.py",
-    "security-engine/src/craftsec/core/logging.py",
-    "security-engine/src/craftsec/core/paths.py",
-    "security-engine/src/craftsec/core/pipeline.py",
-    "security-engine/src/craftsec/core/orchestrator.py",
-    "security-engine/src/craftsec/core/settings.py",
-    "security-engine/src/craftsec/parsing/__init__.py",
-    "security-engine/src/craftsec/parsing/chunking.py",
-    "security-engine/src/craftsec/parsing/functions.py",
-    "security-engine/src/craftsec/parsing/languages.py",
-    "security-engine/src/craftsec/parsing/locations.py",
-    "security-engine/src/craftsec/parsing/metadata.py",
-    "security-engine/src/craftsec/parsing/models.py",
-    "security-engine/src/craftsec/parsing/normalization.py",
-    "security-engine/src/craftsec/parsing/parser.py",
-    "security-engine/src/craftsec/parsing/preprocess.py",
-    "security-engine/src/craftsec/parsing/tokens.py",
-    "security-engine/src/craftsec/program_analysis/__init__.py",
-    "security-engine/src/craftsec/program_analysis/analysis.py",
-    "security-engine/src/craftsec/program_analysis/cfg.py",
-    "security-engine/src/craftsec/program_analysis/dfg.py",
-    "security-engine/src/craftsec/program_analysis/models.py",
-    "security-engine/src/craftsec/program_analysis/taint.py",
-    "security-engine/src/craftsec/program_analysis/variables.py",
+    "security-engine/src/bugdhor/main.py",
+    "security-engine/src/bugdhor/config.py",
+    "security-engine/src/bugdhor/api/app.py",
+    "security-engine/src/bugdhor/api/routes/__init__.py",
+    "security-engine/src/bugdhor/api/schemas/common.py",
+    "security-engine/src/bugdhor/api/middleware/__init__.py",
+    "security-engine/src/bugdhor/core/errors.py",
+    "security-engine/src/bugdhor/core/logging.py",
+    "security-engine/src/bugdhor/core/paths.py",
+    "security-engine/src/bugdhor/core/pipeline.py",
+    "security-engine/src/bugdhor/core/orchestrator.py",
+    "security-engine/src/bugdhor/core/settings.py",
+    "security-engine/src/bugdhor/parsing/__init__.py",
+    "security-engine/src/bugdhor/parsing/chunking.py",
+    "security-engine/src/bugdhor/parsing/functions.py",
+    "security-engine/src/bugdhor/parsing/languages.py",
+    "security-engine/src/bugdhor/parsing/locations.py",
+    "security-engine/src/bugdhor/parsing/metadata.py",
+    "security-engine/src/bugdhor/parsing/models.py",
+    "security-engine/src/bugdhor/parsing/normalization.py",
+    "security-engine/src/bugdhor/parsing/parser.py",
+    "security-engine/src/bugdhor/parsing/preprocess.py",
+    "security-engine/src/bugdhor/parsing/tokens.py",
+    "security-engine/src/bugdhor/program_analysis/__init__.py",
+    "security-engine/src/bugdhor/program_analysis/analysis.py",
+    "security-engine/src/bugdhor/program_analysis/cfg.py",
+    "security-engine/src/bugdhor/program_analysis/dfg.py",
+    "security-engine/src/bugdhor/program_analysis/models.py",
+    "security-engine/src/bugdhor/program_analysis/taint.py",
+    "security-engine/src/bugdhor/program_analysis/variables.py",
     "security-engine/tests/conftest.py",
     "security-engine/tests/api/test_analysis.py",
     "security-engine/tests/api/test_errors.py",
@@ -314,9 +314,9 @@ def main() -> int:
     stale_paths = [path for path in MUST_NOT_EXIST if (ROOT / path).exists()]
 
     missing_package_files = [
-        f"security-engine/src/craftsec/{package}/__init__.py"
+        f"security-engine/src/bugdhor/{package}/__init__.py"
         for package in PACKAGES
-        if not (ROOT / "security-engine" / "src" / "craftsec" / package / "__init__.py").is_file()
+        if not (ROOT / "security-engine" / "src" / "bugdhor" / package / "__init__.py").is_file()
     ]
 
     typescript_files = find_typescript_files()
@@ -332,7 +332,7 @@ def main() -> int:
     )
     problems.extend(manifest_errors)
 
-    print("CRAFT-Sec structure check")
+    print("Bug Dhor structure check")
     print(f"Root: {ROOT}")
     print(f"Required directories: {len(REQUIRED_DIRS)}")
     print(f"Required files: {len(REQUIRED_FILES)}")

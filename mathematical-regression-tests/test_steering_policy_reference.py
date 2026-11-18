@@ -11,24 +11,24 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from craftsec.counterfactual.higher_order import (
+from bugdhor.counterfactual.higher_order import (
     HigherOrderInteractionEngine,
     generate_feature_subsets,
 )
-from craftsec.counterfactual.pairwise import FeaturePair, PairwiseInteractionEngine
-from craftsec.sae.association import (
+from bugdhor.counterfactual.pairwise import FeaturePair, PairwiseInteractionEngine
+from bugdhor.sae.association import (
     FeatureAssociation,
     FeatureDictionary,
     FeatureDictionaryEntry,
     FeatureExperimentMetadata,
     FeatureStability,
 )
-from craftsec.steering.adaptive import (
+from bugdhor.steering.adaptive import (
     AdaptiveSteeringConfig,
     AdaptiveSteeringContext,
     AdaptiveSteeringPolicy,
 )
-from craftsec.steering.risk_controller import (
+from bugdhor.steering.risk_controller import (
     CweRiskController,
     CweRiskPolicy,
     RiskAssessmentInput,

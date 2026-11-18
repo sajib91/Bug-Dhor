@@ -1,4 +1,4 @@
-"""Contract tests for the shared CRAFT-Sec JSON Schemas.
+"""Contract tests for the shared Bug Dhor JSON Schemas.
 
 The same schemas and fixtures are exercised by the JavaScript suite in
 ``vscode-extension/test/unit/sharedContracts.test.js``. These tests are the
@@ -136,7 +136,7 @@ def test_invalid_fixtures_are_rejected(
 def test_schemas_are_valid_draft_2020_12(schema_file: str) -> None:
     schema = SCHEMAS_BY_FILE[schema_file]
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-    assert schema["$id"].startswith("https://craftsec.local/schemas/v1/")
+    assert schema["$id"].startswith("https://bugdhor.local/schemas/v1/")
     Draft202012Validator.check_schema(schema)
 
 

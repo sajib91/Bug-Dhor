@@ -32,7 +32,7 @@ const FILE_URI = 'file:///workspace/src/app.js';
 
 function healthPayload(overrides = {}) {
   return {
-    service: 'craftsec-engine',
+    service: 'bugdhor-engine',
     status: 'ok',
     version: '0.1.0',
     apiVersion: 'v1',

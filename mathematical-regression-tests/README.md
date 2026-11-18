@@ -1,7 +1,7 @@
 # Mathematical regression tests
 
 This suite independently re-derives the numbers produced by the production
-`craftsec` package.  It is intentionally separate from
+`bugdhor` package.  It is intentionally separate from
 `security-engine/tests/` and from `security-engine/mathematics/`:
 
 * `security-engine/tests/` exercises product behaviour and contracts.

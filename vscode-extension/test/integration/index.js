@@ -29,7 +29,7 @@ function sha256(text) {
   return crypto.createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex');
 }
 
-function craftsecDiagnostics() {
+function bugdhorDiagnostics() {
   return vscode.languages
     .getDiagnostics()
     .flatMap(([uri, diagnostics]) =>
@@ -64,16 +64,16 @@ async function run() {
   assert.equal(typeof api.service.health, 'function');
   assert.equal(typeof api.configurationService.get, 'function');
 
-  const backendUrl = process.env.CRAFTSEC_E2E_BACKEND_URL;
-  const workspacePath = process.env.CRAFTSEC_E2E_WORKSPACE;
-  const sourcePath = process.env.CRAFTSEC_E2E_FILE;
-  const diskSha256 = process.env.CRAFTSEC_E2E_DISK_SHA256;
-  assert.ok(backendUrl, 'CRAFTSEC_E2E_BACKEND_URL must be provided by runTest.js');
-  assert.ok(workspacePath, 'CRAFTSEC_E2E_WORKSPACE must be provided by runTest.js');
-  assert.ok(sourcePath, 'CRAFTSEC_E2E_FILE must be provided by runTest.js');
-  assert.ok(diskSha256, 'CRAFTSEC_E2E_DISK_SHA256 must be provided by runTest.js');
+  const backendUrl = process.env.BUGDHOR_E2E_BACKEND_URL;
+  const workspacePath = process.env.BUGDHOR_E2E_WORKSPACE;
+  const sourcePath = process.env.BUGDHOR_E2E_FILE;
+  const diskSha256 = process.env.BUGDHOR_E2E_DISK_SHA256;
+  assert.ok(backendUrl, 'BUGDHOR_E2E_BACKEND_URL must be provided by runTest.js');
+  assert.ok(workspacePath, 'BUGDHOR_E2E_WORKSPACE must be provided by runTest.js');
+  assert.ok(sourcePath, 'BUGDHOR_E2E_FILE must be provided by runTest.js');
+  assert.ok(diskSha256, 'BUGDHOR_E2E_DISK_SHA256 must be provided by runTest.js');
 
-  const configuration = vscode.workspace.getConfiguration('craftsec');
+  const configuration = vscode.workspace.getConfiguration('bugdhor');
   await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Workspace);
   await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Workspace);
 
@@ -85,9 +85,9 @@ async function run() {
   }
 
   assert.equal(
-    craftsecDiagnostics().length,
+    bugdhorDiagnostics().length,
     0,
-    'activation must not publish hardcoded CRAFT-Sec diagnostics'
+    'activation must not publish hardcoded Bug Dhor diagnostics'
   );
 
   // End-to-end file scan: the unsaved editor buffer must be what the backend
@@ -126,7 +126,7 @@ async function run() {
   );
   assert.notEqual(scan.file.sha256, diskSha256);
   assert.equal(
-    craftsecDiagnostics().length,
+    bugdhorDiagnostics().length,
     0,
     'an unavailable analysis must not publish diagnostics'
   );
@@ -207,7 +207,7 @@ async function run() {
     .filter((entry) => entry.label === DASHBOARD_TITLE);
   assert.equal(dashboardTabs.length, 1, 'the dashboard panel must be a singleton');
 
-  console.log('CRAFT-Sec Extension Host checks passed.');
+  console.log('Bug Dhor Extension Host checks passed.');
 }
 
 module.exports = { run };

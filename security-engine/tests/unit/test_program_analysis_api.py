@@ -5,8 +5,8 @@ import json
 import networkx as nx
 import pytest
 
-from craftsec.parsing import parse_source
-from craftsec.program_analysis import (
+from bugdhor.parsing import parse_source
+from bugdhor.program_analysis import (
     analyze_control_flow,
     analyze_data_flow,
     analyze_file,

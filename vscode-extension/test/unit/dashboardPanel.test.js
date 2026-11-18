@@ -485,7 +485,7 @@ test('dashboard commands are restricted to the engine command allowlist', async 
   harness.controller.dispose();
 });
 
-test('dashboard opens CRAFT-Sec settings and the output channel', async () => {
+test('dashboard opens Bug Dhor settings and the output channel', async () => {
   const harness = createHarness();
   const panel = harness.controller.open();
 
@@ -493,7 +493,7 @@ test('dashboard opens CRAFT-Sec settings and the output channel', async () => {
   await panel.send({ type: 'showLogs' });
 
   assert.deepEqual(harness.executedCommands, [
-    { command: 'workbench.action.openSettings', args: ['craftsec'] }
+    { command: 'workbench.action.openSettings', args: ['bugdhor'] }
   ]);
   assert.equal(harness.logger.shown, true);
 

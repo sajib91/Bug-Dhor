@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.parsing import (
+from bugdhor.parsing import (
     DetectionSource,
     SupportedLanguage,
     UnsupportedLanguageError,
@@ -12,7 +12,7 @@ from craftsec.parsing import (
     require_language,
     tokenize_source,
 )
-from craftsec.parsing.locations import LineIndex
+from bugdhor.parsing.locations import LineIndex
 
 
 @pytest.mark.parametrize(

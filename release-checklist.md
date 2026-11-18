@@ -1,8 +1,8 @@
-# CRAFT-Sec — Release Checklist
+# Bug Dhor — Release Checklist
 
 **Version:** 0.1.0  
 **Date:** 2026-11-16  
-**Scope:** Root-level release gate for the CRAFT-Sec monorepo (VS Code extension + Python security engine + research artifacts).  
+**Scope:** Root-level release gate for the Bug Dhor monorepo (VS Code extension + Python security engine + research artifacts).  
 **Detailed companion:** [`docs/release-checklist.md`](docs/release-checklist.md) — packaging, versioning, webview, and clean-install procedures. This file is the release **decision** record; where the two overlap, this file's gates take precedence and the companion provides the step-by-step detail.
 
 > **Current decision: DO NOT RELEASE as a finished research system.** A private/preview VSIX may be distributed for evaluation, but the project is not research-complete. See §6.
@@ -13,8 +13,8 @@
 
 | Item | Value | Status |
 |---|---|---|
-| Product | CRAFT-Sec Security Framework | — |
-| Extension name | `craft-sec` | ✅ |
+| Product | Bug Dhor Security Framework | — |
+| Extension name | `bug-dhor` | ✅ |
 | Version | `0.1.0` | ✅ |
 | Publisher | `your-publisher-id` | ❌ placeholder |
 | Repository URL | absent from `package.json` | ❌ missing |
@@ -30,7 +30,7 @@
 
 | Artifact | Path | Status |
 |---|---|---|
-| VSIX | `vscode-extension/craft-sec-0.1.0.vsix` | ✅ built |
+| VSIX | `vscode-extension/bug-dhor-0.1.0.vsix` | ✅ built |
 | VSIX size | 104,319 bytes, 45 files | ✅ |
 | VSIX SHA-256 | `6ee5a897fe886634a56f8d34aa9af6a26ff8d974f1956b657abf34d4e40875d3` | ✅ recorded |
 | Backend package | `security-engine/` (editable install) | ✅ |
@@ -42,7 +42,7 @@ Rebuild:
 cd vscode-extension
 npm run package:vsix
 npm run package:list
-shasum -a 256 craft-sec-0.1.0.vsix
+shasum -a 256 bug-dhor-0.1.0.vsix
 ```
 
 Expected package contents: `package.json`, `README.md`, six `media/*` assets, `src/**`. Must **not** contain tests, `.env`/secrets, lockfiles, caches, datasets, model weights, or nested VSIX files.
@@ -92,7 +92,7 @@ cd security-engine
 
 ```bash
 cd security-engine
-../.venv/bin/python -m craftsec
+../.venv/bin/python -m bugdhor
 ```
 
 - [x] `GET /api/v1/health` → HTTP 200
@@ -118,7 +118,7 @@ cd security-engine
 
 - [x] VSIX built with local `@vscode/vsce` 3.9.1 (`--no-dependencies --allow-missing-repository --skip-license`)
 - [x] Clean install into temporary extensions/user-data dirs
-- [x] Extension listed as `your-publisher-id.craft-sec@0.1.0`
+- [x] Extension listed as `your-publisher-id.bug-dhor@0.1.0`
 - [x] Temp dirs removed after verification
 - [x] Archive contains `package.json`, `README.md`, `media/*`, `src/**`
 - [ ] Interactive VS Code session: activation, command palette, dashboard webview, diagnostics, Quick Fix
@@ -126,7 +126,7 @@ cd security-engine
 - [ ] Unsaved-editor-text path verified in a live editor
 - [ ] Extension uninstall leaves no residual state
 
-> The extension does **not** start the backend. Release notes must state that a separately running engine at `http://127.0.0.1:8765` is required, with optional token via `CRAFTSEC_API_TOKEN` (legacy `CRAFTSEC_ENGINE_TOKEN`).
+> The extension does **not** start the backend. Release notes must state that a separately running engine at `http://127.0.0.1:8765` is required, with optional token via `BUGDHOR_API_TOKEN` (legacy `BUGDHOR_ENGINE_TOKEN`).
 
 ---
 

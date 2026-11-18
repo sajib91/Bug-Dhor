@@ -93,7 +93,7 @@ class Logger {
 
 /** @returns {Logger} */
 function createLogger() {
-  return new Logger('CRAFT-Sec');
+  return new Logger('Bug Dhor');
 }
 
 module.exports = { LOG_LEVELS, Logger, createLogger };

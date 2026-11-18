@@ -1,4 +1,4 @@
-# CRAFT-Sec — Research Compliance Report
+# Bug Dhor — Research Compliance Report
 
 **Date:** 2026-11-16  
 **Paper source:** `Research.txt` (*An Explainable Multi-Feature Security Framework for Vulnerability Detection, Prevention, and Automated Repair in Large Language Models*)  
@@ -71,7 +71,7 @@
 
 ## 4. §6 — Algorithms 1–9
 
-### Algorithm 1 — Overall CRAFT-Sec Security Framework
+### Algorithm 1 — Overall Bug Dhor Security Framework
 **Status: PARTIALLY IMPLEMENTED**
 
 - `core/orchestrator.py` implements an end-to-end pipeline with real file inspection, preprocessing, program analysis, evidence fusion, explanation, repair, and verification.
@@ -224,7 +224,7 @@
 | Run manifests/artifacts | IMPLEMENTED BUT NOT FULLY VALIDATED | Manifest code exists; no artifact store (`artifacts/` empty). |
 | Recorded results | NOT IMPLEMENTED | No runs/results. |
 | Re-execution instructions | IMPLEMENTED BUT NOT FULLY VALIDATED | Docs describe setup, but no end-to-end experiment command was verified. |
-| Automated tests for experiment/evaluation code | NOT IMPLEMENTED | No tests reference `craftsec.experiments` or `craftsec.evaluation`. |
+| Automated tests for experiment/evaluation code | NOT IMPLEMENTED | No tests reference `bugdhor.experiments` or `bugdhor.evaluation`. |
 
 **Reproducibility claim: unsupported.** The infrastructure is a credible foundation, but reproducibility requires at least one fully recorded, re-runnable experiment.
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.counterfactual import (
+from bugdhor.counterfactual import (
     FeatureSubset,
     HigherOrderInteractionEngine,
     estimate_higher_order,

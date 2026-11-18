@@ -1,4 +1,4 @@
-"""Real-model validation of CRAFT-Sec counterfactual interaction analysis.
+"""Real-model validation of Bug Dhor counterfactual interaction analysis.
 
 Design
 ------
@@ -9,7 +9,7 @@ Model checkpoints
 Outcome ``Y``
     For each code prompt, ``Y`` is the next-token log-odds of the label pair
     ``A`` (unsafe) versus ``B`` (safe) under the fixed instruction template
-    defined in :mod:`craftsec.counterfactual.validation_corpus`.  ``Y`` is a
+    defined in :mod:`bugdhor.counterfactual.validation_corpus`.  ``Y`` is a
     declared model readout, not a vulnerability label or ground truth.
 
 Intervention states
@@ -53,7 +53,7 @@ from typing import Any
 
 import numpy as np
 import torch
-from craftsec.counterfactual.validation import (
+from bugdhor.counterfactual.validation import (
     BootstrapContrast,
     bootstrap_mean_interval,
     estimate_higher_order_contrast,
@@ -61,16 +61,16 @@ from craftsec.counterfactual.validation import (
     factorial_unit_contrasts,
     stability_summary,
 )
-from craftsec.counterfactual.validation_corpus import (
+from bugdhor.counterfactual.validation_corpus import (
     ValidationSample,
     build_validation_corpus,
     decode_label_tokens,
     split_roles,
 )
-from craftsec.sae.checkpoint import save_checkpoint
-from craftsec.sae.config import SAEConfig
-from craftsec.sae.model import SparseAutoencoder
-from craftsec.sae.training import SAETrainer
+from bugdhor.sae.checkpoint import save_checkpoint
+from bugdhor.sae.config import SAEConfig
+from bugdhor.sae.model import SparseAutoencoder
+from bugdhor.sae.training import SAETrainer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 ROOT = Path(__file__).resolve().parents[3]

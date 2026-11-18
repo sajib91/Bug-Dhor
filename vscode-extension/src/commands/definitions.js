@@ -10,61 +10,61 @@ const COMMAND_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: COMMANDS.scanCurrentFile,
     title: 'Scan Current File',
-    progressTitle: 'CRAFT-Sec: Scanning current file',
+    progressTitle: 'Bug Dhor: Scanning current file',
     serviceMethod: 'scanFile'
   }),
   Object.freeze({
     id: COMMANDS.scanSelection,
     title: 'Scan Selection',
-    progressTitle: 'CRAFT-Sec: Scanning selection',
+    progressTitle: 'Bug Dhor: Scanning selection',
     serviceMethod: 'scanSelection'
   }),
   Object.freeze({
     id: COMMANDS.scanWorkspace,
     title: 'Scan Workspace',
-    progressTitle: 'CRAFT-Sec: Scanning workspace',
+    progressTitle: 'Bug Dhor: Scanning workspace',
     serviceMethod: 'scanWorkspace'
   }),
   Object.freeze({
     id: COMMANDS.explainVulnerability,
     title: 'Explain Vulnerability',
-    progressTitle: 'CRAFT-Sec: Explaining vulnerability',
+    progressTitle: 'Bug Dhor: Explaining vulnerability',
     serviceMethod: 'explainVulnerability'
   }),
   Object.freeze({
     id: COMMANDS.analyzeSecurityFeatures,
     title: 'Analyze Security Features',
-    progressTitle: 'CRAFT-Sec: Analyzing security features',
+    progressTitle: 'Bug Dhor: Analyzing security features',
     serviceMethod: 'analyzeSecurityFeatures'
   }),
   Object.freeze({
     id: COMMANDS.counterfactualAnalysis,
     title: 'Counterfactual Analysis',
-    progressTitle: 'CRAFT-Sec: Running counterfactual analysis',
+    progressTitle: 'Bug Dhor: Running counterfactual analysis',
     serviceMethod: 'counterfactualAnalysis'
   }),
   Object.freeze({
     id: COMMANDS.generateSecureCode,
     title: 'Generate Secure Code',
-    progressTitle: 'CRAFT-Sec: Generating secure code',
+    progressTitle: 'Bug Dhor: Generating secure code',
     serviceMethod: 'generateSecureCode'
   }),
   Object.freeze({
     id: COMMANDS.repairVulnerability,
     title: 'Repair Vulnerability',
-    progressTitle: 'CRAFT-Sec: Generating repair proposal',
+    progressTitle: 'Bug Dhor: Generating repair proposal',
     serviceMethod: 'repairVulnerability'
   }),
   Object.freeze({
     id: COMMANDS.verifyRepair,
     title: 'Verify Repair',
-    progressTitle: 'CRAFT-Sec: Verifying repair',
+    progressTitle: 'Bug Dhor: Verifying repair',
     serviceMethod: 'verifyRepair'
   }),
   Object.freeze({
     id: COMMANDS.openSecurityDashboard,
     title: 'Open Security Dashboard',
-    progressTitle: 'CRAFT-Sec: Opening security dashboard',
+    progressTitle: 'Bug Dhor: Opening security dashboard',
     serviceMethod: null
   })
 ]);

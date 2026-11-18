@@ -1,6 +1,6 @@
 # SAE activation steering
 
-`craftsec.steering.ActivationSteeringEngine` performs local, white-box
+`bugdhor.steering.ActivationSteeringEngine` performs local, white-box
 activation interventions for compatible Hugging Face Transformer models. It is
 disabled by default: callers must set `SteeringSpec.enabled=True`.
 

@@ -3,7 +3,7 @@
 Formulation
 -----------
 The policy is documented (not a single numbered paper equation) and mirrors the
-transparent allocation implemented by ``craftsec.steering.adaptive``.  For every
+transparent allocation implemented by ``bugdhor.steering.adaptive``.  For every
 selected feature ``j``::
 
     i_j       = |a_j|                                  importance magnitude

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.steering import (
+from bugdhor.steering import (
     FunctionalConstraintEvaluator,
     FunctionalConstraints,
     FunctionalEvidence,

@@ -1,6 +1,6 @@
 # Research Workspace
 
-This directory holds research configuration, evaluation protocols, dataset cards, and experiment records for CRAFT-Sec.
+This directory holds research configuration, evaluation protocols, dataset cards, and experiment records for Bug Dhor.
 
 ## Status
 

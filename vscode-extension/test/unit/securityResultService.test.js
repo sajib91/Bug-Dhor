@@ -18,7 +18,7 @@ const SHA = 'b'.repeat(64);
 
 function healthPayload(overrides = {}) {
   return {
-    service: 'craftsec-engine',
+    service: 'bugdhor-engine',
     status: 'ok',
     version: '0.1.0',
     apiVersion: 'v1',

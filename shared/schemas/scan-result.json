@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/scan-result.json",
+  "$id": "https://bugdhor.local/schemas/v1/scan-result.json",
   "title": "ScanResult",
   "description": "The result of a single-file or workspace scan. When analysisAvailable is false, findings must be empty; an empty findings list is not by itself a clean result.",
   "type": "object",

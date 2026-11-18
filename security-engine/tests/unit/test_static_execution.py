@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from craftsec.static.execution import (
+from bugdhor.static.execution import (
     resolve_executable,
     run_command,
     sanitized_environment,
@@ -74,12 +74,12 @@ def test_run_command_rejects_empty_arguments() -> None:
 def test_sanitized_environment_removes_credential_variables(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CRAFTSEC_TEST_SECRET_TOKEN", "do-not-pass")
+    monkeypatch.setenv("BUGDHOR_TEST_SECRET_TOKEN", "do-not-pass")
     monkeypatch.setenv("ORDINARY_SETTING", "visible")
 
     environment = sanitized_environment()
 
-    assert "CRAFTSEC_TEST_SECRET_TOKEN" not in environment
+    assert "BUGDHOR_TEST_SECRET_TOKEN" not in environment
     assert environment["ORDINARY_SETTING"] == "visible"
 
 

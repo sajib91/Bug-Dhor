@@ -257,7 +257,7 @@ function createFakeService(overrides = {}) {
       }
       if (method === 'health') {
         return {
-          service: 'craftsec-engine',
+          service: 'bugdhor-engine',
           status: 'ok',
           version: '0.1.0',
           apiVersion: 'v1',
@@ -351,7 +351,7 @@ test('disposing the registry releases every registration and is idempotent', () 
 
   harness.registry.dispose();
   assert.throws(
-    () => harness.registry.register('craftsec.lateCommand', () => {}),
+    () => harness.registry.register('bugdhor.lateCommand', () => {}),
     /Cannot register command after disposal/
   );
 });
@@ -360,9 +360,9 @@ test('the registry refuses duplicate command IDs', () => {
   const fake = createFakeVscode();
   const registry = new CommandRegistry(fake.vscode, createFakeLogger());
 
-  registry.register('craftsec.testCommand', () => {});
+  registry.register('bugdhor.testCommand', () => {});
   assert.throws(
-    () => registry.register('craftsec.testCommand', () => {}),
+    () => registry.register('bugdhor.testCommand', () => {}),
     /Command is already registered/
   );
 
@@ -469,8 +469,8 @@ test('scan current file passes saved editor context and cancellable progress', a
 
   assert.equal(harness.progressOptions[0].location, 15);
   assert.equal(harness.progressOptions[0].cancellable, true);
-  assert.equal(harness.progressOptions[0].title, 'CRAFT-Sec: Scanning current file');
-  assert.deepEqual(harness.progressReports, [{ message: 'Contacting the CRAFT-Sec backend.' }]);
+  assert.equal(harness.progressOptions[0].title, 'Bug Dhor: Scanning current file');
+  assert.deepEqual(harness.progressReports, [{ message: 'Contacting the Bug Dhor backend.' }]);
 
   assert.deepEqual(result, { method: 'scanFile', request });
   assert.equal(harness.informationMessages.length, 0, 'no success message may be shown');
@@ -629,7 +629,7 @@ test('show status reports an unreachable backend without claiming success', asyn
     errorMessageResult: 'Open Settings',
     serviceOverrides: {
       health: async () => {
-        throw new Error('Cannot reach the CRAFT-Sec backend at http://127.0.0.1:8765.');
+        throw new Error('Cannot reach the Bug Dhor backend at http://127.0.0.1:8765.');
       }
     }
   });
@@ -641,14 +641,14 @@ test('show status reports an unreachable backend without claiming success', asyn
   assert.match(harness.errorMessages[0].message, /Cannot reach/);
   assert.deepEqual(harness.errorMessages[0].actions, ['Show Logs', 'Open Settings']);
   assert.deepEqual(harness.executedCommands, [
-    { command: 'workbench.action.openSettings', args: ['craftsec.backend.url'] }
+    { command: 'workbench.action.openSettings', args: ['bugdhor.backend.url'] }
   ]);
   assert.ok(harness.logger.entries.some((entry) => entry.level === 'warn'));
 
   harness.registry.dispose();
 });
 
-test('show logs opens the CRAFT-Sec output channel', async () => {
+test('show logs opens the Bug Dhor output channel', async () => {
   const harness = createHarness();
 
   await harness.handlers.get(COMMANDS.showLogs)();

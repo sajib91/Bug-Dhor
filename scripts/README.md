@@ -1,6 +1,6 @@
 # Scripts
 
-Development and validation tooling for the CRAFT-Sec monorepo.
+Development and validation tooling for the Bug Dhor monorepo.
 
 ## Current
 

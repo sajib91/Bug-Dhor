@@ -4,7 +4,7 @@
       "name": "health",
       "ok": true,
       "result": {
-        "service": "craftsec-engine",
+        "service": "bugdhor-engine",
         "status": "ok",
         "version": "0.1.0",
         "apiVersion": "v1",
@@ -361,7 +361,7 @@
       "name": "counterfactual_unavailable",
       "ok": true,
       "result": {
-        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "type": "https://bugdhor.local/errors/E_VALIDATION",
         "title": "Request validation failed",
         "status": 422,
         "code": "E_VALIDATION",
@@ -427,7 +427,7 @@
       "name": "prevention_unavailable",
       "ok": true,
       "result": {
-        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "type": "https://bugdhor.local/errors/E_VALIDATION",
         "title": "Request validation failed",
         "status": 422,
         "code": "E_VALIDATION",
@@ -453,7 +453,7 @@
       "name": "verification_run_static_only",
       "ok": true,
       "result": {
-        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "type": "https://bugdhor.local/errors/E_VALIDATION",
         "title": "Request validation failed",
         "status": 422,
         "code": "E_VALIDATION",
@@ -478,7 +478,7 @@
       "name": "repair_generate_with_patch",
       "ok": true,
       "result": {
-        "type": "https://craftsec.local/errors/E_VALIDATION",
+        "type": "https://bugdhor.local/errors/E_VALIDATION",
         "title": "Request validation failed",
         "status": 422,
         "code": "E_VALIDATION",
@@ -567,7 +567,7 @@
       "name": "jobs_endpoints_shape",
       "ok": true,
       "result": {
-        "type": "https://craftsec.local/errors/E_NOT_FOUND",
+        "type": "https://bugdhor.local/errors/E_NOT_FOUND",
         "title": "Resource not found",
         "status": 404,
         "code": "E_NOT_FOUND",
@@ -582,7 +582,7 @@
       "name": "result_persistence_dir",
       "ok": true,
       "result": {
-        "dataDir": "/var/folders/2l/bbcttp_514v5yslfrv3x7dlh0000gn/T/craftsec-int-t7v0_9kx",
+        "dataDir": "/var/folders/2l/bbcttp_514v5yslfrv3x7dlh0000gn/T/bugdhor-int-t7v0_9kx",
         "resultsExists": true,
         "resultFiles": [
           "detection_analyze-b1aa7284070b4e6288d41676a0fcd854.json",

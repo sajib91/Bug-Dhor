@@ -1,10 +1,10 @@
-# CRAFT-Sec VS Code Extension
+# Bug Dhor VS Code Extension
 
-JavaScript VS Code client for the CRAFT-Sec security framework.
+JavaScript VS Code client for the Bug Dhor security framework.
 
 ## Status
 
-**Extension shell with a live local-backend transport and diagnostics pipeline.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **CRAFT-Sec Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Every analysis command is connected to a `SecurityEngineService` backed by the versioned FastAPI engine. Health checks, file scans, selection detection requests, and workspace scans reach the real backend; detection, SAE features, counterfactuals, steering, repair generation, and verification remain unimplemented and return explicit `unavailable` stages. The extension does **not** start the Python backend.
+**Extension shell with a live local-backend transport and diagnostics pipeline.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **Bug Dhor Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Every analysis command is connected to a `SecurityEngineService` backed by the versioned FastAPI engine. Health checks, file scans, selection detection requests, and workspace scans reach the real backend; detection, SAE features, counterfactuals, steering, repair generation, and verification remain unimplemented and return explicit `unavailable` stages. The extension does **not** start the Python backend.
 
 No analysis results, probabilities, or causal claims are produced by this extension. The dashboard starts empty. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Commands show cancellable progress while they contact the backend and report transport or validation errors; they never show a placeholder success message. Diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results. An empty findings list with `analysisAvailable: false` is reported as unavailable analysis, never as a clean scan.
 
@@ -12,22 +12,22 @@ No analysis results, probabilities, or causal claims are produced by this extens
 
 | Contribution | Identifier | Purpose |
 |---|---|---|
-| Activity bar container | `craftsec` | CRAFT-Sec entry in the Activity Bar |
-| Sidebar webview | `craftsec.sidebar` | Activity Bar launcher for the editor-area dashboard |
-| Command | `craftsec.showStatus` | Report the real extension and engine status |
-| Command | `craftsec.showLogs` | Open the CRAFT-Sec output channel |
-| Command | `craftsec.scanCurrentFile` | Scan the active saved file |
-| Command | `craftsec.scanSelection` | Scan the selected code |
-| Command | `craftsec.scanWorkspace` | Scan all open workspace folders |
-| Command | `craftsec.explainVulnerability` | Explain the vulnerability in context |
-| Command | `craftsec.analyzeSecurityFeatures` | Analyze security-relevant features |
-| Command | `craftsec.counterfactualAnalysis` | Compare a selected code region with counterfactual variants |
-| Command | `craftsec.generateSecureCode` | Generate secure code from editor context |
-| Command | `craftsec.repairVulnerability` | Generate a repair proposal |
-| Command | `craftsec.verifyRepair` | Verify a repair at workspace scope |
-| Command | `craftsec.openSecurityDashboard` | Open or reveal the CRAFT-Sec Security Dashboard panel |
+| Activity bar container | `bugdhor` | Bug Dhor entry in the Activity Bar |
+| Sidebar webview | `bugdhor.sidebar` | Activity Bar launcher for the editor-area dashboard |
+| Command | `bugdhor.showStatus` | Report the real extension and engine status |
+| Command | `bugdhor.showLogs` | Open the Bug Dhor output channel |
+| Command | `bugdhor.scanCurrentFile` | Scan the active saved file |
+| Command | `bugdhor.scanSelection` | Scan the selected code |
+| Command | `bugdhor.scanWorkspace` | Scan all open workspace folders |
+| Command | `bugdhor.explainVulnerability` | Explain the vulnerability in context |
+| Command | `bugdhor.analyzeSecurityFeatures` | Analyze security-relevant features |
+| Command | `bugdhor.counterfactualAnalysis` | Compare a selected code region with counterfactual variants |
+| Command | `bugdhor.generateSecureCode` | Generate secure code from editor context |
+| Command | `bugdhor.repairVulnerability` | Generate a repair proposal |
+| Command | `bugdhor.verifyRepair` | Verify a repair at workspace scope |
+| Command | `bugdhor.openSecurityDashboard` | Open or reveal the Bug Dhor Security Dashboard panel |
 
-All commands use the `CRAFT-Sec` category. The extension activates on startup, on any of its commands, and when the sidebar view is opened.
+All commands use the `Bug Dhor` category. The extension activates on startup, on any of its commands, and when the sidebar view is opened.
 
 ## Command validation and service wiring
 
@@ -38,15 +38,15 @@ All commands use the `CRAFT-Sec` category. The extension activates on startup, o
 - Engine calls run under `window.withProgress` with a cancellable notification. Cancellation is logged and produces no error dialog.
 - Every engine-backed command calls its declared `SecurityEngineService` method. Transport failures, timeouts, problem details, and schema mismatches are reported instead of inventing a result.
 - Successful scan results are validated and published as diagnostics; failed or cancelled scans never alter the Problems panel.
-- `craftsec.repairVulnerability` accepts an optional finding context from a diagnostic Quick Fix while retaining its no-argument Command Palette and dashboard behavior. A finding for another file is rejected before the engine call.
+- `bugdhor.repairVulnerability` accepts an optional finding context from a diagnostic Quick Fix while retaining its no-argument Command Palette and dashboard behavior. A finding for another file is rejected before the engine call.
 - A single `CommandRegistry` owns all 12 registrations and is disposed with the extension.
 
 ## Backend transport and privacy
 
-- `craftsec.backend.url` points at an already-running backend. Only an HTTP(S) origin is accepted; credentials, paths, queries, and fragments are rejected.
+- `bugdhor.backend.url` points at an already-running backend. Only an HTTP(S) origin is accepted; credentials, paths, queries, and fragments are rejected.
 - The client calls `GET /api/v1/health`, `POST /api/v1/scan/file`, `POST /api/v1/scan/workspace`, and the analysis routes under `/api/v1`. Timeouts abort the request and are reported to the user.
-- An optional bearer token is read from the extension host environment (`CRAFTSEC_API_TOKEN`, with `CRAFTSEC_ENGINE_TOKEN` as a legacy alias). Tokens are never stored in settings or logs.
-- File and selection requests include the current editor buffer as `sourceText` and the selected code as `selectedText` only when `craftsec.privacy.sendSourceText` is enabled. The commands are always explicitly user-invoked. Disabling the setting sends only paths and ranges; the backend then reads the saved file from disk.
+- An optional bearer token is read from the extension host environment (`BUGDHOR_API_TOKEN`, with `BUGDHOR_ENGINE_TOKEN` as a legacy alias). Tokens are never stored in settings or logs.
+- File and selection requests include the current editor buffer as `sourceText` and the selected code as `selectedText` only when `bugdhor.privacy.sendSourceText` is enabled. The commands are always explicitly user-invoked. Disabling the setting sends only paths and ranges; the backend then reads the saved file from disk.
 - Workspace scans send folder name, path, and file-URI metadata only, never file contents.
 - Health checks send no source code.
 - Every response is validated before use. The backend's `partial`/`unavailable` statuses and `analysisAvailable: false` are preserved; they are never converted into a clean scan.
@@ -55,7 +55,7 @@ The publisher is set to the explicit placeholder `your-publisher-id`. Replace it
 
 ## Security dashboard
 
-`craftsec.openSecurityDashboard` opens (or reveals) a singleton editor-area webview panel titled **CRAFT-Sec Security Dashboard**. The Activity Bar sidebar is a launcher that sends one message, `openDashboard`.
+`bugdhor.openSecurityDashboard` opens (or reveals) a singleton editor-area webview panel titled **Bug Dhor Security Dashboard**. The Activity Bar sidebar is a launcher that sends one message, `openDashboard`.
 
 The dashboard has 11 sections: Overview, Security Scan, Vulnerabilities, SAE Features, Feature Interactions, Security Steering, Explanations, Automated Repair, Verification, Research Reports, and Settings. Overview shows total findings, severity counts, vulnerability and CWE distributions, verification status, and recent scan history.
 
@@ -75,9 +75,9 @@ The scan commands feed successful backend results into a native VS Code `Diagnos
 
 - **Required result contract.** A scan result is either a findings array or `{ findings: [...], scope?: { uris: [...] } }`. Each finding requires `id`, `message`, `severity`, and a `location` with a `file:` URI and a zero-based `range`; `cwe`, `ruleId`, `evidence`, `explanation`, `sourceReferences`, and `repair` are optional.
 - **Severity mapping.** `critical` and `high` become errors, `medium` becomes a warning, `low` becomes information, and `info` becomes a hint. Severity is taken from the backend, never inferred from the message.
-- **Problems panel.** The diagnostic uses the backend range, the concise backend message, source `CRAFT-Sec`, and the CWE identifier as clickable diagnostic code when supplied. Related information carries backend evidence and source references.
+- **Problems panel.** The diagnostic uses the backend range, the concise backend message, source `Bug Dhor`, and the CWE identifier as clickable diagnostic code when supplied. Related information carries backend evidence and source references.
 - **Hover explanations.** Hovering a finding shows its message, severity, CWE, rule ID, backend explanation, evidence, source references, and repair eligibility. Missing explanation, sources, or repair metadata are stated explicitly rather than filled in.
-- **Repair Quick Fix.** A Quick Fix appears only when the backend sets `repair.eligible` to `true`. It invokes the existing `craftsec.repairVulnerability` command with the finding ID, document URI, range, CWE, and rule ID. The extension does not edit code or generate a patch itself.
+- **Repair Quick Fix.** A Quick Fix appears only when the backend sets `repair.eligible` to `true`. It invokes the existing `bugdhor.repairVulnerability` command with the finding ID, document URI, range, CWE, and rule ID. The extension does not edit code or generate a patch itself.
 - **Validation and containment.** Malformed findings are rejected and logged; a malformed result envelope is rejected without clearing existing diagnostics. Findings outside an open workspace folder and non-`file:` URIs are never published. `scope.uris` or the scanned document URI clears stale diagnostics for the covered files.
 - **No detector findings yet.** Scans reach the real backend, but the detector and evidence stages are unimplemented, so responses contain `analysisAvailable: false` and no findings. The extension reports that state explicitly and does not populate diagnostics from a simulated analysis. Providers are tested with backend-shaped fixtures.
 
@@ -85,23 +85,23 @@ The scan commands feed successful backend results into a native VS Code `Diagnos
 
 | Setting | Default | Behavior |
 |---|---|---|
-| `craftsec.backend.url` | `http://127.0.0.1:8765` | Base URL of the already-running FastAPI backend; must be an HTTP(S) origin |
-| `craftsec.backend.requestTimeoutMs` | `30000` | Timeout for scan and analysis requests |
-| `craftsec.backend.healthTimeoutMs` | `3000` | Timeout for backend health checks |
-| `craftsec.privacy.sendSourceText` | `true` | Send the current buffer and selection with explicitly user-invoked file/selection requests |
-| `craftsec.backend.pythonPath` | empty | Reserved for a future backend process manager; the extension does not start an engine |
-| `craftsec.backend.autoStart` | `false` | Reserved; enabling it logs a warning because no engine is started |
-| `craftsec.logging.level` | `info` | Filters messages written to the CRAFT-Sec output channel |
-| `craftsec.ui.showStatusBarItem` | `true` | Shows or hides the CRAFT-Sec status bar item |
+| `bugdhor.backend.url` | `http://127.0.0.1:8765` | Base URL of the already-running FastAPI backend; must be an HTTP(S) origin |
+| `bugdhor.backend.requestTimeoutMs` | `30000` | Timeout for scan and analysis requests |
+| `bugdhor.backend.healthTimeoutMs` | `3000` | Timeout for backend health checks |
+| `bugdhor.privacy.sendSourceText` | `true` | Send the current buffer and selection with explicitly user-invoked file/selection requests |
+| `bugdhor.backend.pythonPath` | empty | Reserved for a future backend process manager; the extension does not start an engine |
+| `bugdhor.backend.autoStart` | `false` | Reserved; enabling it logs a warning because no engine is started |
+| `bugdhor.logging.level` | `info` | Filters messages written to the Bug Dhor output channel |
+| `bugdhor.ui.showStatusBarItem` | `true` | Shows or hides the Bug Dhor status bar item |
 
 The backend must be started separately, for example from `security-engine/`:
 
 ```bash
-../.venv/bin/python -m craftsec --host 127.0.0.1 --port 8765
+../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765
 ```
 
-Set `CRAFTSEC_WORKSPACE_ROOTS` to the folders the backend may inspect. Set the
-same `CRAFTSEC_API_TOKEN` in the extension host environment when backend bearer
+Set `BUGDHOR_WORKSPACE_ROOTS` to the folders the backend may inspect. Set the
+same `BUGDHOR_API_TOKEN` in the extension host environment when backend bearer
 authentication is enabled.
 
 ## Development
@@ -127,11 +127,11 @@ The unit suite (230 tests) validates the manifest, command definitions and regis
 
 1. Open the repository root in VS Code.
 2. Install the recommended extensions from `.vscode/extensions.json` if prompted.
-3. Open **Run and Debug** and select **Run CRAFT-Sec Extension** from `.vscode/launch.json`.
+3. Open **Run and Debug** and select **Run Bug Dhor Extension** from `.vscode/launch.json`.
 4. Press F5. The Extension Development Host loads `vscode-extension/` as the development extension.
-5. Open the CRAFT-Sec shield in the Activity Bar or run a `CRAFT-Sec:` command from the Command Palette.
+5. Open the Bug Dhor shield in the Activity Bar or run a `Bug Dhor:` command from the Command Palette.
 
-To run the integration test, use `npm run extension:test:integration`. It prefers a locally installed VS Code (`CRAFTSEC_VSCODE_EXECUTABLE` overrides the path) and otherwise lets `@vscode/test-electron` download a stable build into `.vscode-test/`, which is gitignored.
+To run the integration test, use `npm run extension:test:integration`. It prefers a locally installed VS Code (`BUGDHOR_VSCODE_EXECUTABLE` overrides the path) and otherwise lets `@vscode/test-electron` download a stable build into `.vscode-test/`, which is gitignored.
 
 ## Packaging note
 

@@ -177,11 +177,11 @@ limitations.
 - Workspace scans discover files but do not invoke the parsing library or analyze
   them. Scan responses contain no tokens, functions, chunks, or parsing
   diagnostics.
-- Workspace roots must be inside `CRAFTSEC_WORKSPACE_ROOTS`, which defaults to the
+- Workspace roots must be inside `BUGDHOR_WORKSPACE_ROOTS`, which defaults to the
   process working directory. Requested roots and files are resolved; escaping
   symlinks are rejected.
-- Binary and non-UTF-8 files are rejected. Files over `CRAFTSEC_MAX_FILE_BYTES`
-  and workspaces over `CRAFTSEC_MAX_WORKSPACE_FILES` are rejected rather than
+- Binary and non-UTF-8 files are rejected. Files over `BUGDHOR_MAX_FILE_BYTES`
+  and workspaces over `BUGDHOR_MAX_WORKSPACE_FILES` are rejected rather than
   silently truncated.
 - Bearer auth is optional and configured at process launch. There is no user
   account system, token rotation, or multi-user authorization.

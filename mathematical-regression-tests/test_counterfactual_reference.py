@@ -7,12 +7,12 @@ import pytest
 torch = pytest.importorskip("torch")
 
 import reference as ref
-from craftsec.counterfactual.higher_order import (
+from bugdhor.counterfactual.higher_order import (
     FeatureSubset,
     estimate_higher_order,
     generate_feature_subsets,
 )
-from craftsec.counterfactual.pairwise import (
+from bugdhor.counterfactual.pairwise import (
     FeaturePair,
     PairwiseCell,
     PairwiseInteractionEngine,

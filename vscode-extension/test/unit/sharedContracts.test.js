@@ -130,7 +130,7 @@ for (const testCase of MANIFEST.invalidFixtures) {
 test('every schema is valid Draft 2020-12 with a versioned $id', () => {
   for (const schema of schemas) {
     assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
-    assert.ok(schema.$id.startsWith('https://craftsec.local/schemas/v1/'));
+    assert.ok(schema.$id.startsWith('https://bugdhor.local/schemas/v1/'));
     assert.equal(ajv.validateSchema(schema, true), true);
   }
 });

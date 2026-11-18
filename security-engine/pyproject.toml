@@ -3,9 +3,9 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "craftsec-engine"
+name = "bugdhor-engine"
 version = "0.1.0"
-description = "CRAFT-Sec local security research engine"
+description = "Bug Dhor local security research engine"
 requires-python = ">=3.11,<3.15"
 dependencies = [
   "fastapi>=0.115,<1",
@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.scripts]
-craftsec = "craftsec.main:main"
+bugdhor = "bugdhor.main:main"
 
 [project.optional-dependencies]
 ml = [
@@ -50,7 +50,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/craftsec"]
+packages = ["src/bugdhor"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,7 +59,7 @@ addopts = "-ra --strict-markers"
 
 [tool.coverage.run]
 branch = true
-source = ["craftsec"]
+source = ["bugdhor"]
 
 [tool.coverage.report]
 show_missing = true
@@ -74,7 +74,7 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["craftsec"]
+known-first-party = ["bugdhor"]
 
 [tool.ruff.format]
 quote-style = "double"

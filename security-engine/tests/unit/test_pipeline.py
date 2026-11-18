@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from craftsec.core.orchestrator import Orchestrator
-from craftsec.core.pipeline import (
+from bugdhor.core.orchestrator import Orchestrator
+from bugdhor.core.pipeline import (
     Pipeline,
     PipelineStatus,
     StageContext,
@@ -15,7 +15,7 @@ from craftsec.core.pipeline import (
     combine_stage_results,
     derive_pipeline_status,
 )
-from craftsec.core.settings import Settings
+from bugdhor.core.settings import Settings
 
 
 @dataclass

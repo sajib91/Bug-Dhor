@@ -1,8 +1,8 @@
-# CRAFT-Sec — Mathematical Framework Audit
+# Bug Dhor — Mathematical Framework Audit
 
 **Audit date:** 2026-11-16  
 **Audited source text:** `Research.txt` — *An Explainable Multi-Feature Security Framework for Vulnerability Detection, Prevention, and Automated Repair in Large Language Models*  
-**Audited codebase:** `security-engine/` (Python package `craftsec`), `vscode-extension/`  
+**Audited codebase:** `security-engine/` (Python package `bugdhor`), `vscode-extension/`  
 **Companion documents:**
 
 - [`research/mathematical-formulations.md`](mathematical-formulations.md) — equation-by-equation definitions, variables, assumptions, and corrected alternatives.
@@ -300,7 +300,7 @@ Severity: **S1** blocks a defensible empirical claim; **S2** blocks reproducibil
 
 The following claims must not be made on the basis of the current equations or code:
 
-1. **"CRAFT-Sec detects vulnerabilities with [metric]."** No trained detector exists (`θ`, `η`, Eq. 2–4 unimplemented).
+1. **"Bug Dhor detects vulnerabilities with [metric]."** No trained detector exists (`θ`, `η`, Eq. 2–4 unimplemented).
 2. **"SAE feature `j` is a vulnerability feature."** Eq. (9)–(10) are group mean differences; they do not establish semantics or causality.
 3. **"Feature interactions cause vulnerability-related behavior."** Eq. (12)–(13) are factorial contrasts under an intervention; without a valid intervention and controls, they are descriptive non-additivity.
 4. **"The framework produces a calibrated vulnerability probability."** No calibrator exists; the fusion module explicitly says its score is not a probability.

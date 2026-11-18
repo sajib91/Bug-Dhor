@@ -23,7 +23,7 @@
       "cwe": "CWE-89",
       "severity": "high",
       "title": "Unsanitized input reaches a SQL query",
-      "ruleId": "craftsec.static.sql-injection",
+      "ruleId": "bugdhor.static.sql-injection",
       "evidenceSources": [
         {
           "kind": "static",
@@ -45,7 +45,7 @@
       "explanation": "Static rule evidence and an SAE feature both support this finding. The score is a documented heuristic risk, not a probability.",
       "suggestedRemediation": "Use a parameterized query instead of string formatting.",
       "provenance": {
-        "producer": "craftsec-engine",
+        "producer": "bugdhor-engine",
         "producerVersion": "0.1.0",
         "generatedAt": "2026-11-13T00:00:00Z",
         "source": "hybrid"
@@ -73,7 +73,7 @@
     }
   ],
   "provenance": {
-    "producer": "craftsec-engine",
+    "producer": "bugdhor-engine",
     "producerVersion": "0.1.0",
     "generatedAt": "2026-11-13T00:00:02Z",
     "source": "hybrid"

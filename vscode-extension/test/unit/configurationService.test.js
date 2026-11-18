@@ -71,10 +71,10 @@ test('API configuration applies defaults, consent, and token normalization', () 
 
 test('the token is read only from the extension host environment', () => {
   assert.equal(getEnvironmentToken({}), '');
-  assert.equal(getEnvironmentToken({ CRAFTSEC_API_TOKEN: ' primary ' }), 'primary');
-  assert.equal(getEnvironmentToken({ CRAFTSEC_ENGINE_TOKEN: 'legacy' }), 'legacy');
+  assert.equal(getEnvironmentToken({ BUGDHOR_API_TOKEN: ' primary ' }), 'primary');
+  assert.equal(getEnvironmentToken({ BUGDHOR_ENGINE_TOKEN: 'legacy' }), 'legacy');
   assert.equal(
-    getEnvironmentToken({ CRAFTSEC_API_TOKEN: 'primary', CRAFTSEC_ENGINE_TOKEN: 'legacy' }),
+    getEnvironmentToken({ BUGDHOR_API_TOKEN: 'primary', BUGDHOR_ENGINE_TOKEN: 'legacy' }),
     'primary'
   );
 });
@@ -111,7 +111,7 @@ test('the configuration service reads VS Code settings per call', () => {
 
   const service = createConfigurationService({
     vscode,
-    environment: { CRAFTSEC_API_TOKEN: 'token-value' }
+    environment: { BUGDHOR_API_TOKEN: 'token-value' }
   });
 
   const first = service.get();
@@ -123,7 +123,7 @@ test('the configuration service reads VS Code settings per call', () => {
 
   settings['backend.url'] = 'http://127.0.0.1:9100';
   assert.equal(service.get().baseUrl, 'http://127.0.0.1:9100');
-  assert.deepEqual(sections, ['craftsec', 'craftsec']);
+  assert.deepEqual(sections, ['bugdhor', 'bugdhor']);
 });
 
 test('the configuration service requires the VS Code workspace API', () => {

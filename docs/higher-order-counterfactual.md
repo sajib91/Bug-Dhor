@@ -1,6 +1,6 @@
 # Higher-order SAE feature interactions
 
-For a feature subset `S` of order `k`, CRAFT-Sec uses the factorial contrast:
+For a feature subset `S` of order `k`, Bug Dhor uses the factorial contrast:
 
 ```text
 sum(T subset S) (-1)^(k - |T|) Outcome(T)

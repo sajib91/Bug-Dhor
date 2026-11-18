@@ -1,6 +1,6 @@
-# CRAFT-Sec User Guide
+# Bug Dhor User Guide
 
-**Project:** CRAFT-Sec (Counterfactual Risk Analysis and Feature-aware Steering for Secure Code Generation)  
+**Project:** Bug Dhor — Counterfactual Risk Analysis and Feature-aware Steering for Secure Code Generation  
 **Documentation scope:** This guide describes the repository and implemented interfaces as they exist in this workspace. It distinguishes implemented, configurable, and currently unavailable capabilities. It does **not** claim that unimplemented features are available, and it does **not** claim security guarantees.
 
 > **No screenshots:** Accurate application screenshots were not available in the repository at the time of writing, so none are included.
@@ -9,9 +9,9 @@
 
 ## 1. Project introduction
 
-CRAFT-Sec is a local-first research-oriented system for explainable software vulnerability analysis and related security research workflows. The repository contains:
+Bug Dhor is a local-first research-oriented system for explainable software vulnerability analysis and related security research workflows. The repository contains:
 
-- **VS Code extension (`vscode-extension/`)**: a JavaScript extension that provides CRAFT-Sec commands, an Activity Bar/sidebar launcher, a Security Dashboard webview, and native diagnostics/hover/code actions derived from validated backend scan results.
+- **VS Code extension (`vscode-extension/`)**: a JavaScript extension that provides Bug Dhor commands, an Activity Bar/sidebar launcher, a Security Dashboard webview, and native diagnostics/hover/code actions derived from validated backend scan results.
 - **Security engine (`security-engine/`)**: a Python/FastAPI backend exposing a versioned `/api/v1` HTTP API for health checks, file/workspace scanning, detection/explanation requests, feature/counterfactual/steering/repair/verification operations, and job status/progress/result/cancellation.
 - **Shared contracts/schemas and research modules**: typed schemas, program analysis, detection/explanation, repair/verification/sandbox, SAE/counterfactual/steering libraries, and experimental/evaluation/statistical frameworks.
 
@@ -19,7 +19,7 @@ The system is designed to report honest analysis states (`ok`, `partial`, `unava
 
 ## 2. Research motivation
 
-CRAFT-Sec is motivated by the need for security tooling that is not only detection-oriented but also **explainable**, **evidence-grounded**, and **research-reproducible**. The project direction (as reflected in repository docs and module structure) targets:
+Bug Dhor is motivated by the need for security tooling that is not only detection-oriented but also **explainable**, **evidence-grounded**, and **research-reproducible**. The project direction (as reflected in repository docs and module structure) targets:
 
 - combining program-analysis and static evidence for vulnerability findings;
 - studying sparse autoencoder (SAE) features and their associations/interventions in model-internal representations (when model/SAE artifacts are available);
@@ -37,8 +37,8 @@ These are research goals and engineering directions; not all are fully operation
 | Layer | Component | Role |
 |---|---|---|
 | Client | VS Code extension | User commands/UI, dashboard, diagnostics, hover explanations, repair quick-fix triggers, backend HTTP client, response validation, privacy controls for source sharing. |
-| Transport/API | FastAPI app (`craftsec.api`) | Versioned endpoints, request validation, auth/CORS/body limits (configured), middleware, structured errors, job/result interfaces. |
-| Orchestration | `craftsec.core.orchestrator` / jobs | Pipeline coordination, stage status/progress, cooperative cancellation, result persistence, capability reporting, honest unavailable handling. |
+| Transport/API | FastAPI app (`bugdhor.api`) | Versioned endpoints, request validation, auth/CORS/body limits (configured), middleware, structured errors, job/result interfaces. |
+| Orchestration | `bugdhor.core.orchestrator` / jobs | Pipeline coordination, stage status/progress, cooperative cancellation, result persistence, capability reporting, honest unavailable handling. |
 | Analysis | Parsing, program analysis, taint, static adapters, detection, explainability | Source preprocessing/parsing, AST/CFG/DFG/taint, best-effort external static tools, evidence fusion/detection, evidence-grounded explanations. |
 | Model/research (artifact-dependent) | Models, SAE, features, counterfactual, steering/prevention | Local HF model adapter, SAE training/association/interpretation, counterfactual and steering engines; require compatible checkpoints/artifacts/configuration. |
 | Repair/verification | Repair context/engine/workflow, sandbox, independent/functional verification | Diff/proposal generation and ranking, repository context, proposal-only workflow, explicit approval required, isolated execution with consent, independent verdicts. |
@@ -46,7 +46,7 @@ These are research goals and engineering directions; not all are fully operation
 
 ### 3.2 Data and control flow (implemented/integrated paths)
 
-1. User invokes a CRAFT-Sec command in VS Code (scan/explain/analyze features/counterfactual/generate secure code/repair/verify/dashboard/status/logs).
+1. User invokes a Bug Dhor command in VS Code (scan/explain/analyze features/counterfactual/generate secure code/repair/verify/dashboard/status/logs).
 2. Extension validates editor/workspace/selection context, applies privacy/source-sharing rules, and sends an HTTP request to the configured running backend (it does **not** start the backend).
 3. Backend validates request/path/size/auth (if configured), runs orchestrated analysis/workflow, emits stage/progress information, and returns a validated JSON response with operation status and explicit stage availability.
 4. Extension validates and renders results: diagnostics/problems, hovers, quick fixes, and dashboard state are driven only by supplied/validated backend data. Unavailable analysis is reported as unavailable (not as a clean/secure result).
@@ -116,7 +116,7 @@ npm install
 npm run extension:test
 ```
 
-For Extension Host integration tests (when environment supports it): `npm run extension:test:integration` from the root. The Extension Host test may download a VS Code build unless `CRAFTSEC_VSCODE_EXECUTABLE` is set to a local installation.
+For Extension Host integration tests (when environment supports it): `npm run extension:test:integration` from the root. The Extension Host test may download a VS Code build unless `BUGDHOR_VSCODE_EXECUTABLE` is set to a local installation.
 
 ## 6. Python backend setup
 
@@ -125,27 +125,27 @@ For Extension Host integration tests (when environment supports it): `npm run ex
 Run from `security-engine/` using the project virtual environment:
 
 ```bash
-../.venv/bin/python -m craftsec --host 127.0.0.1 --port 8765
+../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765
 # or, if installed in environment:
-craftsec --host 127.0.0.1 --port 8765
+bugdhor --host 127.0.0.1 --port 8765
 ```
 
-You can also configure host/port via environment variables (e.g. `CRAFTSEC_HOST`, `CRAFTSEC_PORT`) as supported by settings.
+You can also configure host/port via environment variables (e.g. `BUGDHOR_HOST`, `BUGDHOR_PORT`) as supported by settings.
 
 ### 6.2 Key runtime settings (environment-backed)
 
-Settings use the `CRAFTSEC_` prefix (and accept some conventional aliases such as `HF_TOKEN`). Common settings include:
+Settings use the `BUGDHOR_` prefix (and accept some conventional aliases such as `HF_TOKEN`). Common settings include:
 
 | Setting | Purpose | Default/notes |
 |---|---|---|
-| `CRAFTSEC_HOST`, `CRAFTSEC_PORT` | Bind address/port | Default `127.0.0.1:8765` (local-first). |
-| `CRAFTSEC_WORKSPACE_ROOTS` | Allowed roots for file/workspace inspection | JSON array or comma-separated paths; defaults to current working directory behavior in settings. Set to folders the backend may inspect. |
-| `CRAFTSEC_API_TOKEN` (or `CRAFTSEC_ENGINE_TOKEN`) | Optional bearer token for `/api/*` | If set, requests must include `Authorization: Bearer <token>`. |
-| `CRAFTSEC_CORS_ORIGINS` | Allowed CORS origins | Empty by default; wildcard `*` rejected; origins must be scheme/host/port only. |
-| `CRAFTSEC_MAX_REQUEST_BYTES`, `CRAFTSEC_MAX_FILE_BYTES`, `CRAFTSEC_MAX_WORKSPACE_FILES` | Request/resource limits | Enforced by middleware/validation/path logic. |
-| `CRAFTSEC_DATA_DIR`, `CRAFTSEC_LOG_DIR` | Data/log directories | Used for persistence/logs as configured. |
-| `CRAFTSEC_SANDBOX_BACKEND`, `CRAFTSEC_SANDBOX_TIMEOUT_SECONDS` | Sandbox execution settings | Default backend `docker` in settings; functional execution requires available backend and explicit consent. |
-| `CRAFTSEC_SEMGREP_PATH`, `CRAFTSEC_BANDIT_PATH`, `CRAFTSEC_CODEQL_PATH`, `CRAFTSEC_JOERN_PATH` | Analyzer executables/config paths | Missing/unconfigured tools lead to explicit unavailable/failed tool statuses. |
+| `BUGDHOR_HOST`, `BUGDHOR_PORT` | Bind address/port | Default `127.0.0.1:8765` (local-first). |
+| `BUGDHOR_WORKSPACE_ROOTS` | Allowed roots for file/workspace inspection | JSON array or comma-separated paths; defaults to current working directory behavior in settings. Set to folders the backend may inspect. |
+| `BUGDHOR_API_TOKEN` (or `BUGDHOR_ENGINE_TOKEN`) | Optional bearer token for `/api/*` | If set, requests must include `Authorization: Bearer <token>`. |
+| `BUGDHOR_CORS_ORIGINS` | Allowed CORS origins | Empty by default; wildcard `*` rejected; origins must be scheme/host/port only. |
+| `BUGDHOR_MAX_REQUEST_BYTES`, `BUGDHOR_MAX_FILE_BYTES`, `BUGDHOR_MAX_WORKSPACE_FILES` | Request/resource limits | Enforced by middleware/validation/path logic. |
+| `BUGDHOR_DATA_DIR`, `BUGDHOR_LOG_DIR` | Data/log directories | Used for persistence/logs as configured. |
+| `BUGDHOR_SANDBOX_BACKEND`, `BUGDHOR_SANDBOX_TIMEOUT_SECONDS` | Sandbox execution settings | Default backend `docker` in settings; functional execution requires available backend and explicit consent. |
+| `BUGDHOR_SEMGREP_PATH`, `BUGDHOR_BANDIT_PATH`, `BUGDHOR_CODEQL_PATH`, `BUGDHOR_JOERN_PATH` | Analyzer executables/config paths | Missing/unconfigured tools lead to explicit unavailable/failed tool statuses. |
 
 See `.env.example` and `docs/api.md` for the full/current contract.
 
@@ -156,11 +156,11 @@ See `.env.example` and `docs/api.md` for the full/current contract.
 - OpenAPI: `GET /openapi.json`, docs: `GET /docs`, `GET /redoc`
 - Error responses: RFC 9457 problem details (`application/problem+json`) for API errors.
 
-The extension appends `/api/v1` to `craftsec.backend.url`.
+The extension appends `/api/v1` to `bugdhor.backend.url`.
 
 ## 7. LLM model configuration
 
-CRAFT-Sec includes a **lazy, local-first model runtime** (`craftsec.models`) for Hugging Face Transformers-compatible workflows. Importing/configuring does not automatically download weights.
+Bug Dhor includes a **lazy, local-first model runtime** (`bugdhor.models`) for Hugging Face Transformers-compatible workflows. Importing/configuring does not automatically download weights.
 
 ### 7.1 Supported/declared checkpoints (as documented)
 
@@ -173,8 +173,8 @@ CRAFT-Sec includes a **lazy, local-first model runtime** (`craftsec.models`) for
 ### 7.2 Configuration principles
 
 - **`local_files_only` defaults to true** in model configuration patterns: provision checkpoints locally and explicitly opt into remote resolution only if intended and permitted.
-- Use environment/settings such as `CRAFTSEC_MODEL_ID`, `CRAFTSEC_MODEL_REVISION`, `CRAFTSEC_DEVICE` (`auto|cpu|cuda|mps`), and `CRAFTSEC_HF_TOKEN`/`HF_TOKEN` when gated access/download workflows are explicitly used and authorized.
-- CRAFT-Sec does **not** redistribute model weights.
+- Use environment/settings such as `BUGDHOR_MODEL_ID`, `BUGDHOR_MODEL_REVISION`, `BUGDHOR_DEVICE` (`auto|cpu|cuda|mps`), and `BUGDHOR_HF_TOKEN`/`HF_TOKEN` when gated access/download workflows are explicitly used and authorized.
+- Bug Dhor does **not** redistribute model weights.
 
 ### 7.3 Availability and limitations
 
@@ -187,15 +187,15 @@ CRAFT-Sec includes a **lazy, local-first model runtime** (`craftsec.models`) for
 ### 8.1 Prerequisites
 
 - Backend running and reachable (default `http://127.0.0.1:8765`).
-- `CRAFTSEC_WORKSPACE_ROOTS` includes the target workspace/folder.
+- `BUGDHOR_WORKSPACE_ROOTS` includes the target workspace/folder.
 - In VS Code: open a workspace folder and (for file/selection scans) a saved `file:` document inside it.
-- `craftsec.privacy.sendSourceText` controls whether current buffer/selection text is sent for explicitly invoked file/selection commands; workspace scans send folder metadata, not file contents (per extension docs).
+- `bugdhor.privacy.sendSourceText` controls whether current buffer/selection text is sent for explicitly invoked file/selection commands; workspace scans send folder metadata, not file contents (per extension docs).
 
 ### 8.2 Scan current file (VS Code)
 
 1. Start the backend.
 2. Open the target file in the workspace.
-3. Run **CRAFT-Sec: Scan Current File** from the Command Palette.
+3. Run **Bug Dhor: Scan Current File** from the Command Palette.
 4. Review progress/result notifications and the **Problems** panel. Diagnostics are published only from validated backend scan results.
 
 **Expected behavior:** The backend performs real inspection/analysis stages available in the current environment (e.g. preprocessing, program analysis/taint, detection; static tools only if installed/configured). Results may be `partial` if some tools/stages are unavailable.
@@ -203,13 +203,13 @@ CRAFT-Sec includes a **lazy, local-first model runtime** (`craftsec.models`) for
 ### 8.3 Scan selection (VS Code)
 
 1. Select a non-empty code region in a supported saved workspace file.
-2. Run **CRAFT-Sec: Scan Selection**.
+2. Run **Bug Dhor: Scan Selection**.
 3. The extension sends selection context according to privacy settings; backend analyzes the relevant file/selection request.
 
 ### 8.4 Scan workspace (VS Code)
 
 1. Ensure one or more local workspace folders are open and allowed by backend roots.
-2. Run **CRAFT-Sec: Scan Workspace**.
+2. Run **Bug Dhor: Scan Workspace**.
 3. Review findings/summary in dashboard/problems as returned by backend. Large workspaces may take longer; progress/cancellation are supported where provided by the command/job flow.
 
 ### 8.5 Scan via API (example)
@@ -224,7 +224,7 @@ curl -sS -X POST "http://127.0.0.1:8765/api/v1/scan/file" \
   }'
 ```
 
-Adjust payload to match the current OpenAPI schema (include an auth header if `CRAFTSEC_API_TOKEN` is enabled). Prefer using paths within configured workspace roots.
+Adjust payload to match the current OpenAPI schema (include an auth header if `BUGDHOR_API_TOKEN` is enabled). Prefer using paths within configured workspace roots.
 
 ### 8.6 Interpreting results honestly
 
@@ -240,7 +240,7 @@ The explainability engine builds structured/human-readable explanations from sup
 
 ### 9.2 How to request an explanation
 
-- **VS Code:** run **CRAFT-Sec: Explain Vulnerability** in the context of a finding/editor as supported by the command/backend contract. If no valid finding/context is available, the backend may return partial/unavailable explanation.
+- **VS Code:** run **Bug Dhor: Explain Vulnerability** in the context of a finding/editor as supported by the command/backend contract. If no valid finding/context is available, the backend may return partial/unavailable explanation.
 - **API:** `POST /api/v1/explanation/analyze` with the required request schema (typically includes file/finding context).
 
 ### 9.3 Reading explanations
@@ -261,7 +261,7 @@ SAE-related capabilities include training/association/interpretation libraries a
 
 ### 10.2 Using the API/command
 
-- **VS Code:** **CRAFT-Sec: Analyze Security Features** invokes the backend feature extraction flow; if prerequisites are missing, expect explicit unavailable/partial responses.
+- **VS Code:** **Bug Dhor: Analyze Security Features** invokes the backend feature extraction flow; if prerequisites are missing, expect explicit unavailable/partial responses.
 - **API:** `POST /api/v1/features/extract` with a valid request payload.
 
 **Important current status:** in the default integrated orchestrator, `features_extract` declares `model_capture`, `sae_features`, and `feature_aggregation` as unavailable (`E_MODEL_UNAVAILABLE`, `E_SAE_UNAVAILABLE`, `E_FEATURE_UNAVAILABLE`) and returns no features. The SAE training/analysis/interpretation libraries exist for programmatic research use when you supply activations and checkpoints; do not expect the running API to fabricate features.
@@ -284,10 +284,10 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ### 11.2 Using the API/command
 
-- **VS Code:** **CRAFT-Sec: Counterfactual Analysis** requires appropriate editor context/selection and a backend capable of the requested analysis; otherwise it will report unavailable/failed states per backend response.
+- **VS Code:** **Bug Dhor: Counterfactual Analysis** requires appropriate editor context/selection and a backend capable of the requested analysis; otherwise it will report unavailable/failed states per backend response.
 - **API:** `POST /api/v1/counterfactual/analyze` with schema-compliant payload.
 
-**Important current status:** in the default integrated orchestrator, `counterfactual_analyze` declares the `counterfactual` stage unavailable (`E_COUNTERFACTUAL_UNAVAILABLE`) and does not fabricate intervention outputs. The counterfactual libraries (`craftsec.counterfactual.*`) are available programmatically for configured model/SAE runs.
+**Important current status:** in the default integrated orchestrator, `counterfactual_analyze` declares the `counterfactual` stage unavailable (`E_COUNTERFACTUAL_UNAVAILABLE`) and does not fabricate intervention outputs. The counterfactual libraries (`bugdhor.counterfactual.*`) are available programmatically for configured model/SAE runs.
 
 ### 11.3 Interpreting results
 
@@ -296,14 +296,14 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ## 12. Secure code generation tutorial
 
-"Secure code generation" in CRAFT-Sec is exposed as a research/engine-backed command/operation where available (e.g. steering/prevention or generation-oriented workflows). It is **not** guaranteed to be available in a default environment.
+"Secure code generation" in Bug Dhor is exposed as a research/engine-backed command/operation where available (e.g. steering/prevention or generation-oriented workflows). It is **not** guaranteed to be available in a default environment.
 
 ### 12.1 Current usage model
 
-- **VS Code:** **CRAFT-Sec: Generate Secure Code** sends an engine-backed request based on editor context.
+- **VS Code:** **Bug Dhor: Generate Secure Code** sends an engine-backed request based on editor context.
 - **API:** `POST /api/v1/prevention/steer` accepts a schema-valid steering/prevention request.
 
-**Important current status:** the orchestrator's `prevention_steer` path declares the steering plan/evaluation stages as unavailable in the default integrated pipeline. The standalone steering libraries (`craftsec.steering.*`) and adaptive policy/risk-control components exist and can be used programmatically when a compatible model, SAE, and evaluators are configured, but the end-to-end API flow must not be assumed operational. Check the returned stage statuses/reasons.
+**Important current status:** the orchestrator's `prevention_steer` path declares the steering plan/evaluation stages as unavailable in the default integrated pipeline. The standalone steering libraries (`bugdhor.steering.*`) and adaptive policy/risk-control components exist and can be used programmatically when a compatible model, SAE, and evaluators are configured, but the end-to-end API flow must not be assumed operational. Check the returned stage statuses/reasons.
 
 ### 12.2 Prerequisites and limitations
 
@@ -322,7 +322,7 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ### 13.2 How to request repair
 
-- **VS Code:** run **CRAFT-Sec: Repair Vulnerability** (optionally from an eligible diagnostic quick-fix context). The extension may open preview/apply flows subject to local validation and user confirmation.
+- **VS Code:** run **Bug Dhor: Repair Vulnerability** (optionally from an eligible diagnostic quick-fix context). The extension may open preview/apply flows subject to local validation and user confirmation.
 - **API:** `POST /api/v1/repair/generate` with a valid `RepairRequest` (includes finding/context and any workflow inputs required by schema).
 
 ### 13.3 Applying patches safely
@@ -333,7 +333,7 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ## 14. Verification tutorial
 
-### 14.1 What verification means in CRAFT-Sec
+### 14.1 What verification means in Bug Dhor
 
 - **Independent security verification** compares evidence (e.g. static/taint findings before/after) without granting authority to the generator’s rationale.
 - **Functional verification** (when available) is consent-gated and must run in an isolated sandbox; untrusted code/tests must not run on the host.
@@ -341,7 +341,7 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ### 14.2 How to run verification
 
-- **VS Code:** **CRAFT-Sec: Verify Repair** (workspace/editor context as required by command/backend contract).
+- **VS Code:** **Bug Dhor: Verify Repair** (workspace/editor context as required by command/backend contract).
 - **API:** `POST /api/v1/verification/run` with schema-compliant target/profile/consent fields.
 
 **Important current status:** in the default integrated orchestrator, `verification_run` still declares the standalone `verification` stage unavailable (`E_VERIFICATION_UNAVAILABLE`) and returns an inconclusive placeholder rather than claiming a verdict. The independent verification engine also runs inside the integrated repair workflow (`RepairWorkflow`), where results depend on analyzers/consent/sandbox and workflow state. Do not interpret an unavailable/inconclusive result as verification success.
@@ -353,7 +353,7 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ## 15. Experiment configuration
 
-CRAFT-Sec includes experimental/evaluation frameworks in code (`craftsec.experiments`, `craftsec.evaluation`) for **honest, reproducible** studies when inputs are available.
+Bug Dhor includes experimental/evaluation frameworks in code (`bugdhor.experiments`, `bugdhor.evaluation`) for **honest, reproducible** studies when inputs are available.
 
 ### 15.1 Implemented building blocks
 
@@ -378,9 +378,9 @@ No benchmark results are included in this guide; any future results must be trac
 
 ### 16.1 Backend/connection issues
 
-- **Extension cannot reach backend:** ensure backend is running, `craftsec.backend.url` is a valid HTTP(S) origin, and firewall/port settings allow local access.
-- **401 Unauthorized:** set matching `CRAFTSEC_API_TOKEN` in backend and provide token in extension host environment (as supported) or request headers for API calls.
-- **Path rejected / outside workspace:** configure `CRAFTSEC_WORKSPACE_ROOTS` to include the target folder; use allowed file paths.
+- **Extension cannot reach backend:** ensure backend is running, `bugdhor.backend.url` is a valid HTTP(S) origin, and firewall/port settings allow local access.
+- **401 Unauthorized:** set matching `BUGDHOR_API_TOKEN` in backend and provide token in extension host environment (as supported) or request headers for API calls.
+- **Path rejected / outside workspace:** configure `BUGDHOR_WORKSPACE_ROOTS` to include the target folder; use allowed file paths.
 - **Validation errors (422):** verify request payload matches current schema (OpenAPI docs at `/docs`).
 
 ### 16.2 Scan/analysis behavior
@@ -396,15 +396,15 @@ No benchmark results are included in this guide; any future results must be trac
 
 ### 16.4 Extension development/runtime
 
-- Use **Run and Debug → Run CRAFT-Sec Extension** in VS Code for Extension Development Host.
+- Use **Run and Debug → Run Bug Dhor Extension** in VS Code for Extension Development Host.
 - Packaging with `--no-dependencies` is intentional in this repo layout; do not change without bundling strategy.
 - See `vscode-extension/README.md` and `docs/development-setup.md` for known issues (Node version, venv, Semgrep PATH, Docker availability, Windows notes).
 
 ## 17. Privacy and security considerations
 
 - **Local-first defaults:** backend defaults to loopback; do not expose without appropriate network controls, authentication, and hardening.
-- **Optional API auth:** enable `CRAFTSEC_API_TOKEN` where required; default deployments may have no auth.
-- **Source sharing:** `craftsec.privacy.sendSourceText` controls sending active buffer/selection for explicitly invoked file/selection requests; disabling sends paths/ranges so backend reads saved files (subject to backend access). Workspace scans avoid sending file contents per design.
+- **Optional API auth:** enable `BUGDHOR_API_TOKEN` where required; default deployments may have no auth.
+- **Source sharing:** `bugdhor.privacy.sendSourceText` controls sending active buffer/selection for explicitly invoked file/selection requests; disabling sends paths/ranges so backend reads saved files (subject to backend access). Workspace scans avoid sending file contents per design.
 - **Sensitive artifacts:** logs, job records, persisted results, caches, and exported bundles may contain sensitive source fragments, paths, or findings; protect storage, access, and retention appropriately.
 - **LLM/prompt injection:** repository content and findings are untrusted inputs; prompt hardening reduces but does not eliminate risk. Treat all generated patches/code as untrusted.
 - **Patch application:** never auto-trust or auto-apply generated diffs; require review and explicit approval.

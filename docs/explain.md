@@ -1,6 +1,6 @@
 # Explainable vulnerability analysis
 
-`craftsec.explain.ExplainableVulnerabilityEngine` builds structured and
+`bugdhor.explain.ExplainableVulnerabilityEngine` builds structured and
 human-readable reports from a fused `VulnerabilityFinding`.
 
 The report preserves evidence boundaries:

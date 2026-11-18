@@ -1,0 +1,30 @@
+"""Independent verification endpoint."""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+
+from bugdhor.api.dependencies import get_job_store, get_orchestrator, get_request_id
+from bugdhor.api.routes.common import COMMON_ERROR_RESPONSES
+from bugdhor.api.schemas.verification import VerificationRequest, VerificationResponse
+from bugdhor.core.jobs import JobStore
+from bugdhor.core.orchestrator import Orchestrator
+
+router = APIRouter(prefix="/verification", tags=["verification"])
+
+
+@router.post(
+    "/run",
+    response_model=VerificationResponse,
+    summary="Run independent security and functional checks when available",
+    responses=COMMON_ERROR_RESPONSES,
+)
+def run_verification(
+    payload: VerificationRequest,
+    orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
+    request_id: Annotated[str, Depends(get_request_id)],
+    job_store: Annotated[JobStore, Depends(get_job_store)],
+) -> VerificationResponse:
+    return orchestrator.verification_run(payload, request_id, job_store=job_store)

@@ -27,7 +27,7 @@ function registerDashboardCommand({ vscode, logger, registry, dashboard }) {
       logger.error(`${definition.title} failed: ${message}`, error);
 
       const action = await vscode.window.showErrorMessage(
-        'CRAFT-Sec: Unable to open the Security Dashboard.',
+        'Bug Dhor: Unable to open the Security Dashboard.',
         'Show Logs'
       );
       if (action === 'Show Logs') {

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from craftsec.parsing import SupportedLanguage, extract_repository_metadata
+from bugdhor.parsing import SupportedLanguage, extract_repository_metadata
 
 
 def _write(root: Path, relative: str, content: str | bytes) -> Path:

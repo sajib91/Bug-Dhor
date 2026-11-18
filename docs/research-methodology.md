@@ -1,4 +1,4 @@
-# CRAFT-Sec Research Methodology (Technical)
+# Bug Dhor Research Methodology (Technical)
 
 **Status:** Technical research documentation grounded in repository implementation and design contracts.  
 **Scope:** Distinguishes **implemented** modules/methods, **implemented-but-conditional** capabilities (require models/artifacts/tools/data/config), and **planned/target** methods described in research alignment but not fully realized in a default environment.  
@@ -14,7 +14,7 @@ Automated vulnerability detection and repair for source code remain challenging 
 
 ### 1.2 Objectives
 
-CRAFT-Sec targets a local-first, evidence-aware research framework with the following objectives (as reflected in implemented modules and research contracts):
+Bug Dhor targets a local-first, evidence-aware research framework with the following objectives (as reflected in implemented modules and research contracts):
 
 1. **Evidence-grounded vulnerability analysis:** integrate parsing/program analysis, taint, and available static evidence into explainable detection outputs with explicit provenance and limitations.
 2. **SAE-based representation analysis:** train/analyze sparse autoencoder features over model activations and study associations with labeled security-relevant data under explicit non-causal interpretation unless separately validated.
@@ -28,7 +28,7 @@ CRAFT-Sec targets a local-first, evidence-aware research framework with the foll
 
 ### 2.1 Architectural overview
 
-CRAFT-Sec is organized as a monorepo with a **VS Code extension client** and a **Python/FastAPI security engine**:
+Bug Dhor is organized as a monorepo with a **VS Code extension client** and a **Python/FastAPI security engine**:
 
 - **Client/UI layer:** command registration, workspace validation, backend transport, response validation, dashboard rendering, diagnostics/hover/code actions, and privacy-aware request shaping.
 - **API/orchestration layer:** FastAPI routes/schemas, middleware (auth/CORS/limits/errors/request context), orchestrator, job/progress/cancellation tracking, and result persistence.
@@ -52,10 +52,10 @@ Operations and stages report explicit statuses (e.g. `ok`, `partial`, `unavailab
 
 ### 3.1 Implemented components
 
-- **SAE model/training (`craftsec.sae.model`, `training`, `metrics`, `checkpoint`, `config`)**: ReLU-encoder/linear-decoder sparse autoencoder over activation tensors with configurable dimensions/hyperparameters, reconstruction and sparsity-related metrics (e.g. reconstruction error, relative error, L0/activity/utilization, dead features), training history, and checkpoint save/load with configuration hashing/validation.
-- **Activation extraction support (`craftsec.models.activations`, adapter/runtime modules)**: infrastructure to collect model activations from compatible local Transformer models when configured/loaded.
-- **Association analysis (`craftsec.sae.association`)**: computes feature-association statistics from explicitly labeled secure/vulnerable samples and actual SAE activations (e.g. activation frequency, mean differences, precision/recall-like active-feature statistics, CWE-specific/selectivity/stability/cross-dataset validation metrics as implemented), with provenance fields (model/layer/checkpoint/datasets/thresholds).
-- **Interpretation/reporting (`craftsec.sae.interpretation`)**: evidence-backed interpretation hypotheses from association evidence and examples, with annotations, limitations, export (JSON/CSV flattening rules), and explicit non-semantic/non-causal disclaimers.
+- **SAE model/training (`bugdhor.sae.model`, `training`, `metrics`, `checkpoint`, `config`)**: ReLU-encoder/linear-decoder sparse autoencoder over activation tensors with configurable dimensions/hyperparameters, reconstruction and sparsity-related metrics (e.g. reconstruction error, relative error, L0/activity/utilization, dead features), training history, and checkpoint save/load with configuration hashing/validation.
+- **Activation extraction support (`bugdhor.models.activations`, adapter/runtime modules)**: infrastructure to collect model activations from compatible local Transformer models when configured/loaded.
+- **Association analysis (`bugdhor.sae.association`)**: computes feature-association statistics from explicitly labeled secure/vulnerable samples and actual SAE activations (e.g. activation frequency, mean differences, precision/recall-like active-feature statistics, CWE-specific/selectivity/stability/cross-dataset validation metrics as implemented), with provenance fields (model/layer/checkpoint/datasets/thresholds).
+- **Interpretation/reporting (`bugdhor.sae.interpretation`)**: evidence-backed interpretation hypotheses from association evidence and examples, with annotations, limitations, export (JSON/CSV flattening rules), and explicit non-semantic/non-causal disclaimers.
 
 ### 3.2 Methodological constraints
 
@@ -80,7 +80,7 @@ Operations and stages report explicit statuses (e.g. `ok`, `partial`, `unavailab
 
 ### 5.1 Single-feature interventions (implemented library)
 
-`craftsec.counterfactual.engine` supports reproducible SAE-based interventions against compatible local Transformers models, including:
+`bugdhor.counterfactual.engine` supports reproducible SAE-based interventions against compatible local Transformers models, including:
 
 - baseline activation measurement at selected layers/positions;
 - intervention modes (e.g. ablation/target-value modification as supported);
@@ -91,7 +91,7 @@ Ground-truth vulnerability status is treated as externally supplied and not infe
 
 ### 5.2 Pairwise interventions (implemented library)
 
-`craftsec.counterfactual.pairwise` evaluates factorial-style four-cell contrasts on an explicitly declared outcome scale:
+`bugdhor.counterfactual.pairwise` evaluates factorial-style four-cell contrasts on an explicitly declared outcome scale:
 
 `Interaction(A,B) = Outcome(A,B) - Outcome(A,0) - Outcome(0,B) + Outcome(0,0)`
 
@@ -101,7 +101,7 @@ Ground-truth vulnerability status is treated as externally supplied and not infe
 
 ### 5.3 Higher-order interventions (implemented library)
 
-`craftsec.counterfactual.higher_order` computes factorial contrasts over feature subsets `S` of order `k`:
+`bugdhor.counterfactual.higher_order` computes factorial contrasts over feature subsets `S` of order `k`:
 
 `sum(T subset S) (-1)^(k - |T|) Outcome(T)`
 
@@ -133,10 +133,10 @@ Counterfactual modules provide **controlled intervention comparisons** within sp
 
 ### 8.1 Implemented mechanisms (conditional)
 
-- **Steering engine (`craftsec.steering.engine`)**: white-box activation intervention for compatible HF Transformer models; disabled by default and requires explicit enablement/specification. Applies additive decoder-direction interventions at configured layers/positions with norm bounds, finiteness/shape checks, hook cleanup, and baseline-vs-steered output comparison under recorded provenance.
-- **Adaptive policy (`craftsec.steering.adaptive`)**: integrates measured feature dictionaries and pairwise/higher-order results to rank/select features and schedule strengths/positions based on configured, auditable rules (no opaque feature weighting). Records individual/pairwise/higher-order contributions and intervention history.
-- **CWE-specific risk control (`craftsec.steering.risk_controller`)**: combines evidence components under explicit policies/thresholds/multipliers; exposes bounded heuristic priority (not calibrated probability unless a versioned calibrator is provided). Can gate steering when evidence/threshold conditions are not met.
-- **Functional-preservation constraints (`craftsec.steering.functional`)**: evaluates candidates against measured evidence (syntax/compile/tests/behavior/security/overhead) via supplied evaluators; rejects or retains rejected candidates for audit rather than accepting unsupported claims.
+- **Steering engine (`bugdhor.steering.engine`)**: white-box activation intervention for compatible HF Transformer models; disabled by default and requires explicit enablement/specification. Applies additive decoder-direction interventions at configured layers/positions with norm bounds, finiteness/shape checks, hook cleanup, and baseline-vs-steered output comparison under recorded provenance.
+- **Adaptive policy (`bugdhor.steering.adaptive`)**: integrates measured feature dictionaries and pairwise/higher-order results to rank/select features and schedule strengths/positions based on configured, auditable rules (no opaque feature weighting). Records individual/pairwise/higher-order contributions and intervention history.
+- **CWE-specific risk control (`bugdhor.steering.risk_controller`)**: combines evidence components under explicit policies/thresholds/multipliers; exposes bounded heuristic priority (not calibrated probability unless a versioned calibrator is provided). Can gate steering when evidence/threshold conditions are not met.
+- **Functional-preservation constraints (`bugdhor.steering.functional`)**: evaluates candidates against measured evidence (syntax/compile/tests/behavior/security/overhead) via supplied evaluators; rejects or retains rejected candidates for audit rather than accepting unsupported claims.
 
 ### 8.2 Methodological limits
 
@@ -159,9 +159,9 @@ Counterfactual modules provide **controlled intervention comparisons** within sp
 
 ### 10.1 Implemented detection/explanation fusion
 
-- **Detection (`craftsec.detection.*`)** fuses available evidence from program analysis/taint and static-analysis coverage/adapters where configured, producing findings with confidence/coverage/evidence-source metadata and explicit gaps.
-- **Static integration (`craftsec.static.*`)** normalizes tool outputs into shared findings with provenance, conservative mappings, deduplication rules, and explicit unavailable/failed/timed-out statuses.
-- **Explanation (`craftsec.explain.*`)** preserves evidence boundaries and labels hypotheses/inferences separately; SAE and counterfactual information, when supplied, are included only as evidenced records with provenance and limitations.
+- **Detection (`bugdhor.detection.*`)** fuses available evidence from program analysis/taint and static-analysis coverage/adapters where configured, producing findings with confidence/coverage/evidence-source metadata and explicit gaps.
+- **Static integration (`bugdhor.static.*`)** normalizes tool outputs into shared findings with provenance, conservative mappings, deduplication rules, and explicit unavailable/failed/timed-out statuses.
+- **Explanation (`bugdhor.explain.*`)** preserves evidence boundaries and labels hypotheses/inferences separately; SAE and counterfactual information, when supplied, are included only as evidenced records with provenance and limitations.
 
 ### 10.2 Principles
 
@@ -172,10 +172,10 @@ Counterfactual modules provide **controlled intervention comparisons** within sp
 
 ### 11.1 Implemented components
 
-- **Context building (`craftsec.repair.context`)**: opt-in, bounded repository context from target file and related imports/tests/config/security utilities within workspace containment rules; includes metadata/summaries (paths, hashes, symbols, dependencies, AST/CFG/DFG summaries where supported) without including raw source text in context objects as specified.
-- **Prompting/candidate generation (`craftsec.repair.engine`)**: CWE/evidence-aware prompting for validated local model adapters (when configured), multi-candidate unified-diff handling, normalization/application in temporary directories for validation, syntax checks, and ranking inputs. Prompting treats source/findings/evidence/repo context as untrusted data.
-- **Ranking (`craftsec.repair.ranking`)**: separates mandatory constraints (e.g. syntax, required evidence/tests/compliance/touched-file limits when configured) from weighted preferences; unavailable evidence is recorded, not fabricated.
-- **Workflow (`craftsec.repair.workflow`)**: integrated 12-step proposal/verification-oriented process with traceable stages, approval requirement, and verification-dependent status (e.g. verified states only when mandatory checks/evidence support them). The steps are: (1) record original source state; (2) generate/provide a repair candidate; (3) validate patch format; (4) validate syntax in an isolated copy; (5) run independent security checks; (6) run functional tests (consent/sandbox dependent); (7) run regression comparisons; (8) compare before/after findings; (9) generate a final verification report/state; (10) request explicit user approval; (11) apply only where a client/user flow permits (the engine never modifies user source; step is blocked otherwise); (12) record final patch metadata. `FULLY_VERIFIED` requires valid syntax, passing independent security verification, and passing functional/regression checks in isolated execution; otherwise the workflow records partial/inconclusive/failed states.
+- **Context building (`bugdhor.repair.context`)**: opt-in, bounded repository context from target file and related imports/tests/config/security utilities within workspace containment rules; includes metadata/summaries (paths, hashes, symbols, dependencies, AST/CFG/DFG summaries where supported) without including raw source text in context objects as specified.
+- **Prompting/candidate generation (`bugdhor.repair.engine`)**: CWE/evidence-aware prompting for validated local model adapters (when configured), multi-candidate unified-diff handling, normalization/application in temporary directories for validation, syntax checks, and ranking inputs. Prompting treats source/findings/evidence/repo context as untrusted data.
+- **Ranking (`bugdhor.repair.ranking`)**: separates mandatory constraints (e.g. syntax, required evidence/tests/compliance/touched-file limits when configured) from weighted preferences; unavailable evidence is recorded, not fabricated.
+- **Workflow (`bugdhor.repair.workflow`)**: integrated 12-step proposal/verification-oriented process with traceable stages, approval requirement, and verification-dependent status (e.g. verified states only when mandatory checks/evidence support them). The steps are: (1) record original source state; (2) generate/provide a repair candidate; (3) validate patch format; (4) validate syntax in an isolated copy; (5) run independent security checks; (6) run functional tests (consent/sandbox dependent); (7) run regression comparisons; (8) compare before/after findings; (9) generate a final verification report/state; (10) request explicit user approval; (11) apply only where a client/user flow permits (the engine never modifies user source; step is blocked otherwise); (12) record final patch metadata. `FULLY_VERIFIED` requires valid syntax, passing independent security verification, and passing functional/regression checks in isolated execution; otherwise the workflow records partial/inconclusive/failed states.
 
 ### 11.2 Safety constraints
 
@@ -187,9 +187,9 @@ Counterfactual modules provide **controlled intervention comparisons** within sp
 
 ### 12.1 Implemented components
 
-- **Security verification (`craftsec.verification.engine`)**: independent comparison of static/taint evidence before/after candidate patches in isolated temporary contexts; produces verdicts/classifications with evidence and limitations.
-- **Functional verification (`craftsec.verification.functional`)**: consent-gated, sandbox-dependent execution model; refuses host execution of untrusted project tests and reports unavailable/not-run/inconclusive outcomes when prerequisites are unmet.
-- **Sandbox execution (`craftsec.sandbox.executor`)**: explicit consent model, denial of destructive/privileged requests, isolated backend execution (e.g. Docker-based when configured/available), resource/time/network restrictions as implemented.
+- **Security verification (`bugdhor.verification.engine`)**: independent comparison of static/taint evidence before/after candidate patches in isolated temporary contexts; produces verdicts/classifications with evidence and limitations.
+- **Functional verification (`bugdhor.verification.functional`)**: consent-gated, sandbox-dependent execution model; refuses host execution of untrusted project tests and reports unavailable/not-run/inconclusive outcomes when prerequisites are unmet.
+- **Sandbox execution (`bugdhor.sandbox.executor`)**: explicit consent model, denial of destructive/privileged requests, isolated backend execution (e.g. Docker-based when configured/available), resource/time/network restrictions as implemented.
 
 ### 12.2 Independence and verdict semantics
 
@@ -201,7 +201,7 @@ Counterfactual modules provide **controlled intervention comparisons** within sp
 
 ### 13.1 Implemented framework
 
-- **Experiment groups (E0–E8):** defined in `craftsec.experiments.groups` with descriptions and prerequisite flags (SAE/static/repair dependencies vary by group).
+- **Experiment groups (E0–E8):** defined in `bugdhor.experiments.groups` with descriptions and prerequisite flags (SAE/static/repair dependencies vary by group).
 - **Datasets and preprocessing:** loaders/registry and validation utilities for supported datasets subject to local availability and explicit license acknowledgment; normalization, duplicate detection/deduplication, and leakage checks as implemented.
 - **Splitting strategies:** repository-level, temporal (when metadata permits), CWE-based, and cross-language splits with explicit unsupported/partial handling and reproducibility metadata (e.g. hashes).
 - **Run configuration/tracking:** deterministic config hashing, manifests, environment/tool metadata capture, seed/config recording, and raw output persistence.
@@ -228,7 +228,7 @@ Baseline experiment definitions and prerequisite checks are implemented in the e
 
 ### 15.1 Implemented ablation support
 
-`craftsec.evaluation.ablation` and experiment group structures support analyses corresponding to ablations such as **A1–A8** (e.g. removing SAE features, counterfactual analysis, pairwise interactions, higher-order interactions, steering, static-analysis fusion, repository context, or independent verification), subject to available implementations and data.
+`bugdhor.evaluation.ablation` and experiment group structures support analyses corresponding to ablations such as **A1–A8** (e.g. removing SAE features, counterfactual analysis, pairwise interactions, higher-order interactions, steering, static-analysis fusion, repository context, or independent verification), subject to available implementations and data.
 
 ### 15.2 Reporting requirements
 
@@ -252,7 +252,7 @@ Baseline experiment definitions and prerequisite checks are implemented in the e
 
 ## 17. Statistical analysis
 
-### 17.1 Implemented procedures (`craftsec.evaluation.statistics`)
+### 17.1 Implemented procedures (`bugdhor.evaluation.statistics`)
 
 - **Data/assumption reporting:** sample sizes, missing data, independence/normality/sample-size checks and caveats where applicable.
 - **Confidence intervals:** bootstrap methods (including cluster bootstrap when cluster IDs provided).

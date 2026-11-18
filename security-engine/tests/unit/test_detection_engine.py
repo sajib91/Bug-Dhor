@@ -11,15 +11,15 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.detection.config import DetectionConfig
-from craftsec.detection.engine import DetectionEngine
-from craftsec.detection.llm import LLMClaim
-from craftsec.detection.models import (
+from bugdhor.detection.config import DetectionConfig
+from bugdhor.detection.engine import DetectionEngine
+from bugdhor.detection.llm import LLMClaim
+from bugdhor.detection.models import (
     CalibratedProbability,
     EvidenceLocation,
     VulnerabilityCategory,
 )
-from craftsec.static.models import (
+from bugdhor.static.models import (
     AvailabilityStatus,
     ScanStatus,
     SourceLocation,

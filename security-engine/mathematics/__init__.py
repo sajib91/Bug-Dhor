@@ -1,7 +1,7 @@
-"""CRAFT-Sec validated mathematical formulations.
+"""Bug Dhor validated mathematical formulations.
 
 This package provides executable, dependency-light implementations of the
-mathematical components of CRAFT-Sec.  Every component is implemented from its
+mathematical components of Bug Dhor.  Every component is implemented from its
 stated equation and validated by unit and numerical tests.  No function returns
 a hardcoded score or a manually fabricated result.
 

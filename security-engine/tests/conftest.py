@@ -15,5 +15,5 @@ if str(SRC) not in sys.path:
 def isolate_engine_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep tests independent of a developer's ambient engine configuration."""
     for name in list(os.environ):
-        if name.startswith("CRAFTSEC_") or name == "HF_TOKEN":
+        if name.startswith("BUGDHOR_") or name == "HF_TOKEN":
             monkeypatch.delenv(name, raising=False)

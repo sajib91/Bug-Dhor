@@ -13,6 +13,6 @@ often on vulnerable samples is not thereby a vulnerability detector, a named CWE
 feature, or a causal mechanism. Causal influence requires a separate controlled
 intervention experiment.
 
-Use [`craftsec.sae.extract_feature_samples`](../security-engine/src/craftsec/sae/association.py)
+Use [`bugdhor.sae.extract_feature_samples`](../security-engine/src/bugdhor/sae/association.py)
 to encode token-aligned model activations from an activation batch, then pass
 the labeled samples to `analyze_features`.

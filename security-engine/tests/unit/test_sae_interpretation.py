@@ -6,7 +6,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from craftsec.sae import (  # noqa: E402
+from bugdhor.sae import (  # noqa: E402
     FeatureAnnotationBook,
     FeatureAssociation,
     FeatureDictionary,
@@ -18,7 +18,7 @@ from craftsec.sae import (  # noqa: E402
     export_reports_csv,
     export_reports_json,
 )
-from craftsec.sae.interpretation import FeatureExample  # noqa: E402
+from bugdhor.sae.interpretation import FeatureExample  # noqa: E402
 
 
 def _dictionary() -> FeatureDictionary:

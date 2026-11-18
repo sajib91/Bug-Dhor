@@ -15,10 +15,10 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from craftsec.detection.config import DetectionConfig
-from craftsec.detection.engine import DetectionEngine
-from craftsec.detection.models import CalibratedProbability
-from craftsec.static.models import (
+from bugdhor.detection.config import DetectionConfig
+from bugdhor.detection.engine import DetectionEngine
+from bugdhor.detection.models import CalibratedProbability
+from bugdhor.static.models import (
     AvailabilityStatus,
     ScanStatus,
     SourceLocation,
@@ -75,7 +75,7 @@ class _Calibrator:
             value=0.88,
             calibrator_artifact_id="calibrator-contract",
             method="isotonic",
-            dataset_id="craftsec-contract-set",
+            dataset_id="bugdhor-contract-set",
             split_hash=_SPLIT_HASH,
             brier_score=0.09,
             expected_calibration_error=0.03,

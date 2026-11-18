@@ -1,4 +1,4 @@
-"""Synthetic validation of CRAFT-Sec counterfactual interaction mathematics.
+"""Synthetic validation of Bug Dhor counterfactual interaction mathematics.
 
 This script is model-independent.  It emits a machine-readable record of
 analytical checks, scale-dependence checks, confounding demonstrations, and a
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from craftsec.counterfactual.validation import (
+from bugdhor.counterfactual.validation import (
     bootstrap_mean_interval,
     estimate_higher_order_contrast,
     estimate_pairwise_contrast,

@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from craftsec.api.app import create_app
-from craftsec.core.settings import Settings
+from bugdhor.api.app import create_app
+from bugdhor.core.settings import Settings
 
 
 def test_scan_file_reports_real_metadata_and_explicit_unavailable_stages(api) -> None:

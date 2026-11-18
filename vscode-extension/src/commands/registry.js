@@ -64,7 +64,7 @@ class CommandRegistry {
       try {
         disposable.dispose();
       } catch (error) {
-        this.logger?.error?.('Failed to dispose a CRAFT-Sec command registration.', error);
+        this.logger?.error?.('Failed to dispose a Bug Dhor command registration.', error);
       }
     }
   }

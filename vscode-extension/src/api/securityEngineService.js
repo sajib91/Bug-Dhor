@@ -47,7 +47,7 @@ class SecurityEngineUnavailableError extends Error {
   /** @param {string} operation */
   constructor(operation) {
     super(
-      `The local CRAFT-Sec security engine is not available yet, so ${operation} cannot run. ` +
+      `The local Bug Dhor security engine is not available yet, so ${operation} cannot run. ` +
         'No result was produced.'
     );
     this.name = 'SecurityEngineUnavailableError';
@@ -269,7 +269,7 @@ function buildFileRequestBody(request, configuration) {
 function buildRepairFinding(request) {
   if (!isPlainObject(request.finding)) {
     throw new SecurityEngineRequestError(
-      'Repair generation requires a backend finding. Open a CRAFT-Sec finding and run the ' +
+      'Repair generation requires a backend finding. Open a Bug Dhor finding and run the ' +
         'command from its Quick Fix.',
       'E_FINDING_REQUIRED'
     );
@@ -363,11 +363,11 @@ class HttpSecurityEngineService {
    */
   async health(context = {}) {
     const { client, configuration } = this.createClient();
-    this.logger?.debug(`Checking CRAFT-Sec backend at ${configuration.baseUrl}.`);
+    this.logger?.debug(`Checking Bug Dhor backend at ${configuration.baseUrl}.`);
     const { data } = await client.health(context?.token);
     const health = validateHealthResponse(data);
     this.logger?.debug(
-      `CRAFT-Sec backend ${health.version} responded with apiVersion ${health.apiVersion}.`
+      `Bug Dhor backend ${health.version} responded with apiVersion ${health.apiVersion}.`
     );
     return health;
   }
@@ -487,7 +487,7 @@ class HttpSecurityEngineService {
     const findingId = findFindingId(request);
     if (!findingId) {
       throw new SecurityEngineRequestError(
-        'Vulnerability explanation requires a backend finding identifier. Open a CRAFT-Sec ' +
+        'Vulnerability explanation requires a backend finding identifier. Open a Bug Dhor ' +
           'finding and run the command from its context.',
         'E_FINDING_REQUIRED'
       );

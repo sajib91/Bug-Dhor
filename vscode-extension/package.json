@@ -1,6 +1,6 @@
 {
-  "name": "craft-sec",
-  "displayName": "CRAFT-Sec Security Framework",
+  "name": "bug-dhor",
+  "displayName": "Bug Dhor Security Framework",
   "description": "Explainable vulnerability analysis, counterfactual feature inspection, and verified repair for VS Code.",
   "version": "0.1.0",
   "publisher": "your-publisher-id",
@@ -24,92 +24,92 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:craftsec.showStatus",
-    "onCommand:craftsec.showLogs",
-    "onCommand:craftsec.scanCurrentFile",
-    "onCommand:craftsec.scanSelection",
-    "onCommand:craftsec.scanWorkspace",
-    "onCommand:craftsec.explainVulnerability",
-    "onCommand:craftsec.analyzeSecurityFeatures",
-    "onCommand:craftsec.counterfactualAnalysis",
-    "onCommand:craftsec.generateSecureCode",
-    "onCommand:craftsec.repairVulnerability",
-    "onCommand:craftsec.verifyRepair",
-    "onCommand:craftsec.openSecurityDashboard",
-    "onView:craftsec.sidebar"
+    "onCommand:bugdhor.showStatus",
+    "onCommand:bugdhor.showLogs",
+    "onCommand:bugdhor.scanCurrentFile",
+    "onCommand:bugdhor.scanSelection",
+    "onCommand:bugdhor.scanWorkspace",
+    "onCommand:bugdhor.explainVulnerability",
+    "onCommand:bugdhor.analyzeSecurityFeatures",
+    "onCommand:bugdhor.counterfactualAnalysis",
+    "onCommand:bugdhor.generateSecureCode",
+    "onCommand:bugdhor.repairVulnerability",
+    "onCommand:bugdhor.verifyRepair",
+    "onCommand:bugdhor.openSecurityDashboard",
+    "onView:bugdhor.sidebar"
   ],
   "main": "./src/extension.js",
   "icon": "media/icon.png",
   "contributes": {
     "commands": [
       {
-        "command": "craftsec.showStatus",
+        "command": "bugdhor.showStatus",
         "title": "Show Status",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.showLogs",
+        "command": "bugdhor.showLogs",
         "title": "Show Logs",
-        "category": "CRAFT-Sec",
+        "category": "Bug Dhor",
         "icon": "$(output)"
       },
       {
-        "command": "craftsec.scanCurrentFile",
+        "command": "bugdhor.scanCurrentFile",
         "title": "Scan Current File",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.scanSelection",
+        "command": "bugdhor.scanSelection",
         "title": "Scan Selection",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.scanWorkspace",
+        "command": "bugdhor.scanWorkspace",
         "title": "Scan Workspace",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.explainVulnerability",
+        "command": "bugdhor.explainVulnerability",
         "title": "Explain Vulnerability",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.analyzeSecurityFeatures",
+        "command": "bugdhor.analyzeSecurityFeatures",
         "title": "Analyze Security Features",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.counterfactualAnalysis",
+        "command": "bugdhor.counterfactualAnalysis",
         "title": "Counterfactual Analysis",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.generateSecureCode",
+        "command": "bugdhor.generateSecureCode",
         "title": "Generate Secure Code",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.repairVulnerability",
+        "command": "bugdhor.repairVulnerability",
         "title": "Repair Vulnerability",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.verifyRepair",
+        "command": "bugdhor.verifyRepair",
         "title": "Verify Repair",
-        "category": "CRAFT-Sec"
+        "category": "Bug Dhor"
       },
       {
-        "command": "craftsec.openSecurityDashboard",
+        "command": "bugdhor.openSecurityDashboard",
         "title": "Open Security Dashboard",
-        "category": "CRAFT-Sec",
+        "category": "Bug Dhor",
         "icon": "$(shield)"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "craftsec.showLogs",
-          "when": "view == craftsec.sidebar",
+          "command": "bugdhor.showLogs",
+          "when": "view == bugdhor.sidebar",
           "group": "navigation"
         }
       ]
@@ -117,32 +117,32 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "craftsec",
-          "title": "CRAFT-Sec",
+          "id": "bugdhor",
+          "title": "Bug Dhor",
           "icon": "media/activitybar.svg"
         }
       ]
     },
     "views": {
-      "craftsec": [
+      "bugdhor": [
         {
-          "id": "craftsec.sidebar",
+          "id": "bugdhor.sidebar",
           "name": "Security Dashboard",
           "type": "webview"
         }
       ]
     },
     "configuration": {
-      "title": "CRAFT-Sec",
+      "title": "Bug Dhor",
       "properties": {
-        "craftsec.backend.url": {
+        "bugdhor.backend.url": {
           "type": "string",
           "default": "http://127.0.0.1:8765",
           "scope": "machine-overridable",
           "pattern": "^https?://[^\\s]+$",
-          "markdownDescription": "Base URL of the running CRAFT-Sec FastAPI backend. Use only an HTTP or HTTPS origin with no credentials, path, query, or fragment. The extension appends `/api/v1` itself."
+          "markdownDescription": "Base URL of the running Bug Dhor FastAPI backend. Use only an HTTP or HTTPS origin with no credentials, path, query, or fragment. The extension appends `/api/v1` itself."
         },
-        "craftsec.backend.requestTimeoutMs": {
+        "bugdhor.backend.requestTimeoutMs": {
           "type": "number",
           "default": 30000,
           "minimum": 1000,
@@ -150,7 +150,7 @@
           "scope": "machine-overridable",
           "description": "Timeout in milliseconds for scan and analysis requests. The request is aborted and reported to the user when it expires."
         },
-        "craftsec.backend.healthTimeoutMs": {
+        "bugdhor.backend.healthTimeoutMs": {
           "type": "number",
           "default": 3000,
           "minimum": 500,
@@ -158,24 +158,24 @@
           "scope": "machine-overridable",
           "description": "Timeout in milliseconds for backend health checks."
         },
-        "craftsec.privacy.sendSourceText": {
+        "bugdhor.privacy.sendSourceText": {
           "type": "boolean",
           "default": true,
           "scope": "machine-overridable",
           "markdownDescription": "Send the active document text and selected text with explicitly user-invoked scan and analysis commands. Disable to send only file paths and ranges; the backend then reads the saved file from disk. Workspace scans never send file contents. Source text is not sent by health checks or automatically."
         },
-        "craftsec.backend.pythonPath": {
+        "bugdhor.backend.pythonPath": {
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
           "markdownDescription": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
         },
-        "craftsec.backend.autoStart": {
+        "bugdhor.backend.autoStart": {
           "type": "boolean",
           "default": false,
           "description": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
         },
-        "craftsec.logging.level": {
+        "bugdhor.logging.level": {
           "type": "string",
           "enum": [
             "trace",
@@ -191,15 +191,15 @@
             "Show info, warning, and error messages.",
             "Show warning and error messages.",
             "Show error messages only.",
-            "Disable CRAFT-Sec output channel messages."
+            "Disable Bug Dhor output channel messages."
           ],
           "default": "info",
-          "description": "Log level for the CRAFT-Sec output channel."
+          "description": "Log level for the Bug Dhor output channel."
         },
-        "craftsec.ui.showStatusBarItem": {
+        "bugdhor.ui.showStatusBarItem": {
           "type": "boolean",
           "default": true,
-          "description": "Show the CRAFT-Sec status bar item."
+          "description": "Show the Bug Dhor status bar item."
         }
       }
     }

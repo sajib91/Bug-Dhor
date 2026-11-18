@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * CRAFT-Sec dashboard renderer.
+ * Bug Dhor dashboard renderer.
  *
  * This file is loaded inside the dashboard webview. It renders the state sent
  * by the extension host and never invents analysis data, probabilities, SAE
@@ -49,7 +49,7 @@
     'danger',
     'info'
   ]);
-  const safeCommandPattern = /^craftsec\.[A-Za-z][A-Za-z0-9]*$/;
+  const safeCommandPattern = /^bugdhor\.[A-Za-z][A-Za-z0-9]*$/;
   const demoFallbackNotice =
     'Demo data is shown for interface preview only. It was not produced by a scan or security ' +
     'engine, and no SAE, interaction, explanation, repair, or verification result is simulated.';
@@ -107,10 +107,10 @@
     try {
       vscode.postMessage(message);
     } catch (error) {
-      console.error('CRAFT-Sec dashboard could not contact the extension host.', error);
+      console.error('Bug Dhor dashboard could not contact the extension host.', error);
       transientNotice = {
         level: 'error',
-        message: 'The dashboard could not contact VS Code. See the CRAFT-Sec output channel.'
+        message: 'The dashboard could not contact VS Code. See the Bug Dhor output channel.'
       };
       renderBanners();
     }
@@ -241,7 +241,7 @@
     try {
       vscode.setState(value);
     } catch (error) {
-      console.error('CRAFT-Sec dashboard could not persist its view state.', error);
+      console.error('Bug Dhor dashboard could not persist its view state.', error);
     }
   }
 
@@ -250,7 +250,7 @@
       const value = vscode.getState();
       return isRecord(value) ? value : null;
     } catch (error) {
-      console.error('CRAFT-Sec dashboard could not restore its view state.', error);
+      console.error('Bug Dhor dashboard could not restore its view state.', error);
       return null;
     }
   }
@@ -263,7 +263,7 @@
     try {
       return JSON.parse(node.textContent || '{}');
     } catch (error) {
-      console.error('CRAFT-Sec dashboard state could not be parsed.', error);
+      console.error('Bug Dhor dashboard state could not be parsed.', error);
       return null;
     }
   }
@@ -346,7 +346,7 @@
         '!',
         'Dashboard state unavailable',
         'The webview could not read the initial dashboard state. Refresh the dashboard. If the ' +
-          'problem persists, open the CRAFT-Sec output channel.'
+          'problem persists, open the Bug Dhor output channel.'
       )
     );
   }
@@ -2345,7 +2345,7 @@
     const meta = sectionMeta(sectionId);
     const heading = el('div', 'section-heading');
     const copy = el('div', 'section-heading__copy');
-    copy.appendChild(el('p', 'section-kicker', 'CRAFT-Sec'));
+    copy.appendChild(el('p', 'section-kicker', 'Bug Dhor'));
     copy.appendChild(el('h2', null, meta.label));
     if (meta.description) {
       copy.appendChild(el('p', 'section-description', meta.description));

@@ -6,9 +6,9 @@ from dataclasses import replace
 import networkx as nx
 import pytest
 
-from craftsec.parsing import parse_source
-from craftsec.parsing.models import SupportedLanguage
-from craftsec.program_analysis import (
+from bugdhor.parsing import parse_source
+from bugdhor.parsing.models import SupportedLanguage
+from bugdhor.program_analysis import (
     NameMatch,
     PropagatorMode,
     PropagatorRule,

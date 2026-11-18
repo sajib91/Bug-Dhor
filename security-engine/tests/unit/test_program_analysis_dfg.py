@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from craftsec.parsing.models import SupportedLanguage
-from craftsec.program_analysis import (
+from bugdhor.parsing.models import SupportedLanguage
+from bugdhor.program_analysis import (
     DFGEdgeKind,
     DFGNodeKind,
     analyze_source,
     build_cfg,
     build_dfg,
 )
-from craftsec.program_analysis.dfg import DataFlowGraph
+from bugdhor.program_analysis.dfg import DataFlowGraph
 
 
 def reaching_lines(graph: DataFlowGraph, use) -> set[int]:

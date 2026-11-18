@@ -22,8 +22,8 @@ const DISK_SOURCE = 'def add(a, b):\n    return a + b\n';
  * @returns {string | undefined}
  */
 function findLocalVSCode() {
-  if (process.env.CRAFTSEC_VSCODE_EXECUTABLE) {
-    return process.env.CRAFTSEC_VSCODE_EXECUTABLE;
+  if (process.env.BUGDHOR_VSCODE_EXECUTABLE) {
+    return process.env.BUGDHOR_VSCODE_EXECUTABLE;
   }
 
   const candidates = [];
@@ -66,8 +66,8 @@ function findLocalVSCode() {
  * @returns {string}
  */
 function resolvePython() {
-  if (process.env.CRAFTSEC_PYTHON) {
-    return process.env.CRAFTSEC_PYTHON;
+  if (process.env.BUGDHOR_PYTHON) {
+    return process.env.BUGDHOR_PYTHON;
   }
   const candidate =
     process.platform === 'win32'
@@ -153,11 +153,11 @@ async function waitForBackend(backendUrl, child, readLogs, timeoutMs = 30_000) {
 
   while (Date.now() < deadline) {
     if (!child.pid) {
-      throw new Error(`The CRAFT-Sec backend process could not be started.\n${readLogs()}`);
+      throw new Error(`The Bug Dhor backend process could not be started.\n${readLogs()}`);
     }
     if (child.exitCode !== null) {
       throw new Error(
-        `The CRAFT-Sec backend exited with code ${child.exitCode} before becoming ready.\n` +
+        `The Bug Dhor backend exited with code ${child.exitCode} before becoming ready.\n` +
           readLogs()
       );
     }
@@ -178,14 +178,14 @@ async function waitForBackend(backendUrl, child, readLogs, timeoutMs = 30_000) {
   }
 
   throw new Error(
-    `The CRAFT-Sec backend did not become ready at ${backendUrl} within ${timeoutMs} ms. ` +
+    `The Bug Dhor backend did not become ready at ${backendUrl} within ${timeoutMs} ms. ` +
       `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}\n` +
       readLogs()
   );
 }
 
 async function main() {
-  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'craftsec-e2e-'));
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-e2e-'));
   const workspacePath = path.join(temporaryRoot, 'workspace');
   const userDataDir = path.join(temporaryRoot, 'user-data');
   const extensionsDir = path.join(temporaryRoot, 'extensions');
@@ -218,15 +218,15 @@ async function main() {
     const backendUrl = `http://127.0.0.1:${port}`;
     const python = resolvePython();
     const backendEnvironment = { ...process.env };
-    delete backendEnvironment.CRAFTSEC_API_TOKEN;
-    delete backendEnvironment.CRAFTSEC_ENGINE_TOKEN;
-    backendEnvironment.CRAFTSEC_WORKSPACE_ROOTS = workspacePath;
-    backendEnvironment.CRAFTSEC_LOG_LEVEL = 'ERROR';
-    backendEnvironment.CRAFTSEC_DATA_DIR = dataDir;
-    backendEnvironment.CRAFTSEC_LOG_DIR = logDir;
+    delete backendEnvironment.BUGDHOR_API_TOKEN;
+    delete backendEnvironment.BUGDHOR_ENGINE_TOKEN;
+    backendEnvironment.BUGDHOR_WORKSPACE_ROOTS = workspacePath;
+    backendEnvironment.BUGDHOR_LOG_LEVEL = 'ERROR';
+    backendEnvironment.BUGDHOR_DATA_DIR = dataDir;
+    backendEnvironment.BUGDHOR_LOG_DIR = logDir;
 
-    console.log(`Starting CRAFT-Sec backend with ${python} on ${backendUrl}.`);
-    backend = spawn(python, ['-m', 'craftsec', '--host', '127.0.0.1', '--port', String(port)], {
+    console.log(`Starting Bug Dhor backend with ${python} on ${backendUrl}.`);
+    backend = spawn(python, ['-m', 'bugdhor', '--host', '127.0.0.1', '--port', String(port)], {
       cwd: engineRoot,
       env: backendEnvironment,
       stdio: ['ignore', 'pipe', 'pipe']
@@ -236,7 +236,7 @@ async function main() {
     backend.once('error', (error) => record(`spawn error: ${error.message}`));
 
     const health = await waitForBackend(backendUrl, backend, readLogs);
-    console.log(`CRAFT-Sec backend ready (version ${health.version}, API ${health.apiVersion}).`);
+    console.log(`Bug Dhor backend ready (version ${health.version}, API ${health.apiVersion}).`);
 
     const vscodeExecutablePath = findLocalVSCode();
     console.log(
@@ -256,16 +256,16 @@ async function main() {
         '--new-window'
       ],
       extensionTestsEnv: {
-        CRAFTSEC_E2E_BACKEND_URL: backendUrl,
-        CRAFTSEC_E2E_WORKSPACE: workspacePath,
-        CRAFTSEC_E2E_FILE: sourcePath,
-        CRAFTSEC_E2E_DISK_SHA256: crypto
+        BUGDHOR_E2E_BACKEND_URL: backendUrl,
+        BUGDHOR_E2E_WORKSPACE: workspacePath,
+        BUGDHOR_E2E_FILE: sourcePath,
+        BUGDHOR_E2E_DISK_SHA256: crypto
           .createHash('sha256')
           .update(Buffer.from(DISK_SOURCE, 'utf8'))
           .digest('hex'),
         // Never inherit a developer token in either direction.
-        CRAFTSEC_API_TOKEN: '',
-        CRAFTSEC_ENGINE_TOKEN: ''
+        BUGDHOR_API_TOKEN: '',
+        BUGDHOR_ENGINE_TOKEN: ''
       }
     };
     if (vscodeExecutablePath) {
@@ -283,6 +283,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('CRAFT-Sec Extension Host test failed:', error);
+  console.error('Bug Dhor Extension Host test failed:', error);
   process.exitCode = 1;
 });

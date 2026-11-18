@@ -35,7 +35,7 @@ class SidebarViewProvider {
 
     const messageSubscription = webviewView.webview.onDidReceiveMessage(async (message) => {
       if (!message || typeof message !== 'object' || message.type !== 'openDashboard') {
-        this.logger.debug('Ignored an unknown CRAFT-Sec sidebar message.');
+        this.logger.debug('Ignored an unknown Bug Dhor sidebar message.');
         return;
       }
 
@@ -61,7 +61,7 @@ class SidebarViewProvider {
       nonce
     });
 
-    this.logger.debug('Resolved the CRAFT-Sec sidebar launcher webview.');
+    this.logger.debug('Resolved the Bug Dhor sidebar launcher webview.');
   }
 }
 

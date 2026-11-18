@@ -55,7 +55,7 @@ test('dashboard shell loads the local stylesheet and nonce-authorized script', (
     new RegExp(`<script type="application/json" id="dashboard-state" nonce="${NONCE}">`)
   );
   assert.ok(html.includes('Skip to dashboard content'));
-  assert.ok(html.includes('CRAFT-Sec Security Dashboard'));
+  assert.ok(html.includes('Bug Dhor Security Dashboard'));
 });
 
 test('dashboard shell renders all eleven accessible navigation tabs', () => {

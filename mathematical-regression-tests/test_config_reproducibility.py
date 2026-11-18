@@ -14,18 +14,18 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from craftsec.experiments.config import (
+from bugdhor.experiments.config import (
     ExperimentConfig,
     canonical_json,
     sha256_text,
 )
-from craftsec.sae import SAEConfig, SparseAutoencoder
-from craftsec.sae.checkpoint import load_checkpoint, save_checkpoint
-from craftsec.sae.errors import (
+from bugdhor.sae import SAEConfig, SparseAutoencoder
+from bugdhor.sae.checkpoint import load_checkpoint, save_checkpoint
+from bugdhor.sae.errors import (
     SAECheckpointError,
     SAEConfigurationError,
 )
-from craftsec.sae.training import SAETrainer
+from bugdhor.sae.training import SAETrainer
 
 
 def _config(**overrides) -> SAEConfig:

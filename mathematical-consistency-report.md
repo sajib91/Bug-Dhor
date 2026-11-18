@@ -1,7 +1,7 @@
-# Mathematical Consistency Audit of CRAFT-Sec
+# Mathematical Consistency Audit of Bug Dhor
 
 **Status:** Audit complete for the implemented mathematics in
-`security-engine/src/craftsec/`.
+`security-engine/src/bugdhor/`.
 **Date:** 2026-11-17
 **Scope:** Equation-to-code consistency, tensor dimensions, SAE reconstruction
 and sparsity arithmetic, counterfactual contrasts, paired and unpaired
@@ -14,7 +14,7 @@ This report is the audit record. The companion artifacts are:
   operator, its production symbol, its independent reference test, and its
   status.
 - `mathematical-regression-tests/` — an independent numerical suite that does
-  not import `craftsec` in `reference.py`.
+  not import `bugdhor` in `reference.py`.
 - `mathematical_validation_report.md` — the synthetic and real-model validation
   report.
 - `research/mathematical-framework-audit.md`,
@@ -39,7 +39,7 @@ Three independent checks were used.
    requested intervention value and a realized measurement.
 2. **Independent numerical reference.** `mathematical-regression-tests/reference.py`
    re-derives each formula with NumPy or closed-form mathematics. The reference
-   module deliberately does not import `craftsec`, so agreement is evidence
+   module deliberately does not import `bugdhor`, so agreement is evidence
    about the implementation rather than a tautology.
 3. **Artifact recomputation.** `test_artifact_recomputation.py` re-reads
    `research/experiments/counterfactual_validation/results/real_model_validation.json`

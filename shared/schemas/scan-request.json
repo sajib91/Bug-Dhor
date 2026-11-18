@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://craftsec.local/schemas/v1/scan-request.json",
+  "$id": "https://bugdhor.local/schemas/v1/scan-request.json",
   "title": "ScanRequest",
   "description": "A single-file scan request. sourceText and selectedText are optional and may only be supplied after an explicit user action with source sharing enabled.",
   "type": "object",

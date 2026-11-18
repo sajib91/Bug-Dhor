@@ -48,7 +48,7 @@ function fencedCode(value) {
  * @returns {string}
  */
 function buildFindingSection(finding) {
-  const lines = [`**CRAFT-Sec: ${escapeMarkdown(finding.message)}**`, ''];
+  const lines = [`**Bug Dhor: ${escapeMarkdown(finding.message)}**`, ''];
 
   const metadata = [`**Severity:** ${severityLabel(finding.severity)}`];
   if (finding.cwe) {
@@ -92,7 +92,7 @@ function buildFindingSection(finding) {
     const description = finding.repair?.description
       ? ` ${escapeMarkdown(finding.repair.description)}`
       : '';
-    lines.push(`**Repair:** Available from the CRAFT-Sec Quick Fix menu.${description}`);
+    lines.push(`**Repair:** Available from the Bug Dhor Quick Fix menu.${description}`);
   } else if (finding.repair) {
     const description = finding.repair.description
       ? ` ${escapeMarkdown(finding.repair.description)}`

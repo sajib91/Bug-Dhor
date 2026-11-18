@@ -1,6 +1,6 @@
 # JSON Schemas
 
-This directory is the single source of truth for CRAFT-Sec frontend/backend
+This directory is the single source of truth for Bug Dhor frontend/backend
 payloads. Every schema is Draft 2020-12 JSON Schema and is consumed by both the
 Python engine tests and the JavaScript extension tests.
 
@@ -25,7 +25,7 @@ schemas and fixtures. `VERSION` records the contract version.
 ## Conventions
 
 - JSON field names are camelCase.
-- Every schema declares `$id` under `https://craftsec.local/schemas/v1/`.
+- Every schema declares `$id` under `https://bugdhor.local/schemas/v1/`.
 - Objects set `additionalProperties: false` unless extensibility is deliberate.
 - Research results carry provenance. Calibrated scores additionally carry a
   calibrator artifact, dataset identity, split hash, Brier score, and expected

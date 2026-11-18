@@ -1,21 +1,21 @@
 :root {
   color-scheme: light dark;
-  --craft-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
-  --craft-border-strong: var(--vscode-contrastBorder, rgba(128, 128, 128, 0.5));
-  --craft-surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-  --craft-surface-muted: var(--vscode-sideBar-background, transparent);
-  --craft-muted: var(--vscode-descriptionForeground, rgba(128, 128, 128, 0.9));
-  --craft-accent: var(--vscode-button-background, #0e639c);
-  --craft-accent-fg: var(--vscode-button-foreground, #ffffff);
-  --craft-focus: var(--vscode-focusBorder, #007fd4);
-  --craft-critical: var(--vscode-charts-red, #f14c4c);
-  --craft-high: var(--vscode-charts-orange, #d18616);
-  --craft-medium: var(--vscode-charts-yellow, #cca700);
-  --craft-low: var(--vscode-charts-blue, #3794ff);
-  --craft-success: var(--vscode-charts-green, #89d185);
-  --craft-radius: 10px;
-  --craft-radius-sm: 6px;
-  --craft-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --bugdhor-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
+  --bugdhor-border-strong: var(--vscode-contrastBorder, rgba(128, 128, 128, 0.5));
+  --bugdhor-surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --bugdhor-surface-muted: var(--vscode-sideBar-background, transparent);
+  --bugdhor-muted: var(--vscode-descriptionForeground, rgba(128, 128, 128, 0.9));
+  --bugdhor-accent: var(--vscode-button-background, #0e639c);
+  --bugdhor-accent-fg: var(--vscode-button-foreground, #ffffff);
+  --bugdhor-focus: var(--vscode-focusBorder, #007fd4);
+  --bugdhor-critical: var(--vscode-charts-red, #f14c4c);
+  --bugdhor-high: var(--vscode-charts-orange, #d18616);
+  --bugdhor-medium: var(--vscode-charts-yellow, #cca700);
+  --bugdhor-low: var(--vscode-charts-blue, #3794ff);
+  --bugdhor-success: var(--vscode-charts-green, #89d185);
+  --bugdhor-radius: 10px;
+  --bugdhor-radius-sm: 6px;
+  --bugdhor-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -59,7 +59,7 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 1px solid var(--craft-focus);
+  outline: 1px solid var(--bugdhor-focus);
   outline-offset: 2px;
 }
 
@@ -69,9 +69,9 @@ a:hover {
   left: 12px;
   z-index: 100;
   padding: 8px 12px;
-  border-radius: var(--craft-radius-sm);
-  color: var(--craft-accent-fg);
-  background: var(--craft-accent);
+  border-radius: var(--bugdhor-radius-sm);
+  color: var(--bugdhor-accent-fg);
+  background: var(--bugdhor-accent);
 }
 
 .skip-link:focus {
@@ -95,8 +95,8 @@ a:hover {
   height: 100vh;
   padding: 20px 14px;
   overflow: auto;
-  background: var(--craft-surface-muted);
-  border-right: 1px solid var(--craft-border);
+  background: var(--bugdhor-surface-muted);
+  border-right: 1px solid var(--bugdhor-border);
 }
 
 .brand {
@@ -113,7 +113,7 @@ a:hover {
   width: 36px;
   height: 36px;
   flex: 0 0 36px;
-  border: 1px solid var(--craft-border);
+  border: 1px solid var(--bugdhor-border);
   border-radius: 10px;
   color: var(--vscode-activityBar-activeBorder, var(--vscode-charts-blue, #3794ff));
   background: var(--vscode-editorWidget-background, transparent);
@@ -137,7 +137,7 @@ a:hover {
 }
 
 .brand-subtitle {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -159,7 +159,7 @@ a:hover {
   min-height: 36px;
   padding: 7px 10px;
   border: 1px solid transparent;
-  border-radius: var(--craft-radius-sm);
+  border-radius: var(--bugdhor-radius-sm);
   color: var(--vscode-foreground);
   background: transparent;
   text-align: left;
@@ -214,7 +214,7 @@ a:hover {
 .sidebar-footer {
   margin-top: auto;
   padding: 12px 8px 2px;
-  border-top: 1px solid var(--craft-border);
+  border-top: 1px solid var(--bugdhor-border);
 }
 
 .engine-pill {
@@ -223,20 +223,20 @@ a:hover {
   gap: 7px;
   max-width: 100%;
   padding: 5px 9px;
-  border: 1px solid var(--craft-border);
+  border: 1px solid var(--bugdhor-border);
   border-radius: 999px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 11px;
   font-weight: 600;
 }
 
 .engine-pill.is-ready {
-  color: var(--craft-success);
+  color: var(--bugdhor-success);
   border-color: currentColor;
 }
 
 .engine-pill.is-error {
-  color: var(--craft-medium);
+  color: var(--bugdhor-medium);
   border-color: currentColor;
 }
 
@@ -250,7 +250,7 @@ a:hover {
 
 .sidebar-note {
   margin: 10px 0 0;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   line-height: 1.4;
 }
@@ -275,10 +275,10 @@ a:hover {
 }
 
 .technical-details {
-  border: 1px solid var(--craft-border);
-  border-radius: var(--craft-radius);
-  background: var(--craft-surface);
-  box-shadow: var(--craft-shadow);
+  border: 1px solid var(--bugdhor-border);
+  border-radius: var(--bugdhor-radius);
+  background: var(--bugdhor-surface);
+  box-shadow: var(--bugdhor-shadow);
 }
 
 .technical-details > summary {
@@ -343,7 +343,7 @@ a:hover {
   flex-direction: column;
   gap: 2px;
   padding: 9px 10px;
-  border-left: 2px solid var(--craft-border-strong);
+  border-left: 2px solid var(--bugdhor-border-strong);
   background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.06));
 }
 
@@ -353,14 +353,14 @@ a:hover {
 }
 
 .evidence-record__meta {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 11px;
 }
 
 .taint-path {
   margin-bottom: 8px;
-  border: 1px solid var(--craft-border);
-  border-radius: var(--craft-radius-sm);
+  border: 1px solid var(--bugdhor-border);
+  border-radius: var(--bugdhor-radius-sm);
 }
 
 .taint-path > summary {
@@ -393,7 +393,7 @@ a:hover {
   justify-content: space-between;
   padding: 20px 28px 18px;
   background: var(--vscode-editor-background);
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
 }
 
 .topbar-heading {
@@ -402,7 +402,7 @@ a:hover {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.09em;
@@ -427,7 +427,7 @@ h1 {
 .topbar-subtitle {
   margin: 6px 0 0;
   max-width: 640px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 12px;
 }
 
@@ -441,7 +441,7 @@ h1 {
 
 .last-updated {
   margin-right: 4px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   white-space: nowrap;
 }
@@ -456,9 +456,9 @@ h1 {
   min-height: 30px;
   padding: 5px 11px;
   border: 1px solid transparent;
-  border-radius: var(--craft-radius-sm);
-  color: var(--craft-accent-fg);
-  background: var(--craft-accent);
+  border-radius: var(--bugdhor-radius-sm);
+  color: var(--bugdhor-accent-fg);
+  background: var(--bugdhor-accent);
   font-size: 11.5px;
   font-weight: 600;
   line-height: 1.3;
@@ -467,7 +467,7 @@ h1 {
 }
 
 .button:hover {
-  background: var(--vscode-button-hoverBackground, var(--craft-accent));
+  background: var(--vscode-button-hoverBackground, var(--bugdhor-accent));
 }
 
 .button:disabled {
@@ -478,7 +478,7 @@ h1 {
 .button--secondary {
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.12));
-  border-color: var(--craft-border);
+  border-color: var(--bugdhor-border);
 }
 
 .button--secondary:hover {
@@ -488,7 +488,7 @@ h1 {
 .button--ghost {
   color: var(--vscode-foreground);
   background: transparent;
-  border-color: var(--craft-border);
+  border-color: var(--bugdhor-border);
 }
 
 .button--ghost:hover {
@@ -511,35 +511,35 @@ h1 {
 }
 
 .badge--neutral {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
 }
 
 .badge--critical {
-  color: var(--craft-critical);
+  color: var(--bugdhor-critical);
 }
 
 .badge--high {
-  color: var(--craft-high);
+  color: var(--bugdhor-high);
 }
 
 .badge--medium {
-  color: var(--craft-medium);
+  color: var(--bugdhor-medium);
 }
 
 .badge--low {
-  color: var(--craft-low);
+  color: var(--bugdhor-low);
 }
 
 .badge--success {
-  color: var(--craft-success);
+  color: var(--bugdhor-success);
 }
 
 .badge--warning {
-  color: var(--craft-medium);
+  color: var(--bugdhor-medium);
 }
 
 .badge--danger {
-  color: var(--craft-critical);
+  color: var(--bugdhor-critical);
 }
 
 .badge--info {
@@ -556,9 +556,9 @@ h1 {
   align-items: flex-start;
   margin: 16px 28px 0;
   padding: 11px 13px;
-  border: 1px solid var(--vscode-inputValidation-warningBorder, var(--craft-medium));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, var(--bugdhor-medium));
   border-left-width: 3px;
-  border-radius: var(--craft-radius-sm);
+  border-radius: var(--bugdhor-radius-sm);
   color: var(--vscode-foreground);
   background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.12));
 }
@@ -569,7 +569,7 @@ h1 {
 }
 
 .banner--error {
-  border-color: var(--vscode-inputValidation-errorBorder, var(--craft-critical));
+  border-color: var(--vscode-inputValidation-errorBorder, var(--bugdhor-critical));
   background: var(--vscode-inputValidation-errorBackground, rgba(241, 76, 76, 0.1));
 }
 
@@ -591,8 +591,8 @@ h1 {
 .banner__dismiss {
   flex: 0 0 auto;
   padding: 2px 7px;
-  border: 1px solid var(--craft-border);
-  border-radius: var(--craft-radius-sm);
+  border: 1px solid var(--bugdhor-border);
+  border-radius: var(--bugdhor-radius-sm);
   color: var(--vscode-foreground);
   background: transparent;
   font-size: 10.5px;
@@ -608,7 +608,7 @@ h1 {
 
 .boot-state {
   padding: 48px 0;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
 }
 
 .section-heading {
@@ -626,7 +626,7 @@ h1 {
 
 .section-kicker {
   margin: 0 0 3px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -644,7 +644,7 @@ h1 {
 .section-description {
   margin: 5px 0 0;
   max-width: 720px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 11.5px;
 }
 
@@ -681,40 +681,40 @@ h1 {
   position: relative;
   padding: 14px;
   overflow: hidden;
-  border: 1px solid var(--craft-border);
-  border-top: 3px solid var(--craft-border-strong);
-  border-radius: var(--craft-radius);
-  background: var(--craft-surface);
-  box-shadow: var(--craft-shadow);
+  border: 1px solid var(--bugdhor-border);
+  border-top: 3px solid var(--bugdhor-border-strong);
+  border-radius: var(--bugdhor-radius);
+  background: var(--bugdhor-surface);
+  box-shadow: var(--bugdhor-shadow);
 }
 
 .kpi--critical {
-  border-top-color: var(--craft-critical);
+  border-top-color: var(--bugdhor-critical);
 }
 
 .kpi--high {
-  border-top-color: var(--craft-high);
+  border-top-color: var(--bugdhor-high);
 }
 
 .kpi--medium {
-  border-top-color: var(--craft-medium);
+  border-top-color: var(--bugdhor-medium);
 }
 
 .kpi--low {
-  border-top-color: var(--craft-low);
+  border-top-color: var(--bugdhor-low);
 }
 
 .kpi--success {
-  border-top-color: var(--craft-success);
+  border-top-color: var(--bugdhor-success);
 }
 
 .kpi--neutral {
-  border-top-color: var(--craft-border-strong);
+  border-top-color: var(--bugdhor-border-strong);
 }
 
 .kpi__label {
   display: block;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -739,17 +739,17 @@ h1 {
 .kpi__note {
   display: block;
   margin-top: 7px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   line-height: 1.35;
 }
 
 .card {
   min-width: 0;
-  border: 1px solid var(--craft-border);
-  border-radius: var(--craft-radius);
-  background: var(--craft-surface);
-  box-shadow: var(--craft-shadow);
+  border: 1px solid var(--bugdhor-border);
+  border-radius: var(--bugdhor-radius);
+  background: var(--bugdhor-surface);
+  box-shadow: var(--bugdhor-shadow);
 }
 
 .card__header {
@@ -770,7 +770,7 @@ h1 {
 
 .card__description {
   margin: 3px 0 0;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
 }
 
@@ -791,22 +791,22 @@ h1 {
 
 .callout {
   padding: 12px 14px;
-  border: 1px solid var(--craft-border);
+  border: 1px solid var(--bugdhor-border);
   border-left: 3px solid var(--vscode-charts-blue, #3794ff);
-  border-radius: var(--craft-radius-sm);
+  border-radius: var(--bugdhor-radius-sm);
   background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.06));
 }
 
 .callout--warning {
-  border-left-color: var(--craft-medium);
+  border-left-color: var(--bugdhor-medium);
 }
 
 .callout--danger {
-  border-left-color: var(--craft-critical);
+  border-left-color: var(--bugdhor-critical);
 }
 
 .callout--success {
-  border-left-color: var(--craft-success);
+  border-left-color: var(--bugdhor-success);
 }
 
 .callout__title {
@@ -817,13 +817,13 @@ h1 {
 
 .callout__body {
   margin: 0;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 11px;
   line-height: 1.5;
 }
 
 .text-muted {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
 }
 
 .interaction-overview {
@@ -858,7 +858,7 @@ h1 {
 }
 
 .interaction-chart__muted {
-  fill: var(--craft-muted);
+  fill: var(--bugdhor-muted);
 }
 
 .interaction-chart__bar {
@@ -870,11 +870,11 @@ h1 {
 }
 
 .interaction-chart__bar--before {
-  fill: var(--craft-muted);
+  fill: var(--bugdhor-muted);
 }
 
 .interaction-chart__axis {
-  stroke: var(--craft-border);
+  stroke: var(--bugdhor-border);
   stroke-width: 1;
 }
 
@@ -884,7 +884,7 @@ h1 {
   padding: 7px 9px;
   color: var(--vscode-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--craft-border);
+  border: 1px solid var(--bugdhor-border);
   border-radius: 4px;
 }
 
@@ -898,11 +898,11 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   padding-bottom: 6px;
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
 }
 
 .interaction-detail-row__label {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
 }
 
 .interaction-detail-row__value {
@@ -925,8 +925,8 @@ h1 {
   margin: 8px 0 0;
   padding: 10px;
   color: var(--vscode-foreground);
-  background: var(--vscode-textCodeBlock-background, var(--craft-surface));
-  border: 1px solid var(--craft-border);
+  background: var(--vscode-textCodeBlock-background, var(--bugdhor-surface));
+  border: 1px solid var(--bugdhor-border);
   border-radius: 4px;
   white-space: pre-wrap;
 }
@@ -944,23 +944,23 @@ h1 {
 }
 
 .tone-critical {
-  color: var(--craft-critical);
+  color: var(--bugdhor-critical);
 }
 
 .tone-high {
-  color: var(--craft-high);
+  color: var(--bugdhor-high);
 }
 
 .tone-medium {
-  color: var(--craft-medium);
+  color: var(--bugdhor-medium);
 }
 
 .tone-low {
-  color: var(--craft-low);
+  color: var(--bugdhor-low);
 }
 
 .tone-success {
-  color: var(--craft-success);
+  color: var(--bugdhor-success);
 }
 
 /* Charts ----------------------------------------------------------------- */
@@ -993,7 +993,7 @@ h1 {
 }
 
 .distribution-row__count {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1019,23 +1019,23 @@ h1 {
 }
 
 .bar--critical {
-  --bar-color: var(--craft-critical);
+  --bar-color: var(--bugdhor-critical);
 }
 
 .bar--high {
-  --bar-color: var(--craft-high);
+  --bar-color: var(--bugdhor-high);
 }
 
 .bar--medium {
-  --bar-color: var(--craft-medium);
+  --bar-color: var(--bugdhor-medium);
 }
 
 .bar--low {
-  --bar-color: var(--craft-low);
+  --bar-color: var(--bugdhor-low);
 }
 
 .bar--accent {
-  --bar-color: var(--vscode-progressBar-background, var(--craft-accent));
+  --bar-color: var(--vscode-progressBar-background, var(--bugdhor-accent));
 }
 
 /* Tables ----------------------------------------------------------------- */
@@ -1065,13 +1065,13 @@ h1 {
 .data-table th,
 .data-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
   text-align: left;
   vertical-align: top;
 }
 
 .data-table th {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1105,7 +1105,7 @@ h1 {
 .finding-summary {
   display: block;
   margin-top: 1px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
 }
 
@@ -1117,7 +1117,7 @@ h1 {
 
 .subheading {
   margin: 14px 0 5px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -1140,7 +1140,7 @@ h1 {
 }
 
 .location {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 10px;
   word-break: break-all;
@@ -1160,8 +1160,8 @@ h1 {
   gap: 5px;
   width: 100%;
   padding: 13px;
-  border: 1px solid var(--craft-border);
-  border-radius: var(--craft-radius-sm);
+  border: 1px solid var(--bugdhor-border);
+  border-radius: var(--bugdhor-radius-sm);
   color: var(--vscode-foreground);
   background: var(--vscode-editorWidget-background, transparent);
   text-align: left;
@@ -1169,7 +1169,7 @@ h1 {
 }
 
 .action-card:hover {
-  border-color: var(--craft-focus);
+  border-color: var(--bugdhor-focus);
   background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.07));
 }
 
@@ -1182,14 +1182,14 @@ h1 {
 }
 
 .action-card__description {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   line-height: 1.45;
 }
 
 .action-card__meta {
   margin-top: 2px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1205,8 +1205,8 @@ h1 {
   align-items: center;
   justify-content: center;
   padding: 34px 18px;
-  border: 1px dashed var(--craft-border-strong);
-  border-radius: var(--craft-radius-sm);
+  border: 1px dashed var(--bugdhor-border-strong);
+  border-radius: var(--bugdhor-radius-sm);
   text-align: center;
 }
 
@@ -1217,9 +1217,9 @@ h1 {
   width: 34px;
   height: 34px;
   margin-bottom: 3px;
-  border: 1px solid var(--craft-border);
+  border: 1px solid var(--bugdhor-border);
   border-radius: 50%;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 16px;
 }
 
@@ -1232,7 +1232,7 @@ h1 {
 .empty-state__body {
   margin: 0;
   max-width: 520px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   line-height: 1.5;
 }
@@ -1255,7 +1255,7 @@ h1 {
 
 .toolbar-meta {
   margin: 0 0 12px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1269,7 +1269,7 @@ h1 {
 }
 
 .filter-label {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -1279,21 +1279,21 @@ h1 {
 .select-control {
   min-height: 25px;
   padding: 2px 6px;
-  border: 1px solid var(--vscode-dropdown-border, var(--craft-border));
-  border-radius: var(--craft-radius-sm);
+  border: 1px solid var(--vscode-dropdown-border, var(--bugdhor-border));
+  border-radius: var(--bugdhor-radius-sm);
   color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
   background: var(--vscode-dropdown-background, var(--vscode-input-background));
   font-size: 10.5px;
 }
 
 .select-control:focus-visible {
-  outline: 1px solid var(--craft-focus);
+  outline: 1px solid var(--bugdhor-focus);
   outline-offset: 1px;
 }
 
 .filter-chip {
   padding: 3px 9px;
-  border: 1px solid var(--craft-border);
+  border: 1px solid var(--bugdhor-border);
   border-radius: 999px;
   color: var(--vscode-foreground);
   background: transparent;
@@ -1322,12 +1322,12 @@ h1 {
 .settings-list dd {
   margin: 0;
   padding: 10px 0;
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
   font-size: 11px;
 }
 
 .settings-list dt {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-weight: 600;
 }
 
@@ -1346,7 +1346,7 @@ h1 {
   grid-template-columns: minmax(140px, 0.8fr) minmax(0, 1.2fr);
   gap: 16px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
   font-size: 11px;
 }
 
@@ -1355,7 +1355,7 @@ h1 {
 }
 
 .settings-row__label {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-weight: 600;
 }
 
@@ -1366,7 +1366,7 @@ h1 {
 
 .setting-note {
   margin: 12px 0 0;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
   line-height: 1.45;
 }
@@ -1375,7 +1375,7 @@ h1 {
 .requirement-list {
   margin: 0;
   padding-left: 18px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 11px;
   line-height: 1.55;
 }
@@ -1400,7 +1400,7 @@ h1 {
   align-items: flex-start;
   justify-content: space-between;
   padding: 9px 0;
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
   font-size: 11px;
 }
 
@@ -1415,7 +1415,7 @@ h1 {
 .check-list__detail {
   display: block;
   margin-top: 2px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
 }
 
@@ -1438,7 +1438,7 @@ h1 {
 .evidence-list__detail {
   display: block;
   margin-top: 1px;
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10.5px;
 }
 
@@ -1456,7 +1456,7 @@ h1 {
   align-items: baseline;
   justify-content: space-between;
   padding: 5px 0;
-  border-bottom: 1px solid var(--craft-border);
+  border-bottom: 1px solid var(--bugdhor-border);
 }
 
 .file-list li:last-child {
@@ -1464,7 +1464,7 @@ h1 {
 }
 
 .file-list__delta {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1479,7 +1479,7 @@ h1 {
 }
 
 .provenance dt {
-  color: var(--craft-muted);
+  color: var(--bugdhor-muted);
   font-weight: 600;
 }
 
@@ -1491,8 +1491,8 @@ h1 {
 .noscript-warning {
   margin: 16px 28px;
   padding: 12px;
-  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--craft-critical));
-  border-radius: var(--craft-radius-sm);
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--bugdhor-critical));
+  border-radius: var(--bugdhor-radius-sm);
   color: var(--vscode-foreground);
   background: var(--vscode-inputValidation-errorBackground, rgba(241, 76, 76, 0.1));
   font-size: 12px;
@@ -1523,7 +1523,7 @@ h1 {
     gap: 12px;
     padding: 12px 14px;
     border-right: 0;
-    border-bottom: 1px solid var(--craft-border);
+    border-bottom: 1px solid var(--bugdhor-border);
   }
 
   .brand {
@@ -1605,7 +1605,7 @@ h1 {
   .settings-list dd {
     padding-top: 0;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--craft-border);
+    border-bottom: 1px solid var(--bugdhor-border);
   }
 }
 

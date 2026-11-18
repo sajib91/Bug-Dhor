@@ -28,7 +28,7 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <link rel="stylesheet" href="${stylesheet}" />
-    <title>CRAFT-Sec</title>
+    <title>Bug Dhor</title>
   </head>
   <body>
     <main>
@@ -42,7 +42,7 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
           </span>
           <span class="badge">VS Code</span>
         </div>
-        <h1>CRAFT-Sec</h1>
+        <h1>Bug Dhor</h1>
         <p class="subtitle">Security Framework</p>
         <p class="hero-copy">
           Explainable vulnerability analysis, SAE feature inspection, counterfactual analysis,
@@ -86,7 +86,7 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
       <noscript>
         <p class="noscript-warning">
           The sidebar launcher requires its nonce-authorized local script. Open the dashboard from
-          the Command Palette with “CRAFT-Sec: Open Security Dashboard”.
+          the Command Palette with “Bug Dhor: Open Security Dashboard”.
         </p>
       </noscript>
     </main>

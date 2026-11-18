@@ -91,13 +91,13 @@ function createDashboardHtml({ cspSource, styleUri, scriptUri, nonce, state }) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <link rel="stylesheet" href="${stylesheet}" />
-    <title>CRAFT-Sec Security Dashboard</title>
+    <title>Bug Dhor Security Dashboard</title>
   </head>
   <body>
     <a class="skip-link" href="#dashboard-content">Skip to dashboard content</a>
 
     <div class="app-shell">
-      <aside class="sidebar" aria-label="CRAFT-Sec navigation">
+      <aside class="sidebar" aria-label="Bug Dhor navigation">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -106,7 +106,7 @@ function createDashboardHtml({ cspSource, styleUri, scriptUri, nonce, state }) {
             </svg>
           </span>
           <span class="brand-copy">
-            <span class="brand-name">CRAFT-Sec</span>
+            <span class="brand-name">Bug Dhor</span>
             <span class="brand-subtitle">Security Framework</span>
           </span>
         </div>
@@ -129,7 +129,7 @@ ${buildNavigation()}
       <div class="workspace">
         <header class="topbar">
           <div class="topbar-heading">
-            <p class="eyebrow">CRAFT-Sec Security Framework</p>
+            <p class="eyebrow">Bug Dhor Security Framework</p>
             <div class="title-row">
               <h1>Security Dashboard</h1>
               <span class="badge badge--neutral" id="data-mode-badge">No scan data</span>
@@ -167,7 +167,7 @@ ${buildNavigation()}
 
         <noscript>
           <p class="noscript-warning">
-            CRAFT-Sec dashboard scripts are disabled. The dashboard cannot render without its
+            Bug Dhor dashboard scripts are disabled. The dashboard cannot render without its
             nonce-authorized local script.
           </p>
         </noscript>

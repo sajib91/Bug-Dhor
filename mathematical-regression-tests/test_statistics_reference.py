@@ -6,7 +6,7 @@ import math
 
 import pytest
 import reference as ref
-from craftsec.evaluation.statistics import (
+from bugdhor.evaluation.statistics import (
     benjamini_hochberg,
     bootstrap_ci,
     cliffs_delta,

@@ -10,10 +10,10 @@ const UTILITY_COMMANDS = Object.freeze([COMMANDS.showStatus, COMMANDS.showLogs])
  */
 function describeHealth(health) {
   if (!health || health.status !== 'ok') {
-    return 'The CRAFT-Sec backend responded, but its health state is unknown.';
+    return 'The Bug Dhor backend responded, but its health state is unknown.';
   }
   return (
-    `CRAFT-Sec backend v${health.version} is reachable (API ${health.apiVersion}). ` +
+    `Bug Dhor backend v${health.version} is reachable (API ${health.apiVersion}). ` +
     'All declared analysis capabilities currently report unavailable, so no findings, ' +
     'scores, or security conclusions are produced.'
   );
@@ -41,7 +41,7 @@ function registerUtilityCommands({ vscode, service, logger, registry }) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn(`Backend health check failed: ${message}`);
       const action = await vscode.window.showErrorMessage(
-        `CRAFT-Sec: ${message}`,
+        `Bug Dhor: ${message}`,
         'Show Logs',
         'Open Settings'
       );
@@ -50,7 +50,7 @@ function registerUtilityCommands({ vscode, service, logger, registry }) {
       } else if (action === 'Open Settings') {
         await vscode.commands.executeCommand(
           'workbench.action.openSettings',
-          'craftsec.backend.url'
+          'bugdhor.backend.url'
         );
       }
       return;

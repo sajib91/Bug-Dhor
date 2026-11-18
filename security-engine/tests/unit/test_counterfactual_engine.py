@@ -5,14 +5,14 @@ import pytest
 torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 
-from craftsec.counterfactual import (  # noqa: E402
+from bugdhor.counterfactual import (  # noqa: E402
     CounterfactualEngine,
     CounterfactualSpec,
     RiskOutcome,
 )
-from craftsec.models.config import GenerationConfig  # noqa: E402
-from craftsec.models.errors import ModelCompatibilityError  # noqa: E402
-from craftsec.sae import SAEConfig, SparseAutoencoder  # noqa: E402
+from bugdhor.models.config import GenerationConfig  # noqa: E402
+from bugdhor.models.errors import ModelCompatibilityError  # noqa: E402
+from bugdhor.sae import SAEConfig, SparseAutoencoder  # noqa: E402
 
 
 class TinyTokenizer:

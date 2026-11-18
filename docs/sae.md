@@ -1,8 +1,8 @@
 # Sparse autoencoder
 
-`craftsec.sae` learns sparse representations from actual activation tensors,
+`bugdhor.sae` learns sparse representations from actual activation tensors,
 such as the detached layer/token activations produced by
-[`craftsec.models`](../security-engine/src/craftsec/models/). It uses a ReLU
+[`bugdhor.models`](../security-engine/src/bugdhor/models/). It uses a ReLU
 encoder and linear decoder:
 
 `total loss = reconstruction MSE + sparsity_coefficient * mean(abs(latents))`
