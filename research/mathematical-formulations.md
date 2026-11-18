@@ -710,6 +710,37 @@ Partial at E2: `steering/risk_controller.py` computes a different additive prior
 
 If a probability is claimed: reliability diagram, Brier, ECE, AUC. If an index: precision@k, NDCG, cost-weighted utility, expert agreement. Sensitivity analysis over weights and thresholds; ablations of each term.
 
+### 10.8 Unified-engine operational form (audit addition)
+
+`bugdhor.risk` implements Eq. (28)–(29) without changing their meaning. Its
+additional definitions are operational, not new mathematics. For declared
+dependency groups `D_g` (AST/CFG/DFG/taint → `program_analysis`;
+model/SAE/interaction → `model_internal`):
+
+```
+r_g   = max{ r_i : i ∈ D_g, r_i > 0 }                    # group reliability
+s_g   = (Σ r_i·v_i) / (Σ r_i)  over supporting i          # weighted support
+q_g   = (Σ r_i·v_i) / (Σ r_i)  over refuting i            # weighted refutation
+Δ_g   = clip(Σ_{int ∈ D_g} r_int·signed(int), −1, 1)      # interactions, same group only
+s_g   = clip(s_g + Δ_g)        if Δ_g > 0
+q_g   = clip(q_g + |Δ_g|)      if Δ_g < 0
+
+S_hat = 1 − Π_g (1 − r_g·s_g)                            # noisy-OR across groups
+Q_hat = 1 − Π_g (1 − r_g·q_g)
+p_hat = S_hat·(1 − Q_hat)                                # heuristic until calibrated
+
+R_index = Σ_{k ∈ present} (w_k / Σ_{j ∈ present} w_j)·v_k     # renormalize
+R_index = unavailable                                        # if policy refuses gaps
+```
+
+Zero-reliability evidence is excluded before these sums and reported with a
+reason. No component is imputed. A rejected calibration artifact leaves
+`p_hat` and `R_index` heuristic and emits no probability. `Uncertainty` is
+`max(evidence_deficit, support/refutation_conflict)`, not a credible interval;
+only a validated calibration evaluation supplies interval fields. Default
+weights are equal under a maximum-entropy neutral prior, not experimental
+findings. See [`docs/unified-risk-engine.md`](../docs/unified-risk-engine.md).
+
 ---
 
 ## 11. Repair generation and objective — Eq. (30)–(33)
@@ -892,6 +923,25 @@ Present Eq. (40)–(49) as a **data-flow diagram with typed stages**, not as a m
 ### 13.4 Evaluation
 
 End-to-end pipeline test on a fixed sample; stage-wise availability/coverage; ablation of each stage; latency and failure-mode analysis; no end-to-end metric until the detector and SAE artifacts exist.
+
+### 13.5 Unified-engine realization of the schematic (audit addition)
+
+`bugdhor.risk` and `bugdhor.decision` are programmatic realizations of parts of
+this schematic. They do not add a theorem and do not change Eq. (40)–(49):
+
+| Schematic stage | Realization | Boundary |
+|---|---|---|
+| (42) evidence `e` | `risk.normalization` + declared dependency groups | Correlated sources are collapsed before aggregation; missing evidence is excluded, not imputed. |
+| (43)–(44) fused support `p̂` | reliability-weighted group means + noisy-OR + signed interaction adjustments | `p_hat` stays a heuristic unless a validated calibration artifact is supplied. |
+| (45) attribution `A` | `RiskResult.contributions`, `explanation`, `excluded_evidence` | Component contributions are additive; no feature attribution or causal claim is made. |
+| (46) `R_index` | Eq. (28)–(29) as specified in §10 and §10.8 | Never a probability. |
+| (47)–(49) prevention, repair, acceptance | Separate repair/recommendation/verification workflow and human approval | Outside these packages; no automatic patch application. |
+
+The advisory decision package consumes `RiskResult` via `context_from_risk` and
+selects developer-facing actions under transparent rules or a deterministic
+declared-preference utility ranking. It is not another equation in Eq.
+(40)–(49), makes no optimal-decision claim, and is not reinforcement learning.
+See [`docs/adaptive-decision-policy.md`](../docs/adaptive-decision-policy.md).
 
 ---
 

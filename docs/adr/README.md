@@ -12,6 +12,7 @@ The initial decisions are recorded in [the architecture document](../architectur
 - ADR-006: SQLite + content-addressed artifact store
 - ADR-007: Docker required for execution-based verification
 - ADR-008: mandatory claim-kind metadata
+- ADR-009: [unified risk score and decision semantics](0009-risk-score-semantics.md) — three separate score meanings, runtime claim-kind mapping, correlation groups, calibration gating, advisory policy
 
 Rules:
 

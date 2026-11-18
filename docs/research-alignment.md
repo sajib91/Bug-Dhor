@@ -59,6 +59,27 @@ Additional required metadata on results:
 
 A result that cannot populate provenance cannot be labelled `computed` or `verified`.
 
+### 2.1 Runtime `claim_kind` mapping
+
+The table above is the research-level taxonomy. The shared schema
+(`shared/schemas/common.json`) and production code — including
+`bugdhor.risk.models.ClaimKind` — use the three-value runtime enum
+`observation | inference | hypothesis`. The canonical serializable vocabulary
+is the three-value enum; the research labels map to it as follows:
+
+| Research label | Runtime representation |
+|---|---|
+| `observed` | `observation` with provenance. |
+| `computed` | `observation` with provenance and `config_hash`; determinism is documented, not a separate claim kind. |
+| `inferred` | `inference`. |
+| `hypothesis` | `hypothesis`. |
+| `verified` | A verification verdict plus the original claim kind; verification status is not a claim kind. |
+
+This is a documentation reconciliation only: no schema values were changed and
+no schema version bump is implied. Adopting the five-value taxonomy in code or
+contracts would require a `shared/schemas/VERSION` bump, fixture updates, and a
+revision of this section under [change control](#16-change-control).
+
 ---
 
 ## 3. Focus-area alignment
@@ -288,6 +309,14 @@ Evidence classes are never merged without retaining their source. A finding can 
 
 No default weights are presented as research findings. Weights are configuration and are recorded in the run manifest.
 
+`bugdhor.risk` keeps the three meanings separate in one result: `index` is a
+`heuristic_index`, `score_kind` is always `heuristic_index`, and `probability`
+is `calibrated_probability` only when a validated, group-disjoint calibration
+artifact is supplied. Its `index` must not be mapped onto the shared
+`calibrated` score kind, and its rejected artifacts remain auditable but cannot
+emit a probability. The engine is programmatic and has no HTTP payload yet; if
+one is added, the shared contract and schema version must be updated first.
+
 ### 7.3 Explanation graph
 
 Nodes: finding, evidence item, feature, intervention effect, verification check. Edges: `supports`, `contradicts`, `derived_from`, `verified_by`. Every node has `claim_kind`, provenance, and a limitations reference. Gaps (e.g., "no SAE available") are explicit nodes, not omitted.
@@ -477,6 +506,10 @@ Evaluation datasets must be licensed, versioned, and hashed. If a dataset cannot
 | LIM-STATIC-03 | Native output parsing and CWE mapping are best-effort for tested formats/versions; unknown output fails explicitly and unsupported mappings stay `None`; analyzer findings are not confirmed vulnerabilities | Static adapters | Parse warnings + preserved rule IDs + tool/version provenance |
 | LIM-STATIC-04 | Deduplication merges only overlapping findings sharing a rule, fingerprint, or CWE; non-overlapping duplicates remain and distinct issues sharing a CWE can merge | Static adapters | `related`/`rule_ids` + merge scope in limitations |
 | LIM-STATIC-05 | Subprocess execution is shell-free and bounded but not an OS sandbox; analyzers share the engine user's filesystem/network access and may consume substantial resources | Static adapters | Argv-only execution + sanitized env + timeout + trusted-config requirement |
+| LIM-RISK-01 | The unified risk index is a heuristic prioritization value, not a probability or a security guarantee | `bugdhor.risk` | `scoreKind: heuristic_index` + wording rules + `docs/unified-risk-engine.md` |
+| LIM-RISK-02 | No labelled security dataset or validated calibration artifact ships; default weights are a neutral prior, not experimental findings | `bugdhor.risk`, `research/configs/risk/*` | Placeholder dataset config + acceptance gates + config hash |
+| LIM-RISK-03 | Dependency-group assumptions may be wrong for a given codebase; SAE/counterfactual evidence is low-strength and non-causal | `bugdhor.risk` | Declared groups + reliability weights + excluded-evidence reasons + hypothesis claim kind |
+| LIM-DEC-01 | Advisory decisions are not optimal decisions; adaptive ranking uses declared preferences and is not learned | `bugdhor.decision` | Objective string + utility basis + trace + `docs/adaptive-decision-policy.md` |
 
 Each limitation ID must appear in the relevant module's documentation and, where user-visible, in the UI.
 
@@ -532,6 +565,8 @@ A result missing any required item is labelled `incomplete` and cannot be used i
 | Counterfactual single/pairwise/higher-order | `counterfactual/*` | Formula vs brute force, sampling CIs, drift, cache | G-CF |
 | Interaction-aware steering | `steering/*` | Planner ranking, guardrails, paired evaluation | G-STEER |
 | Explainable detection | `detection/*`, `explain/*`, webviews | Score-kind, evidence links, UI wording | G-DET |
+| Unified risk engine | `risk/*`, `research/configs/risk/*` | Dependency-group collapsing, missing-policy refusal, calibration acceptance/rejection, config hash | Not yet user-visible (programmatic) |
+| Advisory decision policy | `decision/*` | Rule conditions, capability/consent gates, trace determinism, non-optimality objective | Not yet user-visible (programmatic) |
 | Repository-aware repair | `repair/*`, extension patch flow | Context determinism, diff/path/hash validation, approval | G-REPAIR |
 | Independent verification | `verification/*`, `sandbox/*` | Independence, baseline policy, isolation | G-VERIFY |
 | Reproducibility | `experiments/*`, `artifacts/*` | Manifest completeness, config hash, export redaction | G-REPRO |

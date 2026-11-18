@@ -134,7 +134,7 @@ across runs (`test_examples.py::test_reproducible_examples_run_end_to_end`).
 | Eq. 13 continuous `I_ij(a,b)` | `run_pairwise_experiment` with `value_a`, `value_b` | `test_run_pairwise_experiment_with_identity_sae` |
 | Möbius higher-order contrast | `higher_order_interaction.mobius_contrast`, `estimate_higher_order_interaction` | `test_higher_order_interaction.py::test_mobius_contrast_recovers_the_triple_interaction`, `test_numerical_validation.py::test_mobius_inversion_reconstructs_every_cell_mean` |
 | Counterfactual `Delta(T)` | `counterfactual_estimation.estimate_counterfactual_outcomes`, `CounterfactualEstimator` | `test_counterfactual_estimation.py::test_paired_estimand_is_exact`, `::test_estimator_applies_real_decoder_intervention` |
-| Adaptive allocation and schedule | `adaptive_steering.rank_feature_importance`, `allocate_feature_strengths`, `build_position_schedule`, `plan_adaptive_steering`, `apply_adaptive_steering` | `test_adaptive_steering.py` (all), `test_numerical_validation.py::test_adaptive_l2_budget_is_attained_exactly` |
+| Adaptive allocation and schedule | `adaptive_steering.rank_feature_importance`, `allocate_feature_strengths`, `build_position_schedule`, `plan_adaptive_steering`, `apply_adaptive_steering` | `test_adaptive_steering_math.py` (all), `test_numerical_validation.py::test_adaptive_l2_budget_is_attained_exactly` |
 | Eq. 24 evidence assembly | `evidence_fusion.assemble_evidence_matrix` | `test_evidence_fusion.py::test_equation_24_assembly_preserves_columns_and_availability` |
 | Eq. 26 masked weighted mean | `masked_weighted_fusion` | `test_equation_26_masked_weighted_mean_never_imputes`, `test_numerical_validation.py::test_equation_26_matches_a_brute_force_masked_average` |
 | Eq. 27 logistic fusion | `fit_logistic_fusion_head`, `LogisticFusionHead` | `test_equation_27_logistic_head_is_deterministic_and_learns`, `test_numerical_validation.py::test_logistic_bce_gradient_matches_finite_differences`, `::test_fitted_logistic_head_has_a_near_zero_ridge_gradient` |
@@ -507,7 +507,7 @@ when no association is measured.
 clipping `O(F)`. Schedule `O(P F)` for `P` positions. Application `O(N d F)`,
 or `O(N d + N F)` with a precomputed delta.
 
-**Tests.** `test_adaptive_steering.py`, including direction semantics,
+**Tests.** `test_adaptive_steering_math.py`, including direction semantics,
 individual/interaction allocation, context and clipping, exact budget scaling,
 strict schedule thresholds, decoder-direction application, and validation.
 The budget invariant is independently checked in

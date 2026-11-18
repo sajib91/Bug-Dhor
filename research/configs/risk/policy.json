@@ -1,0 +1,64 @@
+{
+  "name": "transparent-security-policy",
+  "version": "1.0.0",
+  "mode": "rule_baseline",
+  "thresholds": {
+    "warning": 0.25,
+    "critical": 0.75,
+    "uncertainty": 0.5,
+    "basis": "equal_width_ordinal_bands_aligned_with_risk_config"
+  },
+  "preferences": {
+    "notificationLevel": "detailed",
+    "allowWarnings": true,
+    "allowPracticeRecommendations": true,
+    "allowAdditionalAnalysis": true,
+    "allowCounterfactualAnalysis": false,
+    "allowActivationSteering": false,
+    "allowSecureCodeGeneration": true,
+    "requireIndependentVerification": true,
+    "enforcement": "advisory",
+    "basis": "developer_configuration_defaults"
+  },
+  "utility": {
+    "basis": "declared_developer_preferences_not_measured_effects",
+    "efficacy": {
+      "inform_developer": 0.6,
+      "display_vulnerability_warning": 0.8,
+      "recommend_secure_coding_practices": 0.7,
+      "request_additional_analysis": 0.5,
+      "perform_counterfactual_analysis": 0.4,
+      "apply_activation_steering": 0.5,
+      "generate_secure_code_alternatives": 0.9,
+      "request_independent_verification": 0.85,
+      "reject_unsafe_repair_candidate": 0.8
+    },
+    "cost": {
+      "inform_developer": 0.05,
+      "display_vulnerability_warning": 0.1,
+      "recommend_secure_coding_practices": 0.2,
+      "request_additional_analysis": 0.3,
+      "perform_counterfactual_analysis": 0.5,
+      "apply_activation_steering": 0.6,
+      "generate_secure_code_alternatives": 0.6,
+      "request_independent_verification": 0.4,
+      "reject_unsafe_repair_candidate": 0.3
+    },
+    "harm": {
+      "inform_developer": 0.0,
+      "display_vulnerability_warning": 0.1,
+      "recommend_secure_coding_practices": 0.05,
+      "request_additional_analysis": 0.1,
+      "perform_counterfactual_analysis": 0.4,
+      "apply_activation_steering": 0.8,
+      "generate_secure_code_alternatives": 0.5,
+      "request_independent_verification": 0.1,
+      "reject_unsafe_repair_candidate": 0.3
+    }
+  },
+  "_documentation": {
+    "mode": "rule_baseline is the default; adaptive ranks the same all consented baseline candidates by the declared utility and is not reinforcement learning.",
+    "utility": "Efficacy, cost, and harm are preference declarations, not measured intervention effects. No decision optimality is claimed.",
+    "preferences": "Hosted assistants cannot satisfy steering gates because their declared steering pipeline is 'none'."
+  }
+}

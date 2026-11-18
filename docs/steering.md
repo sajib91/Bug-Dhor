@@ -43,6 +43,14 @@ causal evidence. No model weights are downloaded automatically.
 
 ## Adaptive interaction-aware policy
 
+This is an **adaptive steering policy**: it schedules decoder-direction
+interventions for a compatible local model. It is distinct from the
+[adaptive security decision policy](adaptive-decision-policy.md), which selects
+advisory developer-facing actions and never changes a model or a workspace.
+Similarly, `CweRiskController` below produces a *steering priority*, not a
+vulnerability probability; the [unified risk engine](unified-risk-engine.md) is
+the separate component that computes correlation-aware risk indices.
+
 `AdaptiveSteeringPolicy` integrates a measured `FeatureDictionary`, pairwise
 interaction results, and higher-order factorial results. Feature selection is
 ranked by a configured measured importance metric (selectivity by default),

@@ -1,0 +1,43 @@
+{
+  "name": "unified-risk-baseline",
+  "version": "1.0.0",
+  "weights": {
+    "p_hat": 1.0,
+    "severity": 1.0,
+    "exposure": 1.0,
+    "impact": 1.0,
+    "basis": "maximum_entropy_neutral_prior",
+    "version": "1.0.0"
+  },
+  "thresholds": {
+    "low": 0.25,
+    "medium": 0.5,
+    "high": 0.75,
+    "basis": "equal_width_ordinal_bands"
+  },
+  "cweProfiles": {},
+  "dependencyGroups": {
+    "ast": "program_analysis",
+    "cfg": "program_analysis",
+    "dfg": "program_analysis",
+    "taint": "program_analysis",
+    "static_analysis": "static_tool",
+    "sae_activation": "model_internal",
+    "counterfactual_interaction": "model_internal",
+    "model_prediction": "model_internal",
+    "cwe_metadata": "cwe_metadata",
+    "repository_context": "repository_context",
+    "exploitability": "exploitability",
+    "verification": "verification"
+  },
+  "missingPolicy": "renormalize",
+  "uncertaintyBands": [0.3333333333333333, 0.6666666666666666],
+  "uncertaintyBasis": "equal_width_ordinal_bands",
+  "priorityTieBreaker": "finding_id",
+  "_documentation": {
+    "weights": "Equal weights encode no validated preference; they are a maximum-entropy neutral prior and remain heuristic. Replace only with experimentally validated weights.",
+    "dependencyGroups": "AST/CFG/DFG/taint collapse into one program_analysis group; model prediction/SAE/interactions collapse into one model_internal group.",
+    "missingPolicy": "renormalize excludes unavailable Eq. (28) components and renormalizes remaining weights; 'unavailable' refuses to score when any component is missing.",
+    "cweProfiles": "Empty by design: no CWE receives an implicit severity. Supply normalized profiles with an explicit basis from a documented source."
+  }
+}

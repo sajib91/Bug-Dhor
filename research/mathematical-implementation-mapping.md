@@ -74,6 +74,10 @@
 | `evaluation/ablation.py` | Ablation runner + multiplicity summary | E1, no tests |
 | `experiments/` | Dataset loading, splits, evaluation harness | E1, no executed experiment |
 | `core/orchestrator.py` | Operation composition and stage availability | E2 |
+| `risk/models.py`, `risk/normalization.py` | Evidence/claim/reliability contracts, explicit exclusion reasons | E1 |
+| `risk/engine.py`, `risk/config.py` | Eq. (28)–(29) index, dependency groups, noisy-OR, interactions, uncertainty | E1 |
+| `risk/calibration.py`, `risk/evaluation.py` | Group-disjoint Platt calibration, acceptance gates, evaluation CLI | E1, no labelled dataset |
+| `decision/rules.py`, `decision/adaptive.py`, `decision/engine.py` | Transparent baseline, gated utility ranking, advisory trace | E1 |
 
 ---
 
@@ -172,8 +176,8 @@ This is a documented heuristic prioritization score. It is **not** Eq. (25)–(2
 
 | Eq. | Construct | Code location | Code semantics | Impl. | Ev. | Gap |
 |---|---|---|---|---|---|---|
-| (28) | `R=αP+βS+γE+δI` | `steering/risk_controller.py` | `clamp((offset + w_f·feature + w_i·interaction + w_s·static + heuristic) × context_multiplier, max_priority)` | ◐ | E1 | Different decomposition; no `P(v)`; no normalization; no calibrated probability |
-| (29) | Threshold bands | `risk_controller.py::_band`; `detection/config.py::Thresholds.band` | Highest band whose threshold is ≤ priority | ✔ | E1/E2 | Band labels differ between modules; thresholds are configuration |
+| (28) | `R=αP+βS+γE+δI` | `risk/engine.py::UnifiedRiskEngine._risk_index`; `steering/risk_controller.py` | Unified engine: normalized weighted sum with renormalization; steering controller: different additive policy with clamp | ◐ | E1 | Unified engine implements the arithmetic literally, but its `p_hat` is heuristic without a validated artifact; no calibrated `P(v)` ships |
+| (29) | Threshold bands | `risk/models.py::RiskThresholds.band`; `risk_controller.py::_band`; `detection/config.py::Thresholds.band` | Highest band whose threshold is ≤ value | ✔ | E1/E2 | Unified engine uses lowercase bands including `unknown`; other modules use different labels; thresholds are configuration |
 
 **Exact risk-controller semantics (`risk_controller.py::assess`):**
 
@@ -217,6 +221,16 @@ The optional calibrator is the only path to a probability. When absent, `calibra
 | (47) | `c_secure=G_prevent(...)` | `core/orchestrator.py::prevention_steer` | Returns `PreventionResult(plan=None, ...)`; stages declared unavailable | ✘ | E2 (endpoint), E0 (algorithm) | No generation loop, no steering plan |
 | (48) | `P'=G_repair(P,A,Q_security)` | `repair/engine.py`, `repair/workflow.py` | Proposal generation; no attribution input | ◐ | E1 | No `A`; no iterative loop |
 | (49) | `P*=P' if Accept else P` | `repair/workflow.py` | Never auto-applies; requires explicit user approval | ◐ | E2 | Acceptance is workflow state, not automatic replacement |
+
+**Unified-engine note (audit addition, 2026-11-18).** `risk/engine.py` realizes
+parts of (42), (45), and (46) as an E1 library: dependency-group evidence
+aggregation produces a heuristic `p_hat`, `contributions`/`explanation` provide
+attribution-shaped output, and Eq. (28)–(29) produce the index and bands. It
+does **not** implement (43)–(44): there is no learned `F_φ` or fused head.
+Stages (47)–(49) remain in the separate repair/recommendation/verification
+workflow and require human approval. `decision/*` consumes `RiskResult` but is
+not an equation in Eq. (40)–(49). See `docs/unified-risk-engine.md` and
+`docs/adaptive-decision-policy.md`.
 
 ---
 
@@ -513,7 +527,8 @@ This is the correct honesty posture: the API does not fabricate SAE, counterfact
 | Paper | Code | Risk |
 |---|---|---|
 | Eq. (25)–(27) fusion | Family-wise noisy-OR | Must not be reported as Eq. (27) |
-| Eq. (28) risk | CWE-policy additive priority | Must not be reported as Eq. (28) |
+| Eq. (28) risk | CWE-policy additive priority (steering controller) | Must not be reported as Eq. (28) |
+| Eq. (28) arithmetic | Unified `risk/engine.py` weighted sum | Arithmetic matches Eq. (28), but `p_hat` is heuristic unless a validated artifact supplies a probability |
 | Eq. (32) repair objective | 8-term weighted ranking | Must not be reported as Eq. (32) |
 | Eq. (34) exact output equality | Test-harness pass rate | Paper should adopt the operational form |
 | Eq. (36) Hoare | Static/taint checks | Must not claim formal correctness |
@@ -530,6 +545,11 @@ This is the correct honesty posture: the API does not fabricate SAE, counterfact
 - AST/CFG/DFG/taint analysis is real and wired into scan/detection/explanation.
 - Decoder-direction steering and adaptive strength allocation are real code paths, though unwired.
 - The CWE risk policy, banding, and optional calibration are real code paths.
+- The unified risk engine's group aggregation, Eq. (28)–(29) arithmetic, and
+  calibration acceptance gates are real, unit-tested library code (E1), with no
+  labelled dataset or validated artifact shipped.
+- The advisory decision baseline and gated deterministic utility ranking are
+  real, unit-tested library code (E1), not an optimal or learned policy.
 - Repair proposal generation, ranking, hard constraints, and approval gating are real.
 - Independent verification performs real before/after static and taint comparisons.
 - The code is explicit that fusion is not a probability and that repairs are never auto-applied.
@@ -537,7 +557,7 @@ This is the correct honesty posture: the API does not fabricate SAE, counterfact
 ### 8.2 Not supported (E0)
 
 - Any claim that Eq. (2)–(4) is implemented or evaluated.
-- Any claim that Eq. (10), (11), (14)–(16), (20), (25)–(28), (31)–(32), or (36) is implemented as written.
+- Any claim that Eq. (10), (11), (14)–(16), (20), (25)–(27), (31)–(32), or (36) is implemented as written. Eq. (28)'s arithmetic is implemented by `risk/engine.py`, but Eq. (28) as written requires a calibrated `P(v)`, and none is shipped.
 - Any claim of detection, localization, repair, prevention, or explanation performance.
 - Any claim of calibrated probabilities.
 - Any claim that the five-view representation or unified model is operational.

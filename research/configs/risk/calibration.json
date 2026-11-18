@@ -1,0 +1,32 @@
+{
+  "name": "risk-index-platt-calibration",
+  "version": "1.0.0",
+  "datasetId": "REPLACE_WITH_REGISTERED_DATASET_ID",
+  "fitGroups": ["REPLACE_WITH_FIT_GROUP_A", "REPLACE_WITH_FIT_GROUP_B"],
+  "validationGroups": ["REPLACE_WITH_DISJOINT_VALIDATION_GROUP"],
+  "acceptance": {
+    "maxBrier": 0.15,
+    "maxEce": 0.1,
+    "maxLogLoss": 0.5,
+    "minAuroc": 0.7,
+    "basis": "declared_acceptance_thresholds_not_derived_from_project_data"
+  },
+  "scoreField": "score",
+  "labelField": "label",
+  "groupField": "group",
+  "rowIdField": "rowId",
+  "method": "platt",
+  "bins": 10,
+  "regularization": 1e-06,
+  "maxIterations": 100,
+  "tolerance": 1e-10,
+  "seed": 0,
+  "nBoot": 1000,
+  "confidence": 0.95,
+  "_documentation": {
+    "datasetId": "Must identify an independently labelled dataset registered outside this repository. No labelled security dataset is fabricated or shipped here.",
+    "groups": "fitGroups and validationGroups are repository/project identifiers. They must be disjoint; overlap is rejected at config load time.",
+    "acceptance": "Explicit validation gates for emitting a calibrated probability. Failing any gate yields a rejected artifact that remains auditable but cannot be used.",
+    "status": "Replace all REPLACE_WITH_* placeholders with real dataset and group identifiers before running an experiment."
+  }
+}

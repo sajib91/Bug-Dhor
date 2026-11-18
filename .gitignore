@@ -48,6 +48,10 @@ out/
 # Datasets and generated research outputs
 research/datasets/*
 !research/datasets/.gitkeep
+# Keep the risk dataset contract/card trackable; data blobs stay ignored.
+!research/datasets/risk/
+research/datasets/risk/*
+!research/datasets/risk/README.md
 research/experiments/runs/
 research/experiments/exports/
 benchmarks/datasets/*

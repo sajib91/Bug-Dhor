@@ -21,6 +21,7 @@ No fabricated results, citations, or capability claims.
 | Evidence-grounded analysis objective | `bugdhor/parsing`, `program_analysis`, `static`, `detection`, `explain` | **Partial / integrated path** | Real preprocessing/program/taint/detection/explanation paths integrated in orchestrator; quality/coverage depends on language/tool availability. |
 | SAE/counterfactual/steering research objectives | `bugdhor/models`, `sae`, `counterfactual`, `steering`, `features` routes/modules | **Implemented (conditional)** | Core libraries exist; runtime use requires compatible checkpoints/artifacts/config and compute. |
 | Repair and independent verification objectives | `bugdhor/repair`, `verification`, `sandbox`, repair/verification routes/workflow | **Implemented (conditional)** | Proposal-only workflow and independent verification implemented; model/sandbox/consent/analyzers affect executability. |
+| Unified mathematical risk and advisory decision objective | `bugdhor/risk`, `bugdhor/decision`, `research/configs/risk/*` | **Implemented (programmatic, conditional)** | Correlation-aware Eq. (28)–(29) index and transparent/adaptive advisory policy; no API exposure, no labelled dataset, and no calibrated probability ship. |
 | Reproducible evaluation objective | `bugdhor/experiments`, `bugdhor/evaluation`, `research/evaluation/README.md` | **Implemented (conditional)** | Framework implemented; actual experiments require licensed local data and satisfied prerequisites. |
 
 ## 2. System architecture
@@ -146,6 +147,21 @@ No fabricated results, citations, or capability claims.
 
 See [secure recommendations and feedback](secure-recommendation-and-feedback.md) for the workflow contract, gate details, settings, and verification commands.
 
+## 12B. Unified risk engine and advisory decision policy
+
+| Element | Implementation | Status | Notes |
+|---|---|---|---|
+| Evidence normalization and reliability | `security-engine/src/bugdhor/risk/normalization.py`, `models.py` | **Implemented** | Explicit source/claim/polarity/reliability; failed, unavailable, unvalidated, and partial sources are excluded with reasons; no imputation. |
+| Correlation control | `security-engine/src/bugdhor/risk/engine.py`, `config.py` | **Implemented** | Declared dependency groups: AST/CFG/DFG/taint → `program_analysis`, model/SAE/interaction → `model_internal`; reliability-weighted group means, noisy-OR across groups, signed interaction adjustments inside a group. |
+| Eq. (28)–(29) risk index | `security-engine/src/bugdhor/risk/engine.py` | **Implemented** | Heuristic index with exact weighted contributions, lowercase bands, `renormalize`/`unavailable` missing policies, and a documented uncertainty heuristic; never a probability. |
+| Group-disjoint calibration | `security-engine/src/bugdhor/risk/calibration.py`, `evaluation.py` | **Implemented (conditional)** | Platt scaling with validation-only Brier/ECE/log-loss/AUROC, bootstrap intervals, and acceptance gates. Placeholder config only; no labelled dataset or validated artifact ships. Rejected artifacts remain auditable but cannot emit probabilities. |
+| Transparent decision baseline | `security-engine/src/bugdhor/decision/rules.py`, `engine.py` | **Implemented** | Rules R01–R09 with observed conditions; capability/consent gates; all blocked actions recorded in the trace; advisory by default. |
+| Adaptive decision ranking | `security-engine/src/bugdhor/decision/adaptive.py`, `config.py` | **Implemented** | Deterministic preference-utility ranking under declared weights; not reinforcement learning and not claimed optimal. Distinct from `steering/adaptive.py`. |
+| Reproducible configs and CLI | `research/configs/risk/*`, `research/datasets/risk/README.md`, `bugdhor.risk.evaluation` | **Implemented (conditional)** | Versioned configs with recorded hashes; CLI needs a caller-supplied labelled JSONL dataset. |
+| HTTP risk/decision endpoints | n/a | **Not implemented / by design** | Programmatic backend libraries only; no client-supplied calibration artifact can reach the engine over the wire. |
+
+See [unified risk engine](unified-risk-engine.md) and [adaptive decision policy](adaptive-decision-policy.md) for contracts, formulas, claim boundaries, and tests.
+
 ## 13. Experimental design
 
 | Element | Implementation | Status | Notes |
@@ -219,10 +235,11 @@ See [secure recommendations and feedback](secure-recommendation-and-feedback.md)
 | Repair/verification endpoints | Routes/orchestrator/workflow/verifiers | Extension, API clients | **Implemented (conditional)** |
 | Secure recommendation proposals | `api/routes/recommendation.py`, `recommendation/*`, provider-backed client workflow | Dashboard, API clients | **Implemented (conditional)** |
 | Feedback lifecycle and rescan control | Diagnostics hook, `feedback/*`, realtime monitor | Dashboard, notifications, diagnostics | **Implemented** |
+| Risk assessment and decision trace | `bugdhor/risk`, `bugdhor/decision` | Programmatic backend callers (no HTTP route) | **Implemented (conditional)** |
 | Jobs/status/progress/result/cancel | `core/jobs.py`, `api/routes/jobs.py` | Clients/tools | **Implemented** |
 | Diagnostics/hover/quick-fix data | Validated backend scan results | VS Code diagnostics providers | **Implemented** |
 | Experiment manifests/exports/reports | `experiments/*`, `evaluation/*` | Researchers/tools | **Implemented (conditional)** |
 
 ## Maintenance note
 
-When implementation status changes (e.g. new end-to-end integrations, added analyzers, UI flows, or validated experimental runs), update this mapping together with `docs/research-methodology.md`, `docs/api.md`, and relevant component docs to prevent documentation drift.
+When implementation status changes (e.g. new end-to-end integrations, added analyzers, UI flows, HTTP exposure of risk/decision, or validated experimental runs), update this mapping together with `docs/research-methodology.md`, `docs/api.md`, `docs/unified-risk-engine.md`, `docs/adaptive-decision-policy.md`, and relevant component docs to prevent documentation drift. In particular, exposing a calibrated probability requires a real group-disjoint dataset, a passing calibration artifact, and a shared-contract/schema version decision.

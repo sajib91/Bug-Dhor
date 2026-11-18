@@ -202,8 +202,23 @@ limitations.
 ## Non-negotiable constraints
 
 - Missing capabilities are reported as unavailable and are never simulated.
-- Heuristic scores are not probabilities.
+- Heuristic scores are not probabilities. In `bugdhor.risk`, `index` is an
+  Eq. (28) prioritization value and `score_kind` is always `heuristic_index`;
+  a probability is emitted only with a validated, group-disjoint calibration
+  artifact. No such artifact or labelled dataset ships with the project.
+- Correlated evidence is never counted as independent votes. AST/CFG/DFG/taint
+  collapse into `program_analysis`; model predictions/SAE/interactions collapse
+  into `model_internal`, where counterfactual interactions are signed
+  adjustments, not separate evidence.
+- Missing evidence is reported and excluded, never imputed. Unreliable,
+  failed, unavailable, or unvalidated observations carry zero reliability and
+  a recorded reason.
 - Counterfactual effects are model-internal interventions, not real-world causal effects.
+- Advisory decisions are not optimal decisions. `bugdhor.decision` uses either
+  transparent rules or a deterministic declared-preference utility ranking; it
+  is not reinforcement learning and never claims an optimal policy. Model
+  capabilities are declared, and blocked actions are recorded in the trace.
 - Execution-based verification requires an adequate sandbox.
 - Repairs require explicit user approval before application; the engine never
-  writes user source.
+  writes user source. The advisory decision policy is not an approval
+  mechanism and does not mutate code.
