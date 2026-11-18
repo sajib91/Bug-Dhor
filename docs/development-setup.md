@@ -2,7 +2,7 @@
 
 **Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, diagnostics, and HTTP API verification was repeated on 2026-11-12. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
-This repository is an early implementation. Setup installs the toolchain, and the VS Code extension shell with its dashboard and diagnostics pipeline can run in an Extension Development Host. The Python engine now provides a tested, versioned FastAPI HTTP API with real file/workspace inspection, plus standalone source-preprocessing, program-analysis, and static-analyzer adapter libraries; the extension does not yet start it or use a live HTTP client. No analyzer adapter is enabled in the scan pipeline, and no detector, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or adequate verification sandbox is implemented. Those stages report `unavailable`. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
+This repository is an early implementation. Setup installs the toolchain, and the VS Code extension with its dashboard and diagnostics pipeline can run in an Extension Development Host. The Python engine provides a tested, versioned FastAPI HTTP API with real file/workspace inspection, source preprocessing, program analysis, static-analyzer adapters, detection, explanation, proposal-only repair, and bounded verification. The extension uses a live HTTP client but does not start the backend process. SAE extraction, counterfactual analysis, and activation steering remain honest HTTP stubs that report `unavailable`; no production model/SAE artifact, calibration artifact, or adequate execution sandbox is present. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced by setup.
 
 ## 1. Supported toolchain
 
@@ -41,7 +41,7 @@ It does **not**:
 - modify user source files;
 - run analysis, counterfactual, steering, repair, or verification code.
 
-Semgrep and Bandit are optional. Without `--with-analyzers`, setup skips them; their adapters will not exist until later phases regardless.
+Semgrep and Bandit are optional. Without `--with-analyzers`, setup skips the analyzer CLIs; adapters exist but report missing or failed tools explicitly.
 
 ## 3. macOS quick start (verified)
 
@@ -265,7 +265,7 @@ The extension activates on startup, its commands, and when the sidebar view is o
 
 The dashboard shell is server-rendered and the client renders dynamic content with DOM text APIs. It uses a per-render nonce, `default-src 'none'`, no network or inline executable code, local resource roots, and escaped embedded JSON. Inbound webview messages are validated; unknown messages are ignored. The Activity Bar launcher has the same CSP discipline and can only send `openDashboard`.
 
-Successful file, selection, and workspace scans pass the backend result to `DiagnosticController.publishScanResult`. The controller validates the result, rejects malformed findings and paths outside the workspace, publishes a `DiagnosticCollection` for the Problems panel, and stores normalized findings for hover and Quick Fix providers. File and selection scans replace diagnostics for the scanned document; workspace scans clear files named by the backend `scope.uris`. A failed or cancelled scan never changes diagnostics. Hover shows backend explanation, evidence, sources, and repair state. A repair Quick Fix appears only when the backend sets `repair.eligible` to `true` and invokes `bugdhor.repairVulnerability` with validated finding context; the extension does not edit source. The backend currently reports `analysisAvailable: false` and no findings because detection is unimplemented; that state is shown as unavailable analysis, not as a clean scan.
+Successful file, selection, and workspace scans pass the backend result to `DiagnosticController.publishScanResult`. The controller validates the result, rejects malformed findings and paths outside the workspace, publishes a `DiagnosticCollection` for the Problems panel, and stores normalized findings for hover and Quick Fix providers. File and selection scans replace diagnostics for the scanned document; workspace scans clear files named by the backend `scope.uris`. A failed or cancelled scan never changes diagnostics. Hover shows backend explanation, evidence, sources, risk assessment, and repair state. A repair Quick Fix appears only when the backend sets `repair.eligible` to `true` and invokes `bugdhor.repairVulnerability` with validated finding context; the extension does not edit source. Real detector findings are published when produced; `analysisAvailable: false` is shown as unavailable analysis, not as a clean scan.
 
 Engine-backed commands validate the editor and workspace before calling the injected `SecurityEngineService`. Validation failures and service failures are logged and shown as error messages with a **Show Logs** action; cancelled commands are logged without an error dialog. Commands show a cancellable progress notification but never a success notification. The HTTP service uses the configured backend origin, applies request and health timeouts, and validates every response. File and selection requests include `sourceText`/`selectedText` only when `bugdhor.privacy.sendSourceText` is enabled; disabling it sends paths and ranges so the backend reads the saved file from disk. Workspace scans send folder metadata only. Transport failures report `E_BACKEND_UNAVAILABLE`, timeouts report `E_REQUEST_TIMEOUT`, cancellation is silent, and malformed responses are rejected without publishing diagnostics.
 
@@ -305,15 +305,16 @@ Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
 | Tree-sitter grammars | Python and JavaScript grammars exercised by parsing tests; the TypeScript module imports but is not supported by preprocessing |
-| `npm run lint` | Ruff passed; ESLint passed |
-| `npm run format:check` | Ruff and Prettier reported no formatting differences |
-| `npm test` | 320 pytest tests passed (API, contracts, parsing, program analysis, taint, static adapters, settings, paths, and pipeline); 219 Node unit tests passed |
+| `npm run lint` | Root Ruff gate fails on the pre-existing repository baseline (506 errors); extension ESLint is clean |
+| `npm run format:check` | Fails on a pre-existing baseline: 57 files would be reformatted, 178 already formatted; changed JavaScript files are Prettier-clean |
+| Ruff on changed Python files | 129 findings versus 137 at HEAD; no new net violations |
+| `npm test` | 638 pytest tests passed (API, contracts, parsing, program analysis, taint, static adapters, detection, explanation, repair, verification, settings, paths, and pipeline); 295 Node unit tests passed |
 | Parsing unit tests | 59 tests passed over valid and invalid Python/JavaScript source, BOM/CRLF source maps, UTF-16 positions, tokenization, function extraction, chunking, and repository metadata |
 | Program-analysis unit tests | 62 tests passed over Python/JavaScript basic blocks, branches, loops, exceptions, functions, exact locations, reaching definitions, calls, returns, closures, unresolved uses, graph invariants, determinism, and positive/negative taint flows for five vulnerability classes |
 | Static-adapter tests | 32 tests passed over subprocess safety, timeouts, output capture, Semgrep/Bandit/SARIF/Joern parsing, CWE normalization, deduplication, missing/failed/unavailable statuses, CodeQL license/config gates, Joern version gates, and mocked end-to-end integrations |
 | `npm run extension:test:integration` | Extension Host activated the extension; all 13 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
 | Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
-| `npm run check` | Structure, lint, format check, and both test suites passed |
+| `npm run check` | Fails on the pre-existing root lint/format baseline; extension lint, backend 638 tests, and extension 295 tests pass |
 | `npm run build` | Python wheel built; 50-file, 74.63 KB VSIX packaged |
 | `npm audit --omit=dev` | 0 production vulnerabilities |
 | `npm audit` | 4 moderate `minimatch` advisories in development tooling only |
@@ -333,7 +334,7 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 
 **Semgrep is slow or missing from `PATH`.** Setup installs it into `.venv`. Doctor checks the venv binary directly, but your shell may not have it on `PATH`. On macOS use `.venv/bin/semgrep --version`; on Windows use `.\.venv\Scripts\semgrep.exe --version`. The first Semgrep invocation can take longer than later runs.
 
-**Docker is missing.** Setup, lint, and unit tests still work. Execution-based verification is not implemented and is reported as unavailable until an adequate sandbox exists.
+**Docker is missing.** Setup, lint, and unit tests still work. Execution-based verification is not attempted without an adequate sandbox; verification reports `inconclusive` with explicit limitations and never a pass verdict.
 
 **The VSIX is unexpectedly huge.** Do not remove `--no-dependencies` from the packaging script until the extension is bundled. Without it, npm workspace hoisting causes `vsce` to include the entire repository.
 
@@ -343,18 +344,16 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 
 - Windows setup commands were not executed on this macOS host.
 - The VS Code **Run Bug Dhor Extension** launch configuration was not clicked manually; an equivalent Extension Host run passed through `@vscode/test-electron`.
-- The extension connects to a separately started Python backend over the versioned HTTP API. It does not start or supervise that process. Detection, SAE extraction, counterfactuals, steering, repair, and verification remain unavailable.
-- The Python/JavaScript preprocessing library is standalone: no API route, scan stage, or extension command invokes it yet. Syntax-error recovery is best effort, and only Python and JavaScript are supported.
-- Diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. Because detection is unimplemented, current scans report `analysisAvailable: false` and publish no live findings; provider behavior is tested with backend-shaped fixtures.
+- The extension connects to a separately started Python backend over the versioned HTTP API. It does not start or supervise that process. Detection, explanation, proposal-only repair, and bounded verification are wired; SAE extraction, counterfactuals, and steering remain `unavailable`.
+- Python and JavaScript preprocessing is invoked by scan, detection, and explanation stages. Syntax-error recovery is best effort, and only those two languages are supported.
+- Diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. Current scans can publish real AST/CFG/DFG/taint-backed findings with a `heuristic_index` risk index; `analysisAvailable: false` remains explicit unavailable analysis, never a clean scan.
 - Finding locations and source-reference file links are restricted to open workspace folders. A source reference outside the workspace is shown as text anchored at the finding instead of a clickable location. Symlink targets are not resolved.
-- The diagnostics pipeline is exercised against the real backend for transport, response validation, and empty-finding behavior, but not with detector-produced findings because no detector exists. Windows rendering and interaction behavior were not tested because development runs on macOS.
+- The diagnostics pipeline is exercised against the real backend with detector-produced findings in the Extension Host e2e test, including native diagnostics, hover, and explanation. Windows rendering and interaction behavior were not tested because development runs on macOS.
 - The dashboard demo preview is illustrative interface data only. It is not a scan result, and it deliberately omits SAE activations, feature effects, steering results, explanations, repairs, verification checks, and reports.
-- Research analysis commands are wired to the HTTP service but report the backend's explicit `unavailable` stages. No analysis result, probability, or causal claim is produced.
+- Explanation returns evidence-grounded observation claims only for a finding ID matching the current backend detection run. SAE, counterfactual, and steering stages remain `unavailable`. No calibrated probability or causal claim is produced.
 - Command behavior is covered by unit tests with fake VS Code objects and by an Extension Host test that invokes engine-backed commands against the real backend. The Extension Host test does not inspect the rendered webview DOM.
 - The headless Chrome dashboard smoke test is a manual verification and is not committed as a portable automated test; it does not replace a browser-matrix or assistive-technology audit.
-- The FastAPI server exists and is covered by backend API tests; no analyzer adapter, detector, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
-- The headless Chrome dashboard smoke test is a manual verification and is not committed as a portable automated test; it does not replace a browser-matrix or assistive-technology audit.
-- The FastAPI server exists and is covered by backend API tests, but the extension does not start it, and no analyzer adapter, detector, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
+- The FastAPI server, analyzer adapters, detector, explanation engine, repair workflow, and verifier are implemented and covered by backend tests. SAE/counterfactual/steering libraries exist but are unwired HTTP stubs; no production model, SAE artifact, calibration artifact, or adequate sandbox is present.
 - Python 3.12–3.14 were not exercised end-to-end.
 - Native Semgrep on Windows was not exercised.
 - The development VSIX does not bundle `ajv` or other runtime dependencies.

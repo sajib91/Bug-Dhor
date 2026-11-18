@@ -242,7 +242,7 @@ See [unified risk engine](unified-risk-engine.md) and [adaptive decision policy]
 | Interface | Producer | Consumer | Status |
 |---|---|---|---|
 | `/api/v1/health`, scan, detection, explanation endpoints | FastAPI routes/orchestrator | VS Code extension, API clients | **Implemented** |
-| Feature/counterfactual/steering endpoints | Routes/orchestrator + conditional engines | Extension, API clients | **Implemented (conditional)** |
+| Feature/counterfactual/steering endpoints | Routes/orchestrator (honest stubs; no D/E/F hooks) | Extension, API clients | **Implemented as honest unavailable stubs** |
 | Repair/verification endpoints | Routes/orchestrator/workflow/verifiers | Extension, API clients | **Implemented (conditional)** |
 | Secure recommendation proposals | `api/routes/recommendation.py`, `recommendation/*`, provider-backed client workflow | Dashboard, API clients | **Implemented (conditional)** |
 | Feedback lifecycle and rescan control | Diagnostics hook, `feedback/*`, realtime monitor | Dashboard, notifications, diagnostics | **Implemented** |
@@ -251,7 +251,7 @@ See [unified risk engine](unified-risk-engine.md) and [adaptive decision policy]
 | Diagnostics/hover/quick-fix data | Validated backend scan results | VS Code diagnostics providers | **Implemented** |
 | Experiment manifests/exports/reports | `experiments/*`, `evaluation/*` | Researchers/tools | **Implemented (conditional)** |
 | Model compatibility report | `models/compatibility*`, compatibility runner | Researchers/tools | **Executed for local research checkpoints** |
-| Coding benchmark readiness bundle | `benchmarks/harness/*`, `benchmarks/tasks/*` | Researchers/tools | **not_run** until a real executor and sandbox exist |
+| Coding benchmark readiness bundle | `benchmarks/harness/*`, `benchmarks/tasks/*` | Researchers/tools | Harness **Fully** executed as readiness; execution **not_run** until a real executor and sandbox exist |
 
 ## Maintenance note
 

@@ -45,7 +45,7 @@ test('sidebar launcher renders local assets and the dashboard action', () => {
   assert.match(html, /Open Security Dashboard/);
   assert.match(html, /Engine status/);
   assert.match(html, /Not connected/);
-  assert.match(html, /No analysis results are produced in this build/);
+  assert.match(html, /Analysis results appear only after a real backend scan/);
   assert.match(html, /<noscript>/);
 });
 

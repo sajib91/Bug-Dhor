@@ -162,11 +162,12 @@ const DASHBOARD_ACTIONS = Object.freeze([
 
 const ENGINE_UNAVAILABLE = Object.freeze({
   status: 'unavailable',
-  label: 'Analysis capabilities unavailable',
+  label: 'Backend not connected',
   detail:
-    'The extension connects to the local backend for health checks and file or workspace ' +
-    'inspection. Detection, SAE analysis, counterfactual analysis, repair, and verification are ' +
-    'not implemented, and no result is simulated.'
+    'The dashboard renders only results supplied by a connected local backend. Parsing, ' +
+    'program analysis, detection, explanation, repair, and verification are wired backend ' +
+    'paths; model-internal SAE, counterfactual, and steering results require configured ' +
+    'compatible artifacts and are never simulated.'
 });
 
 const DEFAULT_SETTINGS = Object.freeze({

@@ -79,6 +79,27 @@ class FindingLocation(APIModel):
     range: Range
 
 
+class RiskSummary(APIModel):
+    """Compact output of the unified risk engine for one backend finding.
+
+    The index is always labelled ``heuristic_index``. A probability is present
+    only when a validated calibration artifact was supplied to the engine; the
+    HTTP path supplies none.
+    """
+
+    index: float | None = Field(default=None, ge=0, le=1)
+    score_kind: Literal["heuristic_index"]
+    band: str
+    probability: float | None = Field(default=None, ge=0, le=1)
+    probability_kind: Literal["calibrated_probability"] | None = None
+    components: dict[str, Any] = Field(default_factory=dict)
+    uncertainty: dict[str, Any] = Field(default_factory=dict)
+    config_hash: str | None = None
+    evidence_count: int = Field(default=0, ge=0)
+    excluded_evidence_count: int = Field(default=0, ge=0)
+    explanation: list[str] = Field(default_factory=list, max_length=100)
+
+
 class Finding(APIModel):
     """Backend finding contract consumed by the VS Code diagnostics layer."""
 
@@ -97,6 +118,13 @@ class Finding(APIModel):
         description=(
             "Evidence-backed finding status. 'confirmed' requires multiple independent "
             "observation/inference evidence families; otherwise 'potential'."
+        ),
+    )
+    risk_assessment: RiskSummary | None = Field(
+        default=None,
+        description=(
+            "Optional unified-risk result computed from this finding's actual evidence. "
+            "Its scoreKind is heuristic_index unless a validated calibrator was supplied."
         ),
     )
 

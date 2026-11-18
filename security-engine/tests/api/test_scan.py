@@ -10,7 +10,7 @@ from bugdhor.api.app import create_app
 from bugdhor.core.settings import Settings
 
 
-def test_scan_file_reports_real_metadata_and_explicit_unavailable_stages(api) -> None:
+def test_scan_file_reports_real_metadata_and_integrated_analysis_stages(api) -> None:
     response = api.client.post("/api/v1/scan/file", json=api.payload())
 
     assert response.status_code == 200
@@ -22,7 +22,7 @@ def test_scan_file_reports_real_metadata_and_explicit_unavailable_stages(api) ->
     assert body["apiVersion"] == "v1"
     assert body["result"] is None
     assert body["findings"] == []
-    assert body["analysisAvailable"] is False
+    assert body["analysisAvailable"] is True
     assert body["filesScanned"] == 1
     assert body["file"]["size"] == len(expected_bytes)
     assert body["file"]["sha256"] == hashlib.sha256(expected_bytes).hexdigest()
@@ -31,16 +31,20 @@ def test_scan_file_reports_real_metadata_and_explicit_unavailable_stages(api) ->
     assert body["scope"]["uris"] == [body["file"]["uri"]]
     assert [stage["stage"] for stage in body["stages"]] == [
         "file_snapshot",
+        "preprocessing",
+        "program_analysis",
         "static_evidence",
         "detection",
     ]
     assert [stage["status"] for stage in body["stages"]] == [
         "ok",
+        "ok",
+        "ok",
         "unavailable",
-        "unavailable",
+        "ok",
     ]
-    assert body["stages"][1]["reasonCode"] == "E_ANALYZER_UNAVAILABLE"
-    assert body["stages"][2]["reasonCode"] == "E_DETECTOR_UNAVAILABLE"
+    assert body["stages"][3]["reasonCode"] == "E_TOOL_MISSING"
+    assert body["stages"][4]["reasonCode"] is None
 
 
 def test_scan_file_accepts_a_relative_path(api) -> None:
@@ -70,7 +74,7 @@ def test_scan_file_hashes_supplied_source_text_instead_of_the_disk_copy(api) -> 
     assert body["file"]["sha256"] == hashlib.sha256(data).hexdigest()
     assert body["file"]["path"] == str((api.root / "app.py").resolve())
     assert body["filesScanned"] == 1
-    assert body["analysisAvailable"] is False
+    assert body["analysisAvailable"] is True
 
 
 def test_scan_file_validates_a_selection_against_supplied_source_text(api) -> None:
@@ -187,15 +191,16 @@ def test_scan_workspace_discovers_sources_and_ignores_generated_directories(api)
     body = response.json()
     assert body["operation"] == "scan_workspace"
     assert body["status"] == "partial"
-    assert body["analysisAvailable"] is False
+    assert body["analysisAvailable"] is True
     assert body["findings"] == []
     assert body["filesScanned"] == 2
     assert len(body["scope"]["uris"]) == 2
     assert all(uri.endswith((".py", ".js")) for uri in body["scope"]["uris"])
     assert body["stages"][0]["stage"] == "workspace_snapshot"
     assert body["stages"][0]["data"] == {"fileCount": 2, "rootCount": 1}
-    assert body["stages"][1]["reasonCode"] == "E_ANALYZER_UNAVAILABLE"
-    assert body["stages"][2]["reasonCode"] == "E_DETECTOR_UNAVAILABLE"
+    stage_reasons = {stage["stage"]: stage["reasonCode"] for stage in body["stages"]}
+    assert stage_reasons["static_evidence"] == "E_TOOL_MISSING"
+    assert stage_reasons["detection"] is None
 
 
 def test_scan_workspace_accepts_an_empty_workspace(api) -> None:

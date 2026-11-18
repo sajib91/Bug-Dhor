@@ -49,8 +49,9 @@ model-logit score must not be labelled, formatted, or described as one.
 
 `analysisAvailable: false` means the analysis stage did not produce a result.
 Schemas therefore require empty `findings`, `features`, `effects`, `claims`, or
-`checks`, and require verification to report `not_run`. An empty findings list is
-not a clean result.
+`checks`. Verification reports `inconclusive` when no independent evidence is
+available; `not_run` is reserved for intentionally skipped checks. An empty
+findings list is not a clean result.
 
 ## Tests
 

@@ -76,6 +76,36 @@ test('hover explains a finding with severity, CWE, evidence, sources, and repair
   assert.deepEqual(hover.range.end, { line: 4, character: 42 });
 });
 
+test('hover labels backend risk as a heuristic index and never shows a probability', () => {
+  const finding = createFinding({
+    riskAssessment: {
+      index: 0.3348,
+      scoreKind: 'heuristic_index',
+      band: 'medium',
+      probability: 0.99,
+      probabilityKind: 'calibrated_probability',
+      components: { p_hat: 0.3348 },
+      uncertainty: { value: 0.2, level: 'low' },
+      configHash: '422b0ac3f07f036154012a9a59aee928ba3c578853d6a83cc129f1994c7415f8',
+      evidenceCount: 2,
+      excludedEvidenceCount: 0,
+      explanation: ['Eq. (28) index 0.335 (medium).']
+    }
+  });
+  const { provider } = createHoverProvider([finding]);
+
+  const hover = provider.provideHover(
+    { uri: createUri(finding.documentUri) },
+    { line: 4, character: 10 }
+  );
+
+  assert.ok(hover);
+  assert.match(hover.contents.value, /heuristic index 0\.335 \(medium\)/);
+  assert.match(hover.contents.value, /not a calibrated probability/);
+  assert.match(hover.contents.value, /Backend evidence items: 2/);
+  assert.equal(hover.contents.value.includes('0.99'), false);
+});
+
 test('hover is absent outside a finding range or on another document', () => {
   const finding = createFinding();
   const { provider } = createHoverProvider([finding]);

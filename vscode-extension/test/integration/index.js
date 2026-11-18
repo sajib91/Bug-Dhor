@@ -9,6 +9,33 @@ const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { DASHBOARD_TITLE } = require('../../src/webviews/dashboardPanel');
 const { DIAGNOSTIC_SOURCE } = require('../../src/diagnostics/findingModel');
 
+const VULNERABLE_FILE = 'vulnerable.py';
+const VULNERABLE_SOURCE = [
+  'import sqlite3',
+  '',
+  '',
+  'def login(username):',
+  '    conn = sqlite3.connect("app.db")',
+  '    cur = conn.cursor()',
+  '    query = "SELECT * FROM users WHERE name=\'" + username + "\'"',
+  '    cur.execute(query)',
+  '    return cur.fetchone()',
+  ''
+].join('\n');
+const REPAIR_PATCH = [
+  '--- a/vulnerable.py',
+  '+++ b/vulnerable.py',
+  '@@ -4,6 +4,5 @@',
+  ' def login(username):',
+  '     conn = sqlite3.connect("app.db")',
+  '     cur = conn.cursor()',
+  '-    query = "SELECT * FROM users WHERE name=\'" + username + "\'"',
+  '-    cur.execute(query)',
+  '+    cur.execute("SELECT * FROM users WHERE name=?", (username,))',
+  '     return cur.fetchone()',
+  ''
+].join('\n');
+
 async function waitForTab(label, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -38,6 +65,18 @@ function bugdhorDiagnostics() {
         .filter((diagnostic) => diagnostic.source === DIAGNOSTIC_SOURCE)
         .map((diagnostic) => ({ uri, diagnostic }))
     );
+}
+
+async function waitForBugdhorDiagnostics(uri, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const entries = bugdhorDiagnostics().filter((entry) => entry.uri.toString() === uri.toString());
+    if (entries.length > 0) {
+      return entries;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return [];
 }
 
 async function assertBackendHealth(api, backendUrl) {
@@ -348,6 +387,177 @@ async function run() {
     bugdhorDiagnostics().length,
     0,
     'benign monitored edits must never fabricate diagnostics'
+  );
+
+  // ---------------------------------------------------------------------
+  // Vulnerable end-to-end workflow. This exercises a real detector finding,
+  // unified heuristic risk, an evidence-grounded explanation, honest SAE and
+  // counterfactual stubs, a proposal-only repair, and independent verification
+  // with an explicit caller-supplied patch. No patch is applied to the editor
+  // or disk, and no finding is marked resolved by this workflow.
+  // ---------------------------------------------------------------------
+  const vulnerablePath = path.join(workspacePath, VULNERABLE_FILE);
+  fs.writeFileSync(vulnerablePath, VULNERABLE_SOURCE, 'utf8');
+  const vulnerableDocument = await vscode.workspace.openTextDocument(vulnerablePath);
+  const vulnerableEditor = await vscode.window.showTextDocument(vulnerableDocument, {
+    preview: false
+  });
+  assert.equal(vulnerableEditor.document.getText(), VULNERABLE_SOURCE);
+
+  const vulnerableScan = await vscode.commands.executeCommand(COMMANDS.scanCurrentFile);
+  assert.ok(vulnerableScan, 'the vulnerable fixture must reach the real backend');
+  assert.equal(vulnerableScan.operation, 'scan_file');
+  assert.equal(vulnerableScan.analysisAvailable, true);
+  assert.ok(vulnerableScan.findings.length > 0, 'the detector must produce a real finding');
+  const finding = vulnerableScan.findings.find((entry) => entry.cwe === 'CWE-89');
+  assert.ok(finding, 'the SQL-injection fixture must produce a CWE-89 finding');
+
+  const risk = finding.riskAssessment;
+  assert.ok(risk, 'the backend must enrich a real finding with unified risk evidence');
+  assert.equal(risk.scoreKind, 'heuristic_index');
+  assert.equal(risk.probability, null);
+  assert.equal(risk.probabilityKind, null);
+  assert.ok(typeof risk.index === 'number' && risk.index >= 0 && risk.index <= 1);
+  assert.ok(typeof risk.band === 'string' && risk.band.length > 0);
+  assert.ok(risk.evidenceCount >= 1);
+  assert.ok(risk.configHash);
+  assert.ok(risk.explanation.some((line) => /not a probability/i.test(line)));
+
+  const published = await waitForBugdhorDiagnostics(vulnerableDocument.uri);
+  assert.ok(
+    published.length > 0,
+    `a real finding must become a native diagnostic; saw ${bugdhorDiagnostics().length} ` +
+      `Bug Dhor diagnostic(s), finding URI ${finding.location.uri}, document URI ` +
+      `${vulnerableDocument.uri.toString()}`
+  );
+  assert.equal(
+    published[0].diagnostic.source,
+    DIAGNOSTIC_SOURCE,
+    'the diagnostic must come from the validated backend finding'
+  );
+
+  const hoverPosition = new vscode.Position(
+    finding.location.range.start.line,
+    finding.location.range.start.character + 1
+  );
+  const hovers = await vscode.commands.executeCommand(
+    'vscode.executeHoverProvider',
+    vulnerableDocument.uri,
+    hoverPosition
+  );
+  const hoverText = (hovers ?? [])
+    .flatMap((hover) => (Array.isArray(hover.contents) ? hover.contents : [hover.contents]))
+    .map((part) => (typeof part === 'string' ? part : (part?.value ?? '')))
+    .join('\n');
+  assert.match(hoverText, /heuristic index/);
+  assert.match(hoverText, /not a calibrated probability/);
+  assert.match(hoverText, /Backend evidence items/);
+
+  const explanation = await vscode.commands.executeCommand(COMMANDS.explainVulnerability, {
+    findingId: finding.id
+  });
+  assert.ok(explanation);
+  assert.equal(explanation.operation, 'explanation_analyze');
+  assert.equal(explanation.result.analysisAvailable, true);
+  assert.equal(explanation.result.findingId, finding.id);
+  assert.ok(explanation.result.graph, 'a matching backend finding must produce a real graph');
+  assert.equal(explanation.result.graph.cwe, 'CWE-89');
+  assert.ok(explanation.result.claimKinds.length > 0);
+  assert.ok(
+    explanation.result.limitations.some((line) => /No model-internal feature/i.test(line)),
+    'the explanation must state that no model-internal evidence was used'
+  );
+
+  const cancellationSource = new vscode.CancellationTokenSource();
+  const engineContext = {
+    token: cancellationSource.token,
+    progress: { report() {} }
+  };
+  const backendRequest = {
+    workspaceFolder: workspacePath,
+    workspaceFolderName: 'workspace',
+    filePath: vulnerablePath,
+    documentUri: vulnerableDocument.uri.toString(),
+    languageId: 'python',
+    documentVersion: vulnerableDocument.version,
+    sourceText: VULNERABLE_SOURCE
+  };
+
+  const features = await api.service.analyzeSecurityFeatures(backendRequest, engineContext);
+  assert.equal(features.operation, 'features_extract');
+  assert.equal(features.result.analysisAvailable, false);
+  assert.deepEqual(features.result.features, []);
+
+  const counterfactual = await api.service.counterfactualAnalysis(
+    {
+      ...backendRequest,
+      findingId: finding.id,
+      interventions: [{ kind: 'ablate', featureIndices: [0], strength: 1 }]
+    },
+    engineContext
+  );
+  assert.equal(counterfactual.operation, 'counterfactual_analyze');
+  assert.equal(counterfactual.result.scope, 'model_intervention');
+  assert.deepEqual(counterfactual.result.effects, []);
+  cancellationSource.dispose();
+
+  const feedbackBeforeRepair = api.feedback.getSnapshot();
+  const trackedBefore = feedbackBeforeRepair.findings.find(
+    (entry) => entry.findingId === finding.id
+  );
+  assert.ok(trackedBefore, 'the scan must be recorded separately from research tracking');
+  assert.notEqual(trackedBefore.state, 'resolved');
+
+  const repair = await vscode.commands.executeCommand(COMMANDS.repairVulnerability, {
+    findingId: finding.id,
+    documentUri: vulnerableDocument.uri.toString(),
+    range: finding.location.range,
+    cwe: finding.cwe,
+    ruleId: finding.ruleId
+  });
+  assert.ok(repair);
+  assert.equal(repair.operation, 'repair_generate');
+  assert.ok(repair.result, 'the backend must return an explicit repair workflow result');
+  assert.equal(repair.result.requiresApproval, true);
+  assert.equal(
+    vulnerableEditor.document.getText(),
+    VULNERABLE_SOURCE,
+    'repair must not edit source'
+  );
+  assert.equal(fs.readFileSync(vulnerablePath, 'utf8'), VULNERABLE_SOURCE);
+  const trackedAfterRepair = api.feedback
+    .getSnapshot()
+    .findings.find((entry) => entry.findingId === finding.id);
+  assert.notEqual(trackedAfterRepair?.state, 'resolved', 'a proposal is not an approved patch');
+
+  const verificationsBefore = api.feedback.getSnapshot().stats.verifications;
+  const verification = await vscode.commands.executeCommand(COMMANDS.verifyRepair, {
+    findingId: finding.id,
+    patch: REPAIR_PATCH,
+    profile: 'static_only',
+    runExecution: false
+  });
+  assert.ok(verification);
+  assert.equal(verification.operation, 'verification_run');
+  assert.ok(verification.result);
+  assert.ok(
+    ['passed', 'failed', 'inconclusive', 'not_run'].includes(verification.result.verdict),
+    'the verifier must report one of its declared verdicts'
+  );
+  assert.ok(Array.isArray(verification.result.checks));
+  assert.ok(Array.isArray(verification.result.limitations));
+  assert.equal(typeof verification.result.sandboxBackend, 'string');
+  assert.equal(
+    api.feedback.getSnapshot().stats.verifications,
+    verificationsBefore + 1,
+    'verification must be recorded in ordinary finding feedback, not as research evidence'
+  );
+  assert.equal(vulnerableEditor.document.getText(), VULNERABLE_SOURCE);
+  assert.equal(fs.readFileSync(vulnerablePath, 'utf8'), VULNERABLE_SOURCE);
+  assert.notEqual(
+    api.feedback.getSnapshot().findings.find((entry) => entry.findingId === finding.id)?.state,
+    'resolved',
+    'verification alone must not resolve a finding without an approved applied patch'
   );
 
   console.log('Bug Dhor Extension Host checks passed.');

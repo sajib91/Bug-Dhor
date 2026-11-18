@@ -15,6 +15,19 @@ const {
 
 const FILE_URI = 'file:///workspace/src/app.js';
 const SHA = 'b'.repeat(64);
+const RISK_ASSESSMENT = Object.freeze({
+  index: 0.3348,
+  scoreKind: 'heuristic_index',
+  band: 'medium',
+  probability: null,
+  probabilityKind: null,
+  components: { p_hat: 0.3348 },
+  uncertainty: { value: 0.2, level: 'low' },
+  configHash: '422b0ac3f07f036154012a9a59aee928ba3c578853d6a83cc129f1994c7415f8',
+  evidenceCount: 2,
+  excludedEvidenceCount: 0,
+  explanation: []
+});
 
 function healthPayload(overrides = {}) {
   return {
@@ -145,6 +158,28 @@ test('scan validation rejects a different operation and malformed metadata', () 
         scanPayload({ file: { path: '/x', uri: FILE_URI, size: 1, sha256: 'bad' } })
       ),
     /sha256/
+  );
+});
+
+test('scan validation accepts labelled heuristic risk and rejects probability laundering', () => {
+  const finding = { id: 'finding-1', riskAssessment: RISK_ASSESSMENT };
+  const result = validateScanResponse(
+    scanPayload({ findings: [finding], analysisAvailable: true, status: 'partial' })
+  );
+  assert.deepEqual(result.findings, [finding]);
+
+  const relabelled = structuredClone(finding);
+  relabelled.riskAssessment.scoreKind = 'calibrated_probability';
+  assert.throws(
+    () => validateScanResponse(scanPayload({ findings: [relabelled] })),
+    /scoreKind must be "heuristic_index"/
+  );
+
+  const unlabelledProbability = structuredClone(finding);
+  unlabelledProbability.riskAssessment.probability = 0.99;
+  assert.throws(
+    () => validateScanResponse(scanPayload({ findings: [unlabelledProbability] })),
+    /calibrated_probability/
   );
 });
 
@@ -324,9 +359,10 @@ test('recommendation validation enforces proposal-only and no-guarantee contract
   assert.equal(validated.result.requiresApproval, true);
 
   assert.throws(
-    () => validateAnalysisResponse(payload({ requiresApproval: false }), {
-      operation: 'recommendation_generate'
-    }),
+    () =>
+      validateAnalysisResponse(payload({ requiresApproval: false }), {
+        operation: 'recommendation_generate'
+      }),
     /must require approval/
   );
   assert.throws(
@@ -358,9 +394,10 @@ test('recommendation validation enforces proposal-only and no-guarantee contract
     /cannot guarantee security/
   );
   assert.throws(
-    () => validateAnalysisResponse(payload({ repairedCode: null }), {
-      operation: 'recommendation_generate'
-    }),
+    () =>
+      validateAnalysisResponse(payload({ repairedCode: null }), {
+        operation: 'recommendation_generate'
+      }),
     /verified recommendation must include repaired code/
   );
 });

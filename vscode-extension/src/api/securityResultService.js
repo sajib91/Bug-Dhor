@@ -369,6 +369,89 @@ function validateFileInfo(value, path) {
 }
 
 /**
+ * @param {unknown} value
+ * @param {string} path
+ * @returns {number | null}
+ */
+function requireUnitIntervalOrNull(value, path) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new SecurityResultValidationError(
+      `The backend response is invalid: ${path} must be null or a number between 0 and 1.`,
+      path
+    );
+  }
+  return value;
+}
+
+/**
+ * Validate the optional unified-risk enrichment on a backend finding.
+ *
+ * @param {unknown} value
+ * @param {string} path
+ * @returns {void}
+ */
+function validateRiskSummary(value, path) {
+  if (value === undefined || value === null) {
+    return;
+  }
+  const risk = requireObject(value, path);
+  if (risk.scoreKind !== 'heuristic_index') {
+    throw new SecurityResultValidationError(
+      `The backend response is invalid: ${path}.scoreKind must be "heuristic_index".`,
+      `${path}.scoreKind`
+    );
+  }
+  requireUnitIntervalOrNull(risk.index, `${path}.index`);
+  requireString(risk.band, `${path}.band`);
+  const probability = requireUnitIntervalOrNull(risk.probability, `${path}.probability`);
+  const probabilityKind =
+    risk.probabilityKind === null || risk.probabilityKind === undefined
+      ? null
+      : requireString(risk.probabilityKind, `${path}.probabilityKind`);
+  if (probability !== null && probabilityKind !== 'calibrated_probability') {
+    throw new SecurityResultValidationError(
+      `The backend response is invalid: ${path}.probability requires ` +
+        'probabilityKind "calibrated_probability".',
+      `${path}.probabilityKind`
+    );
+  }
+  if (probability === null && probabilityKind !== null) {
+    throw new SecurityResultValidationError(
+      `The backend response is invalid: ${path}.probabilityKind requires a non-null probability.`,
+      `${path}.probabilityKind`
+    );
+  }
+  requireObject(risk.components, `${path}.components`);
+  requireObject(risk.uncertainty, `${path}.uncertainty`);
+  if (risk.configHash !== null && risk.configHash !== undefined) {
+    requireString(risk.configHash, `${path}.configHash`);
+  }
+  requireNonNegativeInteger(risk.evidenceCount, `${path}.evidenceCount`);
+  requireNonNegativeInteger(risk.excludedEvidenceCount, `${path}.excludedEvidenceCount`);
+  requireStringArray(risk.explanation, `${path}.explanation`);
+}
+
+/**
+ * Validate findings without adding or synthesizing any of them.
+ *
+ * @param {unknown} value
+ * @param {string} path
+ * @returns {unknown[]}
+ */
+function validateFindings(value, path) {
+  const findings = requireArray(value, path);
+  findings.forEach((finding, index) => {
+    const findingPath = `${path}[${index}]`;
+    requireObject(finding, findingPath);
+    validateRiskSummary(finding.riskAssessment, `${findingPath}.riskAssessment`);
+  });
+  return findings;
+}
+
+/**
  * Validate a file or workspace scan response.
  *
  * @param {unknown} value
@@ -380,7 +463,7 @@ function validateScanResponse(value, options = {}) {
   const operation = kind === 'workspace' ? 'scan_workspace' : 'scan_file';
   const response = validateOperationEnvelope(value, operation);
 
-  requireArray(response.findings, 'response.findings');
+  validateFindings(response.findings, 'response.findings');
   requireNonNegativeInteger(response.filesScanned, 'response.filesScanned');
   requireBoolean(response.analysisAvailable, 'response.analysisAvailable');
   validateScanScope(response.scope, 'response.scope');
@@ -403,7 +486,7 @@ function validateDetectionResponse(value, { documentUri }) {
   const response = validateOperationEnvelope(value, 'detection_analyze');
   const result = requireObject(response.result, 'response.result');
   requireBoolean(result.analysisAvailable, 'response.result.analysisAvailable');
-  requireArray(result.findings, 'response.result.findings');
+  validateFindings(result.findings, 'response.result.findings');
   requireStringArray(result.evidenceSources, 'response.result.evidenceSources');
   if (
     result.scoreKind !== null &&
@@ -431,7 +514,7 @@ function validateDetectionResponse(value, { documentUri }) {
  */
 function validateDetectionResult(result) {
   requireBoolean(result.analysisAvailable, 'response.result.analysisAvailable');
-  requireArray(result.findings, 'response.result.findings');
+  validateFindings(result.findings, 'response.result.findings');
   requireStringArray(result.evidenceSources, 'response.result.evidenceSources');
 }
 
@@ -540,9 +623,13 @@ function validateOperationResult(result, operation) {
       requireStringArray(explanation.changes, 'response.result.explanation.changes');
       requireStringArray(explanation.why, 'response.result.explanation.why');
       requireStringArray(explanation.remainingRisks, 'response.result.explanation.remainingRisks');
-      requireString(explanation.functionalAssurance, 'response.result.explanation.functionalAssurance', {
-        allowEmpty: true
-      });
+      requireString(
+        explanation.functionalAssurance,
+        'response.result.explanation.functionalAssurance',
+        {
+          allowEmpty: true
+        }
+      );
       if (explanation.securityGuarantee !== undefined && explanation.securityGuarantee !== 'none') {
         throw new SecurityResultValidationError(
           'The backend response is invalid: a recommendation cannot guarantee security.',
@@ -635,6 +722,8 @@ module.exports = {
   SecurityResultValidationError,
   validateHealthResponse,
   validateOperationEnvelope,
+  validateRiskSummary,
+  validateFindings,
   validateScanResponse,
   validateDetectionResponse,
   validateDetectionResult,

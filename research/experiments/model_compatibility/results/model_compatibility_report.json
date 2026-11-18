@@ -122,8 +122,8 @@
     "torchVersion": "2.15.0",
     "transformersVersion": "5.22.2"
   },
-  "generatedAt": "2026-11-18T09:01:49.486957Z",
-  "gitCommit": "332814d7f8a14d285c17e30ff4dba8b98db24448",
+  "generatedAt": "2026-11-18T11:06:59.933585Z",
+  "gitCommit": "709c92b00d8c17fe4ba32c977f4bdb312d2c8ae5",
   "limitations": [
     "LIM-SAE-01: SAE features are tied to one model revision, layer, and hook point.",
     "LIM-CF-01: activation interventions are off-distribution and may be invalid.",
@@ -522,12 +522,12 @@
           "model.layers.23"
         ],
         "hiddenSize": 896,
-        "loadMs": 2081.63,
+        "loadMs": 2848.7,
         "modelBytes": 999586167,
         "mpsAvailable": true,
         "observedDevice": "cpu",
         "observedDtype": "float32",
-        "peakRssMb": 1657.3,
+        "peakRssMb": 1452.97,
         "selectedLayer": "model.layers.4",
         "tokenizerClass": "Qwen2Tokenizer",
         "torchVersion": "2.15.0"
@@ -544,7 +544,7 @@
           "capability": "code_generation",
           "claimKind": "observation",
           "evidence": {
-            "elapsedMs": 2341.11,
+            "elapsedMs": 2424.4,
             "generatedTokens": 64,
             "parsedJson": null,
             "preview": " The function should also remove any leading or trailing whitespace from the input text. The function should handle any non-alphanumeric characters and non-ASCII characters, and should not modify the original text. The function should also ",
@@ -561,7 +561,7 @@
           "capability": "code_analysis",
           "claimKind": "observation",
           "evidence": {
-            "elapsedMs": 2064.66,
+            "elapsedMs": 2017.3,
             "generatedTokens": 64,
             "parsedJson": false,
             "preview": " def is_safe(path): with open(path) as f: return f.read() == read(path) def main(): print(is_safe('test.txt')) print(is_safe('test2.txt')) print(is_safe('test3.txt')) print(is_safe('test4.txt')) print(is_safe('test5.txt')) print(is",
@@ -578,7 +578,7 @@
           "capability": "secure_code_generation",
           "claimKind": "observation",
           "evidence": {
-            "elapsedMs": 2037.52,
+            "elapsedMs": 2024.26,
             "generatedTokens": 64,
             "parsedJson": null,
             "preview": " The function should also handle the case where the file is not found and return an appropriate error message. The function should also handle the case where the file is not readable and return an appropriate error message. The function sho",
@@ -842,12 +842,12 @@
               "model.layers.23"
             ],
             "hiddenSize": 896,
-            "loadMs": 2081.63,
+            "loadMs": 2848.7,
             "modelBytes": 999586167,
             "mpsAvailable": true,
             "observedDevice": "cpu",
             "observedDtype": "float32",
-            "peakRssMb": 1657.3,
+            "peakRssMb": 1452.97,
             "selectedLayer": "model.layers.4",
             "tokenizerClass": "Qwen2Tokenizer",
             "torchVersion": "2.15.0"
@@ -939,12 +939,12 @@
           "model.layers.23"
         ],
         "hiddenSize": 896,
-        "loadMs": 1083.51,
+        "loadMs": 1039.17,
         "modelBytes": 999586348,
         "mpsAvailable": true,
         "observedDevice": "cpu",
         "observedDtype": "float32",
-        "peakRssMb": 2682.27,
+        "peakRssMb": 2858.17,
         "selectedLayer": "model.layers.4",
         "tokenizerClass": "Qwen2Tokenizer",
         "torchVersion": "2.15.0"
@@ -961,7 +961,7 @@
           "capability": "code_generation",
           "claimKind": "observation",
           "evidence": {
-            "elapsedMs": 2203.95,
+            "elapsedMs": 2252.23,
             "generatedTokens": 64,
             "parsedJson": null,
             "preview": " Here's an example:\n\n```python\ndef slugify(text):\n    \"\"\"\n    Convert text to lowercase and replace sequences of non-alphanumeric characters with a single hyphen.\n    \n    Args:\n    text (str): The input string to be slugified.\n    \n    Ret",
@@ -978,7 +978,7 @@
           "capability": "code_analysis",
           "claimKind": "observation",
           "evidence": {
-            "elapsedMs": 2030.52,
+            "elapsedMs": 2032.11,
             "generatedTokens": 64,
             "parsedJson": false,
             "preview": " is_safe = True if path.is_file() else False if path.is_dir() else False if path.exists() else False if path.is_symlink() else False if path.is_executable() else False if path.is_regular() else False if path.is_block_device() else False if ",
@@ -995,7 +995,7 @@
           "capability": "secure_code_generation",
           "claimKind": "observation",
           "evidence": {
-            "elapsedMs": 2048.95,
+            "elapsedMs": 2035.93,
             "generatedTokens": 64,
             "parsedJson": null,
             "preview": " Here's an example of how you might implement this:\n\n```python\nimport os\n\ndef read_text(path):\n    if not os.path.exists(path):\n        raise ValueError(\"Path does not exist\")\n    with open(path, 'r', encoding='utf-8') as file:\n        retu",
@@ -1259,12 +1259,12 @@
               "model.layers.23"
             ],
             "hiddenSize": 896,
-            "loadMs": 1083.51,
+            "loadMs": 1039.17,
             "modelBytes": 999586348,
             "mpsAvailable": true,
             "observedDevice": "cpu",
             "observedDtype": "float32",
-            "peakRssMb": 2682.27,
+            "peakRssMb": 2858.17,
             "selectedLayer": "model.layers.4",
             "tokenizerClass": "Qwen2Tokenizer",
             "torchVersion": "2.15.0"

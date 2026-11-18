@@ -32,7 +32,20 @@
  *       uri?: string,                       // file: URI
  *       range?: object                      // same zero-based range shape
  *     }],
- *     repair?: { eligible: boolean, description?: string }
+ *     repair?: { eligible: boolean, description?: string },
+ *     riskAssessment?: {                    // optional backend-only enrichment
+ *       index: number | null,
+ *       scoreKind: 'heuristic_index',
+ *       band: string,
+ *       probability: number | null,
+ *       probabilityKind: 'calibrated_probability' | null,
+ *       components: object,
+ *       uncertainty: object,
+ *       configHash: string | null,
+ *       evidenceCount: number,
+ *       excludedEvidenceCount: number,
+ *       explanation: string[]
+ *     }
  *   }],
  *   scope?: { uris: string[] }              // files covered by this scan
  * }
@@ -40,6 +53,8 @@
 
 /** @typedef {'critical' | 'high' | 'medium' | 'low' | 'info'} FindingSeverity */
 /** @typedef {'error' | 'warning' | 'information' | 'hint'} SeverityKind */
+/** @typedef {'heuristic_index'} RiskScoreKind */
+/** @typedef {'calibrated_probability' | null} ProbabilityKind */
 
 const DIAGNOSTIC_SOURCE = 'Bug Dhor';
 
@@ -280,13 +295,15 @@ function normalizeSourceReference(value, index) {
   /** @type {{ label: string, url?: string, uri?: string, range?: ReturnType<typeof normalizeRange> }} */
   const reference = { label };
 
-  if (value.url !== undefined) {
+  // The backend serializes absent optional fields as null. Treat null exactly
+  // as absent; only values that are actually supplied are validated.
+  if (value.url !== undefined && value.url !== null) {
     reference.url = normalizeHttpUrl(value.url, `${field}.url`);
   }
-  if (value.uri !== undefined) {
+  if (value.uri !== undefined && value.uri !== null) {
     reference.uri = normalizeFileUri(value.uri, `${field}.uri`);
   }
-  if (value.range !== undefined) {
+  if (value.range !== undefined && value.range !== null) {
     if (!reference.uri) {
       throw new FindingValidationError(`${field}.range requires ${field}.uri.`);
     }
@@ -332,6 +349,112 @@ function normalizeRepair(value) {
 }
 
 /**
+ * Validate the backend's unified-risk enrichment. The extension never computes
+ * this value. A non-null probability is accepted only when explicitly paired
+ * with a calibrated-probability kind; the hover renderer still does not show it
+ * as a calibrated result.
+ *
+ * @param {unknown} value
+ * @param {string} [field]
+ * @returns {{
+ *   index: number | null,
+ *   scoreKind: RiskScoreKind,
+ *   band: string,
+ *   probability: number | null,
+ *   probabilityKind: ProbabilityKind,
+ *   components: Record<string, unknown>,
+ *   uncertainty: Record<string, unknown>,
+ *   configHash: string | null,
+ *   evidenceCount: number,
+ *   excludedEvidenceCount: number,
+ *   explanation: string[]
+ * } | undefined}
+ */
+function normalizeRiskAssessment(value, field = 'riskAssessment') {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!isPlainObject(value)) {
+    throw new FindingValidationError(`${field} must be an object.`);
+  }
+  if (value.scoreKind !== 'heuristic_index') {
+    throw new FindingValidationError(`${field}.scoreKind must be "heuristic_index".`);
+  }
+  if (!isPlainObject(value.components)) {
+    throw new FindingValidationError(`${field}.components must be an object.`);
+  }
+  if (!isPlainObject(value.uncertainty)) {
+    throw new FindingValidationError(`${field}.uncertainty must be an object.`);
+  }
+
+  const index = value.index === null ? null : value.index;
+  if (
+    index !== null &&
+    (typeof index !== 'number' || !Number.isFinite(index) || index < 0 || index > 1)
+  ) {
+    throw new FindingValidationError(`${field}.index must be null or a number between 0 and 1.`);
+  }
+  const probability =
+    value.probability === null || value.probability === undefined ? null : value.probability;
+  if (
+    probability !== null &&
+    (typeof probability !== 'number' ||
+      !Number.isFinite(probability) ||
+      probability < 0 ||
+      probability > 1)
+  ) {
+    throw new FindingValidationError(
+      `${field}.probability must be null or a number between 0 and 1.`
+    );
+  }
+  const probabilityKind =
+    value.probabilityKind === null || value.probabilityKind === undefined
+      ? null
+      : value.probabilityKind;
+  if (probability !== null && probabilityKind !== 'calibrated_probability') {
+    throw new FindingValidationError(
+      `${field}.probability requires probabilityKind "calibrated_probability".`
+    );
+  }
+  if (probability === null && probabilityKind !== null) {
+    throw new FindingValidationError(`${field}.probabilityKind requires a non-null probability.`);
+  }
+
+  const configHash =
+    value.configHash === null || value.configHash === undefined
+      ? null
+      : requireString(value.configHash, `${field}.configHash`);
+  if (
+    !Number.isInteger(value.evidenceCount) ||
+    value.evidenceCount < 0 ||
+    !Number.isInteger(value.excludedEvidenceCount) ||
+    value.excludedEvidenceCount < 0
+  ) {
+    throw new FindingValidationError(
+      `${field}.evidenceCount and ${field}.excludedEvidenceCount must be non-negative integers.`
+    );
+  }
+  if (!Array.isArray(value.explanation)) {
+    throw new FindingValidationError(`${field}.explanation must be an array.`);
+  }
+  return {
+    index,
+    scoreKind: 'heuristic_index',
+    band: requireString(value.band, `${field}.band`),
+    probability,
+    probabilityKind,
+    components: { ...value.components },
+    uncertainty: { ...value.uncertainty },
+    configHash,
+    evidenceCount: value.evidenceCount,
+    excludedEvidenceCount: value.excludedEvidenceCount,
+    explanation: value.explanation.map((entry, entryIndex) =>
+      requireString(entry, `${field}.explanation[${entryIndex}]`, { allowEmpty: true })
+    )
+  };
+}
+
+/**
  * @param {unknown} rawFinding
  * @returns {{
  *   id: string,
@@ -347,7 +470,8 @@ function normalizeRepair(value) {
  *   verificationStatus?: 'confirmed' | 'potential',
  *   sourceReferences: ReturnType<typeof normalizeSourceReference>[],
  *   repair?: { eligible: boolean, description?: string },
- *   repairEligible: boolean
+ *   repairEligible: boolean,
+ *   riskAssessment?: ReturnType<typeof normalizeRiskAssessment>
  * }}
  */
 function normalizeFinding(rawFinding) {
@@ -385,6 +509,7 @@ function normalizeFinding(rawFinding) {
   }
 
   const repair = normalizeRepair(rawFinding.repair);
+  const riskAssessment = normalizeRiskAssessment(rawFinding.riskAssessment);
 
   return {
     id,
@@ -400,7 +525,8 @@ function normalizeFinding(rawFinding) {
     ...(verificationStatus === undefined ? {} : { verificationStatus }),
     sourceReferences,
     ...(repair === undefined ? {} : { repair }),
-    repairEligible: repair?.eligible === true
+    repairEligible: repair?.eligible === true,
+    ...(riskAssessment === undefined ? {} : { riskAssessment })
   };
 }
 
@@ -539,6 +665,7 @@ module.exports = {
   normalizeCwe,
   normalizeFileUri,
   normalizeRange,
+  normalizeRiskAssessment,
   severityToKind,
   severityLabel,
   cweUrl,

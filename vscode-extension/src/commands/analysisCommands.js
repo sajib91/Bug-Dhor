@@ -30,7 +30,20 @@ function registerAnalysisCommands(context) {
   registerEngineCommand(
     context,
     getCommandDefinition(COMMANDS.explainVulnerability),
-    () => createEditorRequest(vscode, requireActiveEditor(vscode)),
+    (target) => {
+      const request = createEditorRequest(vscode, requireActiveEditor(vscode));
+      if (!target || typeof target !== 'object' || Array.isArray(target)) {
+        return request;
+      }
+      // An explanation must name a real backend finding. The client never
+      // constructs one; a caller may only forward an existing identifier.
+      if (typeof target.findingId === 'string' && target.findingId.trim().length > 0) {
+        request.findingId = target.findingId.trim();
+      } else if (target.finding && typeof target.finding === 'object') {
+        request.finding = target.finding;
+      }
+      return request;
+    },
     {
       onResult: (response) =>
         updateDashboard({

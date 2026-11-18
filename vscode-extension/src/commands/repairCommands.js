@@ -68,7 +68,27 @@ function registerRepairCommands(context) {
   registerEngineCommand(
     context,
     getCommandDefinition(COMMANDS.verifyRepair),
-    () => createVerificationRequest(vscode),
+    (target) => {
+      const request = createVerificationRequest(vscode);
+      if (!target || typeof target !== 'object' || Array.isArray(target)) {
+        return request;
+      }
+      // Verification requires an explicit, caller-supplied target. Nothing is
+      // inferred from a repair proposal and no source file is modified here.
+      if (typeof target.repairId === 'string' && target.repairId.trim().length > 0) {
+        request.repairId = target.repairId.trim();
+      }
+      if (typeof target.patch === 'string' && target.patch.length > 0) {
+        request.patch = target.patch;
+      }
+      if (target.profile === 'static_only' || target.profile === 'sandbox') {
+        request.profile = target.profile;
+      }
+      if (typeof target.runExecution === 'boolean') {
+        request.runExecution = target.runExecution;
+      }
+      return request;
+    },
     {
       onResult: (result, request) => {
         if (typeof context.feedback?.recordVerification !== 'function') {

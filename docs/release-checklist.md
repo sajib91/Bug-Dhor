@@ -245,9 +245,10 @@ Views and More Actions → Install from VSIX…** and verify:
 - The dashboard renders with local styles and no CSP errors.
 - `Bug Dhor: Show Status` reports the configured backend state and fails
   gracefully when the backend is unreachable.
-- With the backend running and healthy, a scan reaches the backend. Detection
-  may still report `analysisAvailable: false`; that is expected while the
-  detector and evidence stages are unimplemented.
+- With the backend running and healthy, a scan reaches the backend and can render
+  real detector-produced findings with `heuristic_index` risk. `analysisAvailable:
+  false` is still possible when a stage produces no result; it is reported as
+  unavailable analysis, not as a clean scan.
 - No finding is fabricated when analysis is unavailable.
 
 A clean installation was verified in the current macOS environment by installing
@@ -269,16 +270,16 @@ from a previous build.
 - No runtime dependency bundling step. Keep `--no-dependencies` only while the
   runtime remains dependency-free.
 - Docker-backed sandbox execution is optional and not assumed. Without a
-  sandbox backend, consent-gated execution verification reports `unavailable`.
+  sandbox backend, execution is not attempted and verification reports
+  `inconclusive` with explicit limitations.
 - Semgrep, Bandit, CodeQL, and Joern may be absent; analyzer stages then report
   an explicit unavailable status.
 - Model, SAE, and checkpoint artifacts are not bundled and may be absent. Do not
   describe model-backed features as available without the required artifacts.
 - No licensed benchmark datasets or experimental runs are included. Do not
   claim empirical results from packaging.
-- Backend test suite is not green: 6 failures remain (OpenAPI/jobs contract drift,
-  `analysisAvailable` expectations, and the orchestrator capability test). See the
-  root [`release-checklist.md`](../release-checklist.md) §3.2.
+- Backend test suite is green: 638 passed, 0 failed. See the root
+  [`release-checklist.md`](../release-checklist.md) §3.2.
 - Research-completeness gaps (trained detector, interaction screening, prevention
   loop, localization attribution, end-to-end model/SAE/sandbox evaluation) remain
   open. See [`final-audit.md`](../final-audit.md) and
@@ -291,12 +292,12 @@ from a previous build.
 
 | Check | Command or action | Status |
 |---|---|---|
-| Manifest identity, entry point, icon, engine | `npm --workspace vscode-extension test` | Pass (230 tests) |
+| Manifest identity, entry point, icon, engine | `npm --workspace vscode-extension test` | Pass (295 tests) |
 | Commands and activation events consistent | Unit suite + manifest inspection | Pass |
 | Webview assets present and packaged | Archive listing | Pass |
 | `.vscodeignore` excludes dev files, secrets, weights | Archive listing | Pass |
 | Version updated consistently | `package.json` + manifest test | Pass (0.1.0) |
-| Backend unit/API suite | `cd security-engine && ../.venv/bin/python -m pytest -q` | **Fail (6 failed, 448 passed)** |
+| Backend unit/API suite | `cd security-engine && ../.venv/bin/python -m pytest -q` | Pass (638 tests) |
 | Backend starts locally | `../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765` | Pass (started) |
 | Backend health reachable | `curl http://127.0.0.1:8765/api/v1/health` | Pass (HTTP 200) |
 | Optional token behavior | Set `BUGDHOR_API_TOKEN` on both sides | Pass (401 without, 200 with) |

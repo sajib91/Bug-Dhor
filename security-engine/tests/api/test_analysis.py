@@ -18,6 +18,19 @@ def _range() -> dict[str, object]:
     }
 
 
+SQL_INJECTION_SOURCE = """\
+import sqlite3
+
+
+def login(username):
+    conn = sqlite3.connect("app.db")
+    cur = conn.cursor()
+    query = "SELECT * FROM users WHERE name='" + username + "'"
+    cur.execute(query)
+    return cur.fetchone()
+"""
+
+
 def _validation_messages(response) -> str:
     errors = response.json()["details"]["errors"]
     return " ".join(error.get("message", "") for error in errors).lower()
@@ -65,11 +78,10 @@ def test_explanation_reports_when_finding_cannot_be_explained(api) -> None:
     body = response.json()
     assert body["operation"] == "explanation_analyze"
     assert body["result"]["findingId"] == "finding-1"
-    # No matching produced finding/graph for an unknown id in this benign sample.
-    assert body["result"]["analysisAvailable"] in {False, True}
-    if body["result"]["analysisAvailable"] is False:
-        assert body["result"]["graph"] is None
-    assert isinstance(body["result"]["claimKinds"], list)
+    # No matching backend finding exists, so no explanation graph is invented.
+    assert body["result"]["analysisAvailable"] is False
+    assert body["result"]["graph"] is None
+    assert body["result"]["claimKinds"] == []
     assert isinstance(body["result"]["limitations"], list)
 
 
@@ -90,10 +102,49 @@ def test_explanation_accepts_a_typed_finding(api) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["result"]["findingId"] == "finding-1"
-    assert body["result"]["analysisAvailable"] in {False, True}
-    # Explanation is evidence-grounded and may be produced from the supplied finding context.
-    assert isinstance(body["result"]["claimKinds"], list)
+    assert body["result"]["analysisAvailable"] is False
+    assert body["result"]["graph"] is None
+    assert body["result"]["claimKinds"] == []
     assert isinstance(body["result"]["limitations"], list)
+
+
+def test_scan_and_explanation_use_real_detection_and_risk_evidence(api) -> None:
+    scan_response = api.client.post(
+        "/api/v1/scan/file",
+        json=api.payload(sourceText=SQL_INJECTION_SOURCE, languageId="python"),
+    )
+    assert scan_response.status_code == 200
+    scan = scan_response.json()
+    assert scan["analysisAvailable"] is True
+    assert scan["findings"], "the vulnerable fixture must produce a real detector finding"
+
+    finding = next(item for item in scan["findings"] if item["cwe"] == "CWE-89")
+    risk = finding["riskAssessment"]
+    assert risk is not None
+    assert risk["scoreKind"] == "heuristic_index"
+    assert risk["index"] is not None and 0.0 <= risk["index"] <= 1.0
+    assert risk["probability"] is None
+    assert risk["probabilityKind"] is None
+    assert risk["evidenceCount"] >= 1
+    assert risk["configHash"]
+    assert any("not a probability" in line for line in risk["explanation"])
+
+    explanation_response = api.client.post(
+        "/api/v1/explanation/analyze",
+        json=api.payload(sourceText=SQL_INJECTION_SOURCE, languageId="python", finding=finding),
+    )
+    assert explanation_response.status_code == 200
+    explanation = explanation_response.json()
+    result = explanation["result"]
+    assert result["analysisAvailable"] is True
+    assert result["findingId"] == finding["id"]
+    graph = result["graph"]
+    assert isinstance(graph, dict)
+    assert graph["finding_id"] == finding["id"]
+    assert graph["cwe"] == "CWE-89"
+    assert graph["why_detected"]
+    assert set(result["claimKinds"]).issubset({"observation", "inference", "hypothesis"})
+    assert any("No model-internal feature" in line for line in result["limitations"])
 
 
 def test_feature_extraction_returns_no_fabricated_features(api) -> None:

@@ -16,6 +16,20 @@ const {
 const { isPathWithinRoot, isFileUriWithinFolders } = require('../../src/security/paths');
 const { createRawFinding, createWorkspaceFolder } = require('./diagnosticsFake');
 
+const RISK_ASSESSMENT = Object.freeze({
+  index: 0.3348,
+  scoreKind: 'heuristic_index',
+  band: 'medium',
+  probability: null,
+  probabilityKind: null,
+  components: { p_hat: 0.3348 },
+  uncertainty: { value: 0.2, level: 'low' },
+  configHash: '422b0ac3f07f036154012a9a59aee928ba3c578853d6a83cc129f1994c7415f8',
+  evidenceCount: 2,
+  excludedEvidenceCount: 0,
+  explanation: ['Eq. (28) index 0.335 (medium) from normalized contributions.']
+});
+
 test('valid backend results normalize without adding fields', () => {
   const result = normalizeScanResult({
     findings: [createRawFinding()],
@@ -82,6 +96,54 @@ test('repair eligibility is never inferred', () => {
     () => normalizeFinding(createRawFinding({ repair: { eligible: 'yes' } })),
     /repair\.eligible must be a boolean/
   );
+});
+
+test('backend risk evidence is preserved as a heuristic index', () => {
+  const finding = normalizeFinding(createRawFinding({ riskAssessment: RISK_ASSESSMENT }));
+
+  assert.deepEqual(finding.riskAssessment, RISK_ASSESSMENT);
+  assert.equal(finding.riskAssessment.scoreKind, 'heuristic_index');
+  assert.equal(finding.riskAssessment.probability, null);
+
+  const withoutRisk = normalizeFinding(createRawFinding({ riskAssessment: undefined }));
+  assert.equal(withoutRisk.riskAssessment, undefined);
+});
+
+test('backend null optional source-reference fields are treated as absent', () => {
+  const finding = normalizeFinding(
+    createRawFinding({
+      sourceReferences: [{ label: 'AST observation', url: null, uri: null, range: null }]
+    })
+  );
+
+  assert.deepEqual(finding.sourceReferences, [{ label: 'AST observation' }]);
+
+  const result = normalizeScanResult({
+    findings: [
+      createRawFinding({
+        sourceReferences: [{ label: 'AST observation', url: null, uri: null, range: null }]
+      })
+    ]
+  });
+  assert.equal(result.findings.length, 1);
+  assert.deepEqual(result.rejected, []);
+});
+
+test('malformed or mislabelled risk evidence rejects the finding', () => {
+  const scoreKind = { ...RISK_ASSESSMENT, scoreKind: 'calibrated_probability' };
+  const probability = { ...RISK_ASSESSMENT, probability: 0.99 };
+  const index = { ...RISK_ASSESSMENT, index: 1.2 };
+
+  for (const riskAssessment of [scoreKind, probability, index]) {
+    assert.throws(() => normalizeFinding(createRawFinding({ riskAssessment })), /riskAssessment/);
+  }
+
+  const result = normalizeScanResult({
+    findings: [createRawFinding({ id: 'bad-risk', riskAssessment: scoreKind })]
+  });
+  assert.equal(result.findings.length, 0);
+  assert.equal(result.rejected.length, 1);
+  assert.match(result.rejected[0].reason, /riskAssessment\.scoreKind/);
 });
 
 test('malformed findings are rejected without suppressing valid findings', () => {

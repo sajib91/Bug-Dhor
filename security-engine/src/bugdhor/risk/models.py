@@ -166,7 +166,9 @@ class NormalizedEvidence(EvidenceObservation):
             raise ValueError("reliability_method is required")
 
     def to_dict(self) -> dict[str, Any]:
-        payload = super().to_dict()
+        # Call the base explicitly: a slotted dataclass recreates the class,
+        # so a zero-argument super() closure can point at the old class object.
+        payload = EvidenceObservation.to_dict(self)
         payload["reliabilityValue"] = self.reliability_value
         payload["reliabilityMethod"] = self.reliability_method
         return payload

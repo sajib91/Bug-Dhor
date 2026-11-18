@@ -467,6 +467,111 @@ class Orchestrator:
         }
         return fa
 
+    @staticmethod
+    def _risk_summary(finding: Any) -> dict[str, Any] | None:
+        """Assess one real detector finding with the unified risk engine.
+
+        Evidence values and reliabilities come from the detector's measured
+        evidence items. No missing observation is inferred, and the HTTP path
+        supplies no calibration artifact, so the only score emitted is a
+        ``heuristic_index``.
+        """
+        try:
+            from bugdhor.detection.models import EvidenceType
+            from bugdhor.risk.config import default_risk_config
+            from bugdhor.risk.engine import FindingRiskInput, UnifiedRiskEngine
+            from bugdhor.risk.models import (
+                ClaimKind as RiskClaimKind,
+            )
+            from bugdhor.risk.models import (
+                EvidenceObservation,
+                EvidenceSource,
+                ReliabilityEvidence,
+            )
+            from bugdhor.risk.models import (
+                EvidencePolarity as RiskPolarity,
+            )
+
+            source_map = {
+                EvidenceType.AST.value: EvidenceSource.AST,
+                EvidenceType.CFG.value: EvidenceSource.CFG,
+                EvidenceType.DFG.value: EvidenceSource.DFG,
+                EvidenceType.TAINT.value: EvidenceSource.TAINT,
+                EvidenceType.SEMGREP.value: EvidenceSource.STATIC_ANALYSIS,
+                EvidenceType.BANDIT.value: EvidenceSource.STATIC_ANALYSIS,
+                EvidenceType.CODEQL.value: EvidenceSource.STATIC_ANALYSIS,
+                EvidenceType.JOERN.value: EvidenceSource.STATIC_ANALYSIS,
+                EvidenceType.LLM.value: EvidenceSource.MODEL_PREDICTION,
+            }
+            observations: list[EvidenceObservation] = []
+            for item in finding.evidence:
+                source = source_map.get(item.evidence_type.value)
+                if source is None:
+                    continue
+                observations.append(
+                    EvidenceObservation(
+                        source=source,
+                        source_id=item.evidence_id or f"{source.value}-{len(observations) + 1}",
+                        value=float(item.strength),
+                        reliability=ReliabilityEvidence(
+                            reported_confidence=float(item.reliability),
+                            coverage=1.0,
+                            run_status="complete",
+                            basis=(
+                                "detector_evidence_reported_reliability; "
+                                "no validation metrics supplied"
+                            ),
+                        ),
+                        claim_kind=RiskClaimKind(item.claim_kind.value),
+                        polarity=RiskPolarity(item.polarity.value),
+                        dependency_group=source.value,
+                        normalized_from="detector_evidence_strength",
+                        rationale=item.detail[:500] or item.title or finding.title,
+                        limitations=tuple(item.limitations),
+                    )
+                )
+            if not observations:
+                return None
+            result = UnifiedRiskEngine(default_risk_config()).assess(
+                FindingRiskInput(
+                    finding_id=finding.finding_id,
+                    cwe=finding.cwe,
+                    observations=tuple(observations),
+                )
+            )
+            payload = result.to_dict()
+            return {
+                "index": payload["index"],
+                "scoreKind": payload["scoreKind"],
+                "band": payload["band"],
+                "probability": payload["probability"],
+                "probabilityKind": payload["probabilityKind"],
+                "components": payload["components"],
+                "uncertainty": {
+                    "value": payload["uncertainty"]["value"],
+                    "level": payload["uncertainty"]["level"],
+                    "coverage": payload["uncertainty"]["coverage"],
+                    "basis": payload["uncertainty"]["basis"],
+                },
+                "configHash": payload["configHash"],
+                "evidenceCount": len(payload["evidence"]),
+                "excludedEvidenceCount": len(payload["excludedEvidence"]),
+                "explanation": payload["explanation"][:20],
+            }
+        except Exception:
+            # Risk is an explicit enrichment. A failure must not discard the
+            # underlying detector finding or turn into an invented score.
+            return None
+
+    @staticmethod
+    def _analysis_available_from_reports(reports: list[StageReport]) -> bool:
+        """True only when the program/detection analysis stage actually ran."""
+        return any(
+            report.stage in {"program_analysis", "detection"}
+            and report.status in {StageStatus.OK, StageStatus.PARTIAL}
+            for report in reports
+        )
+
     def _run_detection(self, analyses: list[_FileAnalysis], static_result: Any | None, progress: ProgressCallback) -> tuple[list[Finding], list[str], list[StageReport], list[str], dict[str, Any]]:
         findings: list[Finding] = []
         evidence_sources: list[str] = []
@@ -491,7 +596,11 @@ class Orchestrator:
                     static=static_result if idx == 0 else None,
                 )
                 fa.detection = det
-                for fdict in det.to_api_findings():
+                for vulnerability in det.findings:
+                    fdict = vulnerability.to_api_finding()
+                    risk_summary = self._risk_summary(vulnerability)
+                    if risk_summary is not None:
+                        fdict["riskAssessment"] = risk_summary
                     try:
                         findings.append(Finding(**fdict))
                     except Exception:
@@ -507,6 +616,7 @@ class Orchestrator:
                                 evidence=fdict.get("evidence"),
                                 explanation=fdict.get("explanation"),
                                 source_references=fdict.get("sourceReferences", []),
+                                risk_assessment=risk_summary,
                             ))
                         except Exception:
                             pass
@@ -575,7 +685,7 @@ class Orchestrator:
                 findings=findings,
                 scope=ScanScope(uris=[snapshot.uri]),
                 files_scanned=1,
-                analysis_available=True,
+                analysis_available=self._analysis_available_from_reports(reports),
                 file=FileInfo(path=str(snapshot.path), uri=snapshot.uri, size=snapshot.size, sha256=snapshot.sha256, language_id=request.language_id or snapshot.language_id),
             )
             self._persist_result(job_store, "scan_file", request_id, resp)
@@ -651,7 +761,7 @@ class Orchestrator:
                 findings=findings,
                 scope=ScanScope(uris=list(files.keys())),
                 files_scanned=len(files),
-                analysis_available=True,
+                analysis_available=self._analysis_available_from_reports(reports),
             )
             self._persist_result(job_store, "scan_workspace", request_id, resp)
             return resp
@@ -670,7 +780,7 @@ class Orchestrator:
             resp = DetectionResponse(
                 **self._base_fields_from_reports("detection_analyze", request_id, reports, warnings),
                 result=DetectionResult(
-                    analysis_available=True,
+                    analysis_available=self._analysis_available_from_reports(reports),
                     findings=findings,
                     evidence_sources=evidence_sources,
                     score_kind="heuristic" if findings else None,
@@ -691,69 +801,54 @@ class Orchestrator:
             static_result, static_reports, static_warnings = self._run_static_analysis(root, [snapshot.path], progress)
             findings, evidence_sources, det_reports, det_warnings, coverage = self._run_detection([analysis], static_result, progress)
             finding_id = request.finding.id if request.finding else request.finding_id
-            # select target finding
-            target = None
-            if request.finding is not None:
-                # try to match produced finding by id/rule/location, else explain from request finding directly
-                for f in findings:
-                    if f.id == request.finding.id:
-                        target = f
-                        break
-            elif finding_id:
-                for f in findings:
-                    if f.id == finding_id:
-                        target = f
-                        break
-            if target is None and request.finding is not None:
-                target = request.finding
+            # Only a finding actually produced by this detection run can be
+            # explained from evidence. A client-supplied id without a matching
+            # backend finding is reported unavailable instead of being invented.
+            detector_findings = (
+                getattr(analysis.detection, "findings", ()) if analysis.detection else ()
+            )
+            target = next(
+                (
+                    item
+                    for item in detector_findings
+                    if getattr(item, "finding_id", None) == finding_id
+                ),
+                None,
+            )
             graph = None
             claim_kinds: list[str] = []
             limitations: list[str] = []
             exp_status = StageStatus.UNAVAILABLE
-            exp_reason = "E_EXPLANATION_UNAVAILABLE"
-            exp_detail = "No target finding available for explanation."
-            if target is not None:
+            exp_reason = "E_EXPLANATION_NO_MATCHING_FINDING"
+            exp_detail = "No backend finding matched the requested finding id."
+            if target is None:
+                limitations.append(
+                    "Explanation is unavailable because no backend finding matched the "
+                    "requested id; no evidence was synthesized."
+                )
+            else:
+                finding_id = target.finding_id
                 try:
                     progress("explanation", "running", "Building evidence-grounded explanation", None)
-                    from bugdhor.detection.models import EvidenceItem, EvidenceLocation, EvidenceType, EvidenceFamily, ClaimKind, VulnerabilityCategory, VulnerabilityFinding, RiskAssessment, HeuristicRisk, Provenance
-                    from bugdhor.explain.engine import explain_finding
-                    # reconstruct minimal VulnerabilityFinding from API finding/evidence
-                    loc = target.location.range
-                    ev_loc = EvidenceLocation(path=str(snapshot.path), start_line=loc.start.line, start_column=loc.start.character, end_line=loc.end.line, end_column=loc.end.character)
-                    # try to use real engine finding if available
-                    real_vf = None
-                    if analysis.detection is not None:
-                        for vf in getattr(analysis.detection, "findings", []):
-                            if getattr(vf, "finding_id", None) == target.id:
-                                real_vf = vf
-                                break
-                    if real_vf is None:
-                        ev = EvidenceItem(
-                            evidence_id=f"ev-{target.id}",
-                            evidence_type=EvidenceType.TAINT if analysis.taint is not None else EvidenceType.AST,
-                            family=EvidenceFamily.PROGRAM_ANALYSIS,
-                            claim_kind=ClaimKind.INFERENCE,
-                            source="bugdhor-orchestrator",
-                            location=ev_loc,
-                            cwe=target.cwe,
-                            detail=target.evidence or target.message,
-                        )
-                        real_vf = VulnerabilityFinding(
-                            finding_id=target.id,
-                            category=VulnerabilityCategory.UNKNOWN,
-                            cwe=target.cwe or "CWE-000",
-                            title=target.message,
-                            severity=target.severity,
-                            location=ev_loc,
-                            evidence=(ev,),
-                            risk=RiskAssessment(heuristic=HeuristicRisk(value=0.0, band="info")),
-                            provenance=Provenance(model_id="none", model_version="none", tool_version="bugdhor"),
-                            explanation=target.explanation or target.message,
-                        )
-                    record = explain_finding(real_vf, taint=analysis.taint, source=snapshot.text, path=str(snapshot.path))
+                    from bugdhor.explain.engine import ExplainableVulnerabilityEngine
+
+                    record = ExplainableVulnerabilityEngine().explain(
+                        target, taint=analysis.taint
+                    )
                     graph = record.to_dict()
-                    claim_kinds = [c.value if hasattr(c, 'value') else str(c) for c in record.claim_kinds()]
-                    limitations = list(getattr(record, 'limitations', []) or [])
+                    claim_kinds = sorted(
+                        {
+                            str(entry.get("claimKind") or entry.get("status"))
+                            for entry in record.why_detected
+                            if entry.get("claimKind") or entry.get("status")
+                        }
+                    )
+                    limitations = list(record.limitations)
+                    if request.include_feature_evidence:
+                        limitations.append(
+                            "No model-internal feature or counterfactual evidence was "
+                            "supplied; this graph contains only program and static evidence."
+                        )
                     exp_status = StageStatus.OK
                     exp_reason = None
                     exp_detail = None
@@ -762,6 +857,8 @@ class Orchestrator:
                     exp_reason = "E_EXPLANATION_ERROR"
                     exp_detail = f"{type(exc).__name__}: {exc}"
                     limitations.append(exp_detail)
+                    graph = None
+                    claim_kinds = []
             reports, warnings = self._build_scan_reports([analysis], static_reports, det_reports, static_warnings + det_warnings)
             reports.append(StageReport(stage="explanation", status=exp_status, reason_code=exp_reason, detail=exp_detail, data={"findingId": finding_id, "claimKinds": claim_kinds}, warnings=limitations[:10]))
             reports = [self._snapshot_report(snapshot)] + reports

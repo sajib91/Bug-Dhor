@@ -489,8 +489,7 @@ test('every engine-backed command invokes its declared service method', async ()
   // backend prompt and then submits generated candidates through the
   // recommendation endpoint. It is covered by secureCodeGeneration tests.
   const engineDefinitions = COMMAND_DEFINITIONS.filter(
-    (definition) =>
-      definition.serviceMethod && definition.id !== COMMANDS.generateSecureCode
+    (definition) => definition.serviceMethod && definition.id !== COMMANDS.generateSecureCode
   );
 
   for (const definition of engineDefinitions) {
@@ -503,6 +502,58 @@ test('every engine-backed command invokes its declared service method', async ()
   );
   assert.equal(harness.errorMessages.length, 0);
   assert.equal(harness.informationMessages.length, 0);
+
+  harness.registry.dispose();
+});
+
+test('explain vulnerability forwards only an existing finding identifier', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+
+  await harness.handlers.get(COMMANDS.explainVulnerability)({
+    findingId: 'finding-9',
+    unexpected: 'ignored'
+  });
+  const first = harness.calls.find((call) => call.method === 'explainVulnerability');
+  assert.ok(first);
+  assert.equal(first.request.findingId, 'finding-9');
+  assert.equal('unexpected' in first.request, false);
+
+  await harness.handlers.get(COMMANDS.explainVulnerability)();
+  const second = harness.calls.filter((call) => call.method === 'explainVulnerability').at(-1);
+  assert.equal('findingId' in second.request, false);
+
+  harness.registry.dispose();
+});
+
+test('verify repair forwards only an explicit caller-supplied target', async () => {
+  const patch = '--- a/file.py\n+++ b/file.py\n@@ -1 +1 @@\n-old\n+new\n';
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+
+  await harness.handlers.get(COMMANDS.verifyRepair)({
+    repairId: 'repair-1',
+    patch,
+    profile: 'static_only',
+    runExecution: false,
+    unexpected: 'ignored'
+  });
+  const first = harness.calls.find((call) => call.method === 'verifyRepair');
+  assert.ok(first);
+  assert.equal(first.request.repairId, 'repair-1');
+  assert.equal(first.request.patch, patch);
+  assert.equal(first.request.profile, 'static_only');
+  assert.equal(first.request.runExecution, false);
+  assert.equal('unexpected' in first.request, false);
+
+  await harness.handlers.get(COMMANDS.verifyRepair)();
+  const second = harness.calls.filter((call) => call.method === 'verifyRepair').at(-1);
+  assert.equal('repairId' in second.request, false);
+  assert.equal('patch' in second.request, false);
 
   harness.registry.dispose();
 });
@@ -611,14 +662,15 @@ test('dashboard failures are logged and reported', async () => {
   harness.registry.dispose();
 });
 
-test('show status reports reachable backend and unavailable analysis without claiming success', async () => {
+test('show status reports reachable backend capability flags without claiming success', async () => {
   const harness = createHarness({ informationMessageResult: 'Open Security Dashboard' });
 
   await harness.handlers.get(COMMANDS.showStatus)();
 
   assert.equal(harness.informationMessages.length, 1);
   assert.match(harness.informationMessages[0].message, /reachable/);
-  assert.match(harness.informationMessages[0].message, /report unavailable/);
+  assert.match(harness.informationMessages[0].message, /Declared available capabilities/);
+  assert.match(harness.informationMessages[0].message, /Declared unavailable capabilities/);
   assert.doesNotMatch(harness.informationMessages[0].message, /success/i);
   assert.deepEqual(harness.informationMessages[0].actions, [
     'Open Security Dashboard',

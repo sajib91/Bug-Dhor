@@ -6,7 +6,7 @@ Bug Dhor is a local-first research system for explainable vulnerability detectio
 
 ## Status
 
-**Phase 1: scaffold, extension shell, and an operational but partial research engine.** The Python engine exposes a `/api/v1` HTTP API and performs real allowlisted file/workspace inspection (including caller-supplied unsaved editor text), parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification. Detection, explanation, repair, and verification are wired into the API and report explicit `partial`/`unavailable` stage statuses. SAE, counterfactual, and activation-steering code exists but is **not wired** into the operational path; `features/extract`, `counterfactual/analyze`, and `prevention/steer` return empty/`plan=None` results. No trained detector, real model/SAE artifact, benchmark dataset, Docker-backed execution, or empirical result is present. No fabricated findings, scores, features, effects, patches, verdicts, or metrics are produced. See [`final-audit.md`](final-audit.md) and [`research-compliance-report.md`](research-compliance-report.md).
+**Phase 1: scaffold, extension shell, and an operational but partial research engine.** The Python engine exposes a `/api/v1` HTTP API and performs real allowlisted file/workspace inspection (including caller-supplied unsaved editor text), parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification. Detection, explanation, repair, and verification are wired into the API and report explicit `partial`/`unavailable` stage statuses. SAE, counterfactual, and activation-steering code exists but is **not wired** into the operational path; `features/extract`, `counterfactual/analyze`, and `prevention/steer` return empty/`plan=None` results. No trained detector, real model/SAE artifact, licensed benchmark dataset or execution result, Docker-backed execution, or empirical result is present. No fabricated findings, scores, features, effects, patches, verdicts, or metrics are produced. See [`final-audit.md`](final-audit.md) and [`research-compliance-report.md`](research-compliance-report.md).
 
 ## Research integrity
 
@@ -15,7 +15,7 @@ Bug Dhor is a local-first research system for explainable vulnerability detectio
 - Counterfactual effects describe model-internal interventions, not real-world causal effects.
 - Activation steering is limited to compatible models with accessible internal activations.
 - Repairs are applied only after explicit user approval; the Python engine never writes user source.
-- Execution-based verification requires an isolated sandbox. If no adequate sandbox exists, verification is marked `not_run`.
+- Execution-based verification requires an isolated sandbox. If no adequate sandbox exists, execution is not attempted and verification reports `inconclusive`, never a pass.
 - No fabricated datasets, citations, metrics, or experimental results are permitted.
 - Every research component must ship tests and documented limitations before its capability is enabled.
 

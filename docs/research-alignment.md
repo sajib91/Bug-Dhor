@@ -405,7 +405,7 @@ Enabled only when: context assembly is deterministic; patch schema validates; ha
 | `partially_verified` | Some checks passed; others unavailable or inconclusive |
 | `failed` | A required check failed |
 | `inconclusive` | Insufficient evidence (no tests, flaky suite, analyzer error) |
-| `not_run` | Verification was not attempted (e.g., no adequate sandbox) |
+| `not_run` | The stage was intentionally skipped. Inadequate sandbox execution yields `inconclusive`, not `not_run`. |
 
 The verdict always includes the profile, checks, versions, and scope. "Verified" never means "secure in general".
 
@@ -501,7 +501,7 @@ Evaluation datasets must be licensed, versioned, and hashed. If a dataset cannot
 | LIM-PA-09 | Taint follows only direct, same-file declaration or `self`/`this` method calls; imports, aliases, dynamic dispatch, callbacks, and cross-file summaries are unresolved | Program analysis, taint | Resolution metadata + unresolved-call count + limitations |
 | LIM-PA-10 | Taint findings are potential syntactic flows, not confirmed vulnerabilities; feasibility, runtime values, types, auth, routing, and blocking validation are not evaluated | Program analysis, taint | `potential: true` + confidence notes + limitations |
 | LIM-PA-11 | Taint sources, sanitizers, validators, propagators, and sinks are explicit configuration; validators do not clear taint and unknown calls block flow | Program analysis, taint | Rule inventory + site roles + limitations |
-| LIM-STATIC-01 | Static adapters are library-only and are not wired into scan, detection, repair, or verification; findings do not appear in API responses or the extension | Static adapters | Library-only status + limitations |
+| LIM-STATIC-01 | Static adapters are conditional and bounded; tool/rule-pack availability varies and analyzer findings are not confirmed vulnerabilities | Static adapters | Explicit unavailable/failed stages + tool provenance + limitations |
 | LIM-STATIC-02 | CodeQL requires a pre-built database, query suite, and accepted license; Joern requires a CPG, query script, and supported CLI; adapters do not build databases, download packs, or upgrade schemas | Static adapters (CodeQL, Joern) | Capability discovery + explicit failure status + warnings |
 | LIM-STATIC-03 | Native output parsing and CWE mapping are best-effort for tested formats/versions; unknown output fails explicitly and unsupported mappings stay `None`; analyzer findings are not confirmed vulnerabilities | Static adapters | Parse warnings + preserved rule IDs + tool/version provenance |
 | LIM-STATIC-04 | Deduplication merges only overlapping findings sharing a rule, fingerprint, or CWE; non-overlapping duplicates remain and distinct issues sharing a CWE can merge | Static adapters | `related`/`rule_ids` + merge scope in limitations |

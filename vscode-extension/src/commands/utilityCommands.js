@@ -16,10 +16,17 @@ function describeHealth(health) {
   if (!health || health.status !== 'ok') {
     return 'The Bug Dhor backend responded, but its health state is unknown.';
   }
+  const capabilities =
+    health.capabilities && typeof health.capabilities === 'object' ? health.capabilities : {};
+  const available = Object.keys(capabilities).filter((key) => capabilities[key] === true);
+  const unavailable = Object.keys(capabilities).filter((key) => capabilities[key] === false);
+  const availableText = available.length > 0 ? available.join(', ') : 'none declared';
+  const unavailableText = unavailable.length > 0 ? unavailable.join(', ') : 'none declared';
   return (
     `Bug Dhor backend v${health.version} is reachable (API ${health.apiVersion}). ` +
-    'All declared analysis capabilities currently report unavailable, so no findings, ' +
-    'scores, or security conclusions are produced.'
+    `Declared available capabilities: ${availableText}. ` +
+    `Declared unavailable capabilities: ${unavailableText}. ` +
+    'Capability flags describe wired paths, not provider availability or measured research results.'
   );
 }
 

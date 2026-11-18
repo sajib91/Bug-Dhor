@@ -4,20 +4,18 @@ Local FastAPI research engine for vulnerability evidence, SAE feature extraction
 
 ## Status
 
-**HTTP API, source preprocessing, program analysis, static adapters, local model
-runtime, and SAE training implemented; other research stages remain unavailable.** The versioned FastAPI transport, typed request/response
-schemas, structured errors, logging, auth, CORS, request limits, workspace
-containment, and real file/workspace inspection exist. A standalone tree-sitter
-preprocessing library detects, parses, tokenizes, chunks, and summarizes Python and
-JavaScript source. A second standalone library builds intraprocedural control-flow
-and data-flow graphs, plus same-file taint propagation with explicit source,
-sanitizer, validator, propagator, and sink rules. All graph products preserve
-exact source spans and use NetworkX. A third standalone library integrates
-Semgrep and Bandit, plus optional CodeQL and Joern, through safe bounded
-subprocesses and normalizes their output into shared findings. Counterfactual,
-steering, repair, and adequate verification sandbox stages remain unimplemented.
-Those stages return explicit
-`unavailable` statuses; no results are invented.
+**HTTP API, source preprocessing, program analysis, static adapters, detection,
+explanation, proposal-only repair, and bounded verification are implemented;
+model-internal research stages remain unwired.** The versioned FastAPI transport,
+typed request/response schemas, structured errors, logging, auth, CORS, request
+limits, workspace containment, and real file/workspace inspection exist. Tree-sitter
+preprocessing, CFG/DFG/taint construction, and Semgrep/Bandit adapters are wired
+into scan and detection stages. Explanation returns observation claims for matching
+backend findings. Repair remains proposal-only and requires caller-supplied
+candidates plus explicit approval; verification is inconclusive without independent
+analyzers or an adequate sandbox. Counterfactual and steering libraries exist but
+are not wired into the API, and no production model/SAE artifact or adequate
+execution sandbox is present. No results are invented.
 
 Implemented and tested:
 
@@ -47,22 +45,24 @@ Implemented and tested:
 - File scans — allowlisted-root validation, path/symlink containment, UTF-8 and
   size checks, SHA-256 computation, and language detection.
 - Workspace scans — symlink-safe source discovery with ignored generated
-  directories and a configurable file-count limit. Discovery does not invoke the
-  parsing library yet.
-- 320 tests under `tests/`, covering every endpoint, validation, problem details,
+  directories, a configurable file-count limit, and available scan stages over
+  discovered sources.
+- 638 tests under `tests/`, covering every endpoint, validation, problem details,
   auth, CORS, request/file/workspace limits, path containment, pipeline status
   semantics, settings, OpenAPI paths, shared contracts, source preprocessing,
   CFG/DFG graph correctness, positive/negative taint flows, subprocess safety and
-  timeouts, static-output normalization and deduplication, and mocked adapter
-  integrations.
+  timeouts, static-output normalization, detection, explanation, risk semantics,
+  repair/verification, and mocked adapter integrations.
 - [API documentation](../docs/api.md), [program-analysis documentation](../docs/program-analysis.md),
   and generated OpenAPI at `/openapi.json`, `/docs`, and `/redoc`.
 
-All analysis endpoints currently return `analysisAvailable: false` with explicit
-stage reason codes. Health reports every operation capability as `false`. The
-preprocessing, program-analysis, and static-adapter libraries are not connected to
-a scan route or stage, so scan responses still contain no tokens, functions,
-chunks, syntax diagnostics, CFGs, DFGs, taint flows, or static-analyzer findings.
+Detection and explanation return `analysisAvailable: true` when they produce real
+results; SAE, counterfactual, and steering endpoints remain explicit `unavailable`
+stubs. Health flags for detection, explanation, repair, and verification are `true`,
+but these flags declare wired paths, not provider availability, model access,
+sandbox execution, or benchmark results. Successful scans can contain real
+AST/CFG/DFG/taint-backed findings, evidence sources, and a `heuristic_index` risk
+assessment; absent analyzers are reported explicitly.
 
 ## API
 
@@ -148,16 +148,14 @@ cd security-engine
 ../.venv/bin/python -m pytest
 ```
 
-The suite exercises the HTTP API, backend primitives, shared contract schemas, the
-standalone preprocessing library, the standalone program-analysis library, taint
-flows, and the standalone static-analyzer adapters. Static adapter tests use
-mocked tool output and fake executables; they do not require Semgrep, Bandit,
-CodeQL, or Joern to be installed. The suite does not exercise vulnerability
-detection, SAE features, counterfactuals, steering, repair, or execution
-verification because those capabilities are not implemented. Because parsing,
-graph construction, taint analysis, and static adapters are not wired into the scan
-pipeline, scan responses do not include preprocessing, graph, taint, or static
-analyzer products.
+The suite exercises the HTTP API, backend primitives, shared contract schemas,
+preprocessing, program analysis, taint flows, static-analyzer adapters, detection,
+explanation, risk enrichment, proposal-only repair, and bounded verification.
+Static adapter tests use mocked tool output and fake executables; they do not
+require Semgrep, Bandit, CodeQL, or Joern to be installed. The suite does not
+validate real model/SAE execution, calibrated probabilities, counterfactual or
+steering interventions in the HTTP workflow, or Docker-backed functional execution;
+those capabilities remain conditional or unwired and are never simulated.
 
 ## Build
 

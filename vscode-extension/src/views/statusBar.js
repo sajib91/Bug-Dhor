@@ -15,7 +15,8 @@ class StatusBar {
   }
 
   /**
-   * Reflect the last known backend health without claiming analysis exists.
+   * Reflect the last known backend connection state. Capability facts come
+   * from backend health responses, never from this label.
    *
    * @param {'checking' | 'reachable' | 'unavailable'} state
    * @param {string} [detail]
@@ -28,7 +29,7 @@ class StatusBar {
       this.item.text = '$(shield) Bug Dhor';
       this.item.tooltip =
         detail ??
-        'Bug Dhor backend reachable. Detection and AI analysis stages remain unavailable.';
+        'Bug Dhor backend reachable. Run Bug Dhor: Show Status for the declared capability flags.';
     } else {
       this.item.text = '$(shield) Bug Dhor';
       this.item.tooltip =

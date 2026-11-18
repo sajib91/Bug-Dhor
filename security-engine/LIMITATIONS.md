@@ -1,11 +1,12 @@
 # Security Engine Limitations
 
-The HTTP API, file/workspace inspection, shared contract validation, standalone
+The HTTP API, file/workspace inspection, shared contract validation,
 Python/JavaScript source preprocessing, intraprocedural CFG/DFG construction,
-configuration-driven same-file taint analysis, and standalone Semgrep/Bandit/
-CodeQL/Joern adapters are implemented. No detector, model, SAE, counterfactual,
-steering, repair, or verification component is implemented as of this phase. This
-file tracks component-specific limitations as each module is built.
+configuration-driven same-file taint analysis, Semgrep/Bandit/CodeQL/Joern
+adapters, detection, explanation, proposal-only repair, and bounded verification
+are implemented. Production model/SAE execution, counterfactual and steering HTTP
+workflows, calibrated probability, and adequate sandbox execution remain
+unavailable or unwired. This file tracks component-specific limitations.
 
 The authoritative limitation register is maintained in
 [docs/research-alignment.md](../docs/research-alignment.md#12-limitations-register).
@@ -16,34 +17,37 @@ before its capability is exposed.
 
 - File and workspace scans inspect real files and report hashes, sizes, languages,
   and discovered source URIs.
-- A standalone preprocessing library detects, normalizes, parses, tokenizes,
-  extracts functions from, chunks, and summarizes Python and JavaScript files.
-  It is not connected to the API, workspace scans, or the VS Code extension.
-- A standalone program-analysis library builds intraprocedural control-flow and
-  data-flow graphs for Python and JavaScript, plus a configuration-driven taint
-  graph with direct same-file call/return propagation. It is not connected to the
-  API, workspace scans, or the VS Code extension.
+- Preprocessing detects, normalizes, parses, tokenizes, extracts functions from,
+  chunks, and summarizes Python and JavaScript files. It is invoked by scan,
+  detection, and explanation stages; other languages are unsupported.
+- Program analysis builds intraprocedural control-flow and data-flow graphs for
+  Python and JavaScript, plus a configuration-driven taint graph with direct
+  same-file call/return propagation. These products feed detection and explanation.
 - Shared JSON Schema contracts and fixtures are validated by both runtimes, but the
   HTTP API still returns interim operation envelopes and does not generate or
   validate runtime responses from those schemas.
-- A standalone static-analysis library runs Semgrep and Bandit, plus optional
-  CodeQL and Joern, with executable/version detection, validated configuration,
-  bounded argv-only subprocesses, normalized findings, conservative CWE mapping,
-  and deduplication. It is not connected to the API, workspace scans, detection, or
-  the VS Code extension. Missing, failed, and timed-out tools are explicit
-  results, never empty successful scans.
-- No evidence-fusion detector exists; scan findings are always empty with an
-  explicit `analysisAvailable: false`.
-- No SAE artifact has been registered or validated.
-- No model activations have been captured.
-- No counterfactual effect has been computed.
-- No steering run has been performed.
-- No repair has been proposed, applied, or verified.
-- No benchmark or evaluation result exists.
+- Static analysis runs Semgrep and Bandit, plus optional CodeQL and Joern, with
+  executable/version detection, validated configuration, bounded argv-only
+  subprocesses, normalized findings, conservative CWE mapping, and deduplication.
+  Missing, failed, and timed-out tools are explicit results, never empty successful
+  scans.
+- Detection produces real findings from AST, CFG, DFG, taint, and available static
+  evidence. Risk enrichment is a `heuristic_index`, not a calibrated probability.
+- Explanation produces observation-claim graphs only for finding IDs produced by
+  the current backend detection run; unmatched IDs return `analysisAvailable: false`.
+- No production SAE artifact has been registered or validated, and no production
+  model activations are captured in the HTTP workflow. Local 0.5B Qwen checkpoints
+  are compatibility probes only.
+- Counterfactual and steering libraries exist, but their HTTP stages remain honest
+  stubs and produce no effects, validity estimates, plans, or evaluations.
+- Repair is proposal-only and requires caller-supplied candidates plus approval;
+  the engine never writes user source. Verification is static/bounded and returns
+  `inconclusive` without independent analyzers or an adequate sandbox.
+- No benchmark or evaluation result exists; readiness output is `not_run`.
 - The VS Code extension connects to this server over the versioned HTTP API and
-  performs health checks, file scans, selection detection requests, and workspace
-  scans. It does not start or supervise the server. Research analysis stages still
-  report explicit `unavailable` results.
+  performs health checks, scans, explanation, repair, verification, and feedback
+  operations. It does not start or supervise the server. SAE/counterfactual/steering
+  stages still report explicit `unavailable` results.
 
 ## Parsing limitations
 
@@ -73,7 +77,8 @@ before its capability is exposed.
   unsupported, and unreadable files are reported in `skipped_files` rather than
   silently dropped.
 - There is no persisted index, incremental reparse, cross-file symbol table, import
-  resolution, or call graph. The parsing API is currently library-only.
+  resolution, or call graph. Preprocessing is invoked by scan, detection, and
+  explanation stages, not exposed as a separate HTTP endpoint.
 
 ## Program-analysis limitations
 
@@ -129,16 +134,16 @@ or complete.
 
 ## Static-analysis limitations
 
-The static adapters are library-only. They detect executables, validate
-configuration, run bounded subprocesses, parse native output, and normalize
-findings, but they do not establish that a repository is free of vulnerabilities.
-Tool output and coverage remain bounded by each analyzer's own rules and
-limitations.
+The static adapters detect executables, validate configuration, run bounded
+subprocesses, parse native output, and normalize findings, but they do not
+establish that a repository is free of vulnerabilities. Tool output and coverage
+remain bounded by each analyzer's own rules and limitations.
 
-- `LIM-STATIC-01` — The adapters are not wired into the HTTP scan pipeline,
-  detection, repair, or verification. Their findings never appear in API scan
-  responses or the VS Code extension, and no evidence-fusion or scoring step
-  consumes them.
+- `LIM-STATIC-01` — The adapters are wired into scan, detection, and verification
+  when their executables and configuration are available, but availability varies
+  by environment and the benchmark analyzer rule pack is unpinned. Missing,
+  failed, and timed-out tools remain explicit unavailable/failed stages; analyzer
+  findings are tool output, not confirmed vulnerabilities.
 - `LIM-STATIC-02` — CodeQL runs against a caller-supplied, pre-built database and
   requires at least one query suite plus an explicit license acceptance. The
   adapter does not create databases, download query packs, or upgrade schemas, so
@@ -166,17 +171,19 @@ limitations.
 
 ## API limitations
 
-- All analysis endpoints return `200` with `partial` operation status and explicit
-  `unavailable` stages. Their result objects contain no findings, scores, features,
-  effects, patches, or verdicts.
-- Verification returns `verdict: "not_run"` because no verifier or adequate
-  sandbox exists.
-- Scans return an empty `findings` array. This is not a clean bill of health.
+- Detection and explanation return real results when evidence is available;
+  SAE/counterfactual/steering endpoints return explicit `unavailable` stages and
+  no fabricated features, effects, or plans.
+- Verification returns `verdict: "inconclusive"` when independent analyzers or an
+  adequate sandbox cannot supply usable evidence. `not_run` is reserved for
+  intentionally skipped checks.
+- A scan may return an empty `findings` array. This is not a clean bill of health;
+  `analysisAvailable: false` is reported as unavailable analysis.
 - The API is synchronous. There is no job queue, SSE stream, cancellation
   endpoint, or persisted analysis record.
-- Workspace scans discover files but do not invoke the parsing library or analyze
-  them. Scan responses contain no tokens, functions, chunks, or parsing
-  diagnostics.
+- Workspace scans discover files and run available scan stages; caller-supplied
+  unsaved editor text is hashed and analyzed as supplied text, with the on-disk
+  path used only as the containment anchor.
 - Workspace roots must be inside `BUGDHOR_WORKSPACE_ROOTS`, which defaults to the
   process working directory. Requested roots and files are resolved; escaping
   symlinks are rejected.

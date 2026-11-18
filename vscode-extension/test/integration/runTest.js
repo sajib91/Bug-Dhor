@@ -185,7 +185,10 @@ async function waitForBackend(backendUrl, child, readLogs, timeoutMs = 30_000) {
 }
 
 async function main() {
-  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-e2e-'));
+  // Resolve symlinked temp roots (notably /var -> /private/var on macOS) so
+  // the VS Code workspace URI, backend file URI, and diagnostic containment
+  // checks all refer to the same absolute path.
+  const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-e2e-')));
   const workspacePath = path.join(temporaryRoot, 'workspace');
   const userDataDir = path.join(temporaryRoot, 'user-data');
   const extensionsDir = path.join(temporaryRoot, 'extensions');

@@ -44,9 +44,31 @@ function fencedCode(value) {
 }
 
 /**
+ * Render only the backend's heuristic risk index. The calibrated-probability
+ * field is deliberately not displayed: this build has no validated calibrator.
+ *
  * @param {object} finding
- * @returns {string}
+ * @returns {string[]}
  */
+function buildRiskMarkdown(finding) {
+  const risk = finding.riskAssessment;
+  if (!risk) {
+    return [];
+  }
+  const index =
+    risk.index === null || risk.index === undefined ? 'unavailable' : risk.index.toFixed(3);
+  const band = risk.band ? ` (${escapeMarkdown(risk.band)})` : '';
+  const lines = [
+    `**Risk:** heuristic index ${index}${band}. This is not a calibrated probability.`
+  ];
+  if (risk.evidenceCount > 0 || risk.configHash) {
+    const config = risk.configHash ? `; config ${inlineCode(risk.configHash)}` : '';
+    lines.push(`_Backend evidence items: ${risk.evidenceCount}${config}._`);
+  }
+  lines.push('');
+  return lines;
+}
+
 function buildFindingSection(finding) {
   const lines = [`**Bug Dhor: ${escapeMarkdown(finding.message)}**`, ''];
 
@@ -61,6 +83,7 @@ function buildFindingSection(finding) {
     metadata.push(`**Verification:** ${finding.verificationStatus}`);
   }
   lines.push(metadata.join(' · '), '');
+  lines.push(...buildRiskMarkdown(finding));
 
   lines.push('**Explanation**', '');
   lines.push(
@@ -197,6 +220,7 @@ module.exports = {
   FindingHoverProvider,
   buildHoverMarkdown,
   buildFindingSection,
+  buildRiskMarkdown,
   escapeMarkdown,
   inlineCode,
   unionRange

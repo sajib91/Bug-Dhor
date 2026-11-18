@@ -1,11 +1,11 @@
 # Bug Dhor HTTP API
 
 **Status:** Versioned FastAPI transport implemented and tested. File inspection and
-workspace discovery are real. A proposal-only secure recommendation endpoint is
-implemented with mandatory verification gates; it never applies code. Detection,
-explanation, SAE features, counterfactuals, steering, repair, and verification
-operations are declared; where a stage is not implemented or unconfigured it
-returns `unavailable` and its result payload contains no fabricated data.
+workspace discovery are real. Detection, explanation, proposal-only repair, and
+bounded verification are wired to real engines; SAE features, counterfactuals, and
+steering are honest unconfigured HTTP stubs. Unavailable stages return explicit
+statuses and result payloads contain no fabricated data. A proposal-only secure
+recommendation endpoint has mandatory verification gates and never applies code.
 
 - Base URL: `http://127.0.0.1:8765`
 - API prefix: `/api/v1`
@@ -139,16 +139,16 @@ stage into an empty successful result, a zero risk score, or a pass verdict.
 | Method | Path | Required request fields | Current result |
 |---|---|---|---|
 | GET | `/api/v1/health` | — | Service metadata, uptime, and capability flags |
-| POST | `/api/v1/scan/file` | `workspaceRoot`, `filePath` | File hash/size/language and scope; empty findings |
-| POST | `/api/v1/scan/workspace` | `workspaceFolders[]` with `name`, `path` | Discovered source-file scope; empty findings |
-| POST | `/api/v1/detection/analyze` | common context | Empty findings; detector and analyzer unavailable |
-| POST | `/api/v1/explanation/analyze` | common context plus `finding` or `findingId` | No explanation graph |
+| POST | `/api/v1/scan/file` | `workspaceRoot`, `filePath` | File metadata, scan stages, and real findings with heuristic risk |
+| POST | `/api/v1/scan/workspace` | `workspaceFolders[]` with `name`, `path` | Discovered source-file scope and real findings with heuristic risk |
+| POST | `/api/v1/detection/analyze` | common context | Findings from AST/CFG/DFG/taint and available static evidence |
+| POST | `/api/v1/explanation/analyze` | common context plus `finding` or `findingId` | Observation graph for a matching backend finding ID only |
 | POST | `/api/v1/features/extract` | common context | No SAE features |
 | POST | `/api/v1/counterfactual/analyze` | common context, `findingId`, one or more `interventions` | No effects or validity estimate |
 | POST | `/api/v1/prevention/steer` | common context, `featureIndices`, `targetMetric`, `explicitOptIn=true` | No steering plan or evaluation |
-| POST | `/api/v1/repair/generate` | common context plus `finding` | No patch |
+| POST | `/api/v1/repair/generate` | common context plus `finding` | Proposal only; no patch without a caller-supplied candidate |
 | POST | `/api/v1/recommendations/generate` | common context plus `finding` | Proposal only; verified candidate when all mandatory gates pass |
-| POST | `/api/v1/verification/run` | common context plus `repairId` or `patch` | `verdict: "not_run"` |
+| POST | `/api/v1/verification/run` | common context plus `repairId` or `patch` | `verdict: "inconclusive"` without independent evidence; `not_run` only for skipped checks |
 
 ### Health
 
@@ -190,31 +190,33 @@ anchor. `scan/workspace` walks each allowed root without following symlinks,
 ignores generated directories such as `.git`, `node_modules`, `dist`, and
 `__pycache__`, and returns file URIs.
 
-Both scans currently return:
+Successful scans return:
 
-- `status: "partial"` because the snapshot stage succeeds while evidence and
-  detection are unavailable;
-- `findings: []`;
-- `analysisAvailable: false`;
-- explicit unavailable stages with reason codes.
+- `status: "partial"` while only a subset of independent analyzers is available;
+- `findings` produced from real AST/CFG/DFG/taint evidence when present, each with
+  an optional `riskAssessment.scoreKind` of `heuristic_index`;
+- `analysisAvailable: true` when an analysis stage produced a result;
+- explicit unavailable stages with reason codes when tools or capabilities are absent.
 
 An empty `findings` array does **not** mean the file is secure. It means no
-detector produced findings.
+detector produced findings in that scan. `analysisAvailable: false` means the
+analysis stage did not run or did not produce a result; it is never a clean scan.
 
 ### Analysis endpoints
 
-The analysis endpoints currently return `200` with a `partial` envelope and a
-typed result whose `analysisAvailable` is `false`. Result-specific guarantees:
+Analysis endpoints return `200` with typed results and explicit stage statuses.
+`analysisAvailable` is `true` only when that analysis produced a result.
+Result-specific guarantees:
 
-| Endpoint | Never fabricated in this phase |
+| Endpoint | Fabrication boundary |
 |---|---|
-| `detection/analyze` | findings, evidence sources, score kind |
-| `explanation/analyze` | graph, claims, feature evidence |
-| `features/extract` | feature IDs, activations, coverage |
-| `counterfactual/analyze` | effects, validity, confidence |
-| `prevention/steer` | steering plan, guardrails, evaluation |
-| `repair/generate` | patch, touched files, rationale |
-| `verification/run` | checks, verdict; verdict is `not_run` |
+| `detection/analyze` | No fabricated findings, evidence sources, or score kind |
+| `explanation/analyze` | No fabricated graph or claims; observation graph only for a matching backend finding ID; no feature evidence |
+| `features/extract` | No feature IDs, activations, or coverage |
+| `counterfactual/analyze` | No effects, validity, or confidence |
+| `prevention/steer` | No steering plan, guardrails, or evaluation |
+| `repair/generate` | No generated patch, touched files, or rationale without a caller-supplied candidate |
+| `verification/run` | No invented checks or pass verdict; `inconclusive` without independent evidence |
 
 Requests are schema-validated before file inspection. Examples of enforced
 constraints:
@@ -348,16 +350,18 @@ JavaScript test suites.
 
 Downstream implementations must follow these rules:
 
-- **Score semantics.** Every `riskScore` carries `kind` and `interpretation`.
-  `heuristic` maps to `heuristic_risk` in `[0, 1]`; `model_logit` maps to
+- **Score semantics.** The implemented HTTP enrichment emits
+  `riskAssessment.scoreKind: "heuristic_index"`, a non-probabilistic prioritization
+  index in `[0, 1]` with `probability: null`. `model_logit` maps to
   `model_score_not_calibrated` and is unbounded; `calibrated` maps to
   `calibrated_probability` in `[0, 1]` and requires a calibrator artifact,
   dataset identity, split hash, Brier score, and expected calibration error.
   Only `calibrated` may be rendered or described as a probability.
 - **Availability.** `analysisAvailable: false` means the analysis stage produced
   no result. Results must then carry empty findings, features, effects, claims,
-  or checks; verification must report `not_run`, and a steering plan must be
-  `null`. An empty findings list is not a clean scan result.
+  or checks; verification reports `inconclusive` when no independent evidence is
+  available (`not_run` only for intentionally skipped checks), and a steering plan
+  must be `null`. An empty findings list is not a clean scan result.
 - **Approval.** Repair candidates and secure recommendations always carry
   `requiresApproval: true`; the backend does not apply patches.
 - **Unknown fields.** Payload schemas reject unknown fields so a client cannot

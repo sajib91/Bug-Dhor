@@ -61,7 +61,7 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
         </p>
         <p>
           The extension connects to the local security engine when it is running. The dashboard
-          reports unavailable capabilities explicitly and does not simulate results.
+          reports unavailable capabilities explicitly and renders only supplied backend results.
         </p>
       </section>
 
@@ -79,8 +79,8 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
       </section>
 
       <p class="notice">
-        No analysis results are produced in this build. Heuristic scores are not probabilities,
-        and counterfactual effects are not real-world causal claims.
+        Analysis results appear only after a real backend scan. Heuristic scores are not
+        probabilities, and counterfactual effects are not real-world causal claims.
       </p>
 
       <noscript>

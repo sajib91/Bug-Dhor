@@ -5,7 +5,7 @@
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
 
-Bug Dhor, a framework for counterfactual risk analysis and feature-aware steering for secure code generation, is a local-first system composed of a JavaScript VS Code extension and a Python/FastAPI research engine. It detects vulnerability-relevant evidence, explains it with model-internal and static features, estimates counterfactual feature effects, applies interaction-aware activation steering where the model permits it, proposes repository-aware repairs, and verifies those repairs independently.
+Bug Dhor, a framework for counterfactual risk analysis and feature-aware steering for secure code generation, is a local-first system composed of a JavaScript VS Code extension and a Python/FastAPI research engine. It detects vulnerability-relevant evidence, explains it with static and program-analysis observation claims, estimates counterfactual feature effects and applies interaction-aware activation steering in library code where a compatible model permits it, proposes repository-aware repairs, and verifies those repairs independently. Model-internal hooks are not wired into the operational HTTP workflow.
 
 This document describes the target architecture and the current implementation boundary. Implementation status is tracked in [`implementation-mapping.md`](implementation-mapping.md), [`final-audit.md`](../final-audit.md), and [`research-compliance-report.md`](../research-compliance-report.md); this document does not claim that every described component is implemented, validated, or empirically effective.
 
@@ -43,7 +43,7 @@ These are enforced in code, not merely documented.
 |----|-----------|-------------------|
 | I1 | **Capability honesty.** A missing SAE, model, analyzer, or sandbox is reported as unavailable. It is never emulated. | `/api/v1/health`; stage scheduler; UI feature gates |
 | I2 | **Evidence provenance.** Every finding, effect, patch, and verdict references producer, version, input snapshot, and artifact hash. | Schemas require `provenance`; artifact store is content-addressed |
-| I3 | **Score semantics.** Every score carries `score_kind` (`heuristic`, `model_logit`, `calibrated`). Only `calibrated` may be described as a probability. | Pydantic validators; UI renderers; report generator |
+| I3 | **Score semantics.** Implemented HTTP findings carry `heuristic_index`, a non-probabilistic prioritization index. The target taxonomy also defines `model_logit` and `calibrated`; only `calibrated` may be described as a probability. | Pydantic validators; UI renderers; report generator |
 | I4 | **Interventional scope.** Counterfactual results describe model behaviour under named interventions, not real-world causal effects. | Result schemas include `scope: model_intervention`; mandatory wording in UI |
 | I5 | **Non-destructive repair.** The Python engine never writes user source. The extension applies patches only after explicit approval and hash revalidation. | Workspace root allowlist; extension-only patch applier |
 | I6 | **Execution isolation.** Code is executed only in a declared sandbox. If no adequate sandbox exists, execution is not attempted and the verdict is downgraded. | `SandboxBackend`; verification policy |
@@ -470,9 +470,10 @@ sequenceDiagram
 | POST | `/api/v1/verification/run` | Independent verification | Sync |
 
 The implemented API returns a typed operation envelope with per-stage status
-(`ok`, `partial`, `skipped`, `unavailable`, `failed`). Analysis stages currently
-return `unavailable`, and no findings, features, effects, patches, or verdicts
-are fabricated. Envelope, error, auth, and limit details are in
+(`ok`, `partial`, `skipped`, `unavailable`, `failed`). Detection, explanation,
+repair, and verification return real partial results; SAE, counterfactual, and
+steering stages return `unavailable`. No findings, features, effects, patches, or
+pass verdicts are fabricated. Envelope, error, auth, and limit details are in
 [api.md](api.md).
 
 #### Target full contract (not yet implemented)
@@ -1059,7 +1060,7 @@ Errors show: what failed, which capability or input caused it, whether retry is 
 |---------|-----------|-------------|
 | `docker` | Network none, read-only base, writable shadow mount, CPU/memory/PID limits, non-root | Recommended for any execution-based verification |
 | `process` | Working-directory containment, scrubbed env, rlimits, timeout, process-group kill; network isolation **best effort only** | Static checks, trusted build commands; **not** sufficient for untrusted generated-code execution |
-| `none` | No isolation | No execution; verification marked `not_run` |
+| `none` | No isolation | No execution; verification is `inconclusive` with an explicit limitation (`not_run` only for intentionally skipped checks) |
 
 The effective sandbox level is recorded in every verification result. A `process` run cannot yield a `verified` verdict when the profile requires execution of untrusted code.
 

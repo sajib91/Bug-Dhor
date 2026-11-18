@@ -60,8 +60,8 @@ cd vscode-extension
 npm test
 npm run format:check
 ```
-- [x] Unit tests: **230 passed, 0 failed**
-- [ ] `format:check` — **FAILS** in `media/dashboard.js`, `src/repair/patchApplication.js`, `src/webviews/dashboardPanel.js`, `test/unit/dashboardPanel.test.js`
+- [x] Unit tests: **295 passed, 0 failed**
+- [ ] `format:check` — **FAILS** on a pre-existing repository-wide baseline (57 files would be reformatted); no unrelated reformatting was applied in this integration pass
 - [ ] Failures fixed or formatter config reconciled
 
 ### 3.2 Backend
@@ -69,14 +69,7 @@ npm run format:check
 cd security-engine
 ../.venv/bin/python -m pytest -q
 ```
-- [ ] Suite green — **currently 6 failed, 448 passed**
-  - `tests/api/test_openapi.py::test_openapi_exposes_exactly_the_versioned_operations`
-  - `tests/api/test_openapi.py::test_every_operation_documents_success_and_problem_details`
-  - `tests/api/test_scan.py::test_scan_file_reports_real_metadata_and_explicit_unavailable_stages`
-  - `tests/api/test_scan.py::test_scan_file_hashes_supplied_source_text_instead_of_the_disk_copy`
-  - `tests/api/test_scan.py::test_scan_workspace_discovers_sources_and_ignores_generated_directories`
-  - `tests/unit/test_pipeline.py::test_orchestrator_capabilities_require_every_operation_stage`
-- Cause: contract drift between the current orchestrator (jobs routes, `analysisAvailable: true`, `explanation_analyze: true`) and tests encoding the older capability contract. Resolve by updating tests **or** capability semantics — do not delete assertions to force green.
+- [x] Suite green — **638 passed, 0 failed**
 
 ### 3.3 Not covered by automated tests
 - [ ] `experiments/` — **no tests**
@@ -122,8 +115,8 @@ cd security-engine
 - [x] Temp dirs removed after verification
 - [x] Archive contains `package.json`, `README.md`, `media/*`, `src/**`
 - [ ] Interactive VS Code session: activation, command palette, dashboard webview, diagnostics, Quick Fix
-- [ ] Extension connects to a running backend and renders real scan results
-- [ ] Unsaved-editor-text path verified in a live editor
+- [x] Extension connects to a running backend and renders real scan results (Extension Host e2e)
+- [x] Unsaved-editor-text path verified in a live Extension Host
 - [ ] Extension uninstall leaves no residual state
 
 > The extension does **not** start the backend. Release notes must state that a separately running engine at `http://127.0.0.1:8765` is required, with optional token via `BUGDHOR_API_TOKEN` (legacy `BUGDHOR_ENGINE_TOKEN`).
