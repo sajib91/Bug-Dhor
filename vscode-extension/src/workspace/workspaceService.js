@@ -16,8 +16,10 @@ const {
   normalizeCwe
 } = require('../diagnostics/findingModel');
 const { SECTION } = require('../api/configurationService');
+const { isPathWithinRoot } = require('../security/paths');
 
 const MAX_WORKSPACE_FOLDERS = 50;
+const MAX_EXPLICIT_FILE_PATHS = 50_000;
 
 class CommandValidationError extends Error {
   /**
@@ -241,14 +243,23 @@ function createRepairRequest(vscode, findingArgument) {
 }
 
 /**
- * Build safe workspace metadata. Only local file folders are accepted, and no
- * document content or file list is sent. Duplicate paths are collapsed.
+ * Build safe workspace metadata. Only local file folders are accepted. An
+ * optional explicit file list is validated against those folders and contains
+ * paths only—no document content. Duplicate paths are collapsed.
  *
  * @param {import('vscode')} vscode
- * @returns {{ workspaceFolders: Array<{ name: string, path: string, uri: string }> }}
+ * @param {{
+ *   filePaths?: readonly unknown[],
+ *   folders?: readonly import('vscode').WorkspaceFolder[],
+ *   maxFilePaths?: number
+ * }} [options]
+ * @returns {{
+ *   workspaceFolders: Array<{ name: string, path: string, uri: string }>,
+ *   filePaths?: string[]
+ * }}
  */
-function createWorkspaceRequest(vscode) {
-  const folders = requireWorkspace(vscode);
+function createWorkspaceRequest(vscode, options = {}) {
+  const folders = options.folders ?? requireWorkspace(vscode);
   const seen = new Set();
   /** @type {Array<{ name: string, path: string, uri: string }>} */
   const workspaceFolders = [];
@@ -294,7 +305,51 @@ function createWorkspaceRequest(vscode) {
     );
   }
 
-  return { workspaceFolders };
+  if (options.filePaths === undefined || options.filePaths === null) {
+    return { workspaceFolders };
+  }
+  if (!Array.isArray(options.filePaths)) {
+    throw new CommandValidationError(
+      'The explicit file list must be an array.',
+      'E_INVALID_FILE_PATH'
+    );
+  }
+  const maxFilePaths =
+    typeof options.maxFilePaths === 'number' && Number.isFinite(options.maxFilePaths)
+      ? Math.max(1, Math.floor(options.maxFilePaths))
+      : MAX_EXPLICIT_FILE_PATHS;
+  if (options.filePaths.length > maxFilePaths) {
+    throw new CommandValidationError(
+      `The explicit file list exceeds ${maxFilePaths} paths.`,
+      'E_TOO_MANY_FILE_PATHS'
+    );
+  }
+
+  const rootPaths = workspaceFolders.map((folder) => folder.path);
+  const seenPaths = new Set();
+  const filePaths = [];
+  for (const candidate of options.filePaths) {
+    if (typeof candidate !== 'string' || candidate.length === 0) {
+      throw new CommandValidationError(
+        'Explicit file paths must be non-empty strings.',
+        'E_INVALID_FILE_PATH'
+      );
+    }
+    const filePath = path.resolve(candidate);
+    if (!rootPaths.some((rootPath) => isPathWithinRoot(filePath, rootPath))) {
+      throw new CommandValidationError(
+        `Explicit file path is outside every workspace folder: ${filePath}`,
+        'E_PATH_OUTSIDE_WORKSPACE'
+      );
+    }
+    if (seenPaths.has(filePath)) {
+      continue;
+    }
+    seenPaths.add(filePath);
+    filePaths.push(filePath);
+  }
+
+  return { workspaceFolders, filePaths };
 }
 
 /**
@@ -310,6 +365,7 @@ function createVerificationRequest(vscode) {
 
 module.exports = {
   MAX_WORKSPACE_FOLDERS,
+  MAX_EXPLICIT_FILE_PATHS,
   CommandValidationError,
   requireWorkspace,
   findWorkspaceFolder,

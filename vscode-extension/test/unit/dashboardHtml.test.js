@@ -31,9 +31,12 @@ test('dashboard shell uses a restrictive nonce CSP with no network or inline exe
   assert.match(html, /style-src vscode-webview:\/\/test/);
   assert.match(html, /connect-src &#39;none&#39;/);
   assert.match(html, /img-src &#39;none&#39;/);
+  assert.match(html, /font-src &#39;none&#39;/);
+  assert.match(html, /media-src &#39;none&#39;/);
   assert.match(html, /object-src &#39;none&#39;/);
   assert.match(html, /frame-src &#39;none&#39;/);
   assert.match(html, /worker-src &#39;none&#39;/);
+  assert.match(html, /base-uri &#39;none&#39;/);
   assert.match(html, /form-action &#39;none&#39;/);
   assert.ok(!html.includes('unsafe-inline'));
   assert.ok(!html.includes('unsafe-eval'));

@@ -242,3 +242,83 @@ test('workspace path containment rejects siblings and traversal', () => {
     false
   );
 });
+
+test('backend finding metadata is preserved and null optionals are absent', () => {
+  const finding = normalizeFinding(
+    createRawFinding({
+      category: 'sql_injection',
+      filePath: '/workspace/src/app.js',
+      startLine: 4,
+      startColumn: 2,
+      endLine: 4,
+      endColumn: 42,
+      suggestedRemediation: 'Use a parameterized query.',
+      confidence: 'inference',
+      confidenceBasis: 'validated taint path',
+      uncertainty: ['The sink may be safe after escaping.'],
+      detectionMethod: 'ast-taint-analysis'
+    })
+  );
+
+  assert.equal(finding.category, 'sql_injection');
+  assert.equal(finding.filePath, '/workspace/src/app.js');
+  assert.equal(finding.startLine, 4);
+  assert.equal(finding.startColumn, 2);
+  assert.equal(finding.endLine, 4);
+  assert.equal(finding.endColumn, 42);
+  assert.equal(finding.suggestedRemediation, 'Use a parameterized query.');
+  assert.equal(finding.confidence, 'inference');
+  assert.equal(finding.confidenceBasis, 'validated taint path');
+  assert.deepEqual(finding.uncertainty, ['The sink may be safe after escaping.']);
+  assert.equal(finding.detectionMethod, 'ast-taint-analysis');
+
+  const withoutOptionals = normalizeFinding(
+    createRawFinding({
+      category: null,
+      filePath: null,
+      startLine: null,
+      startColumn: null,
+      endLine: null,
+      endColumn: null,
+      suggestedRemediation: null,
+      confidence: null,
+      confidenceBasis: null,
+      uncertainty: null,
+      detectionMethod: null
+    })
+  );
+  for (const field of [
+    'category',
+    'filePath',
+    'startLine',
+    'startColumn',
+    'endLine',
+    'endColumn',
+    'suggestedRemediation',
+    'confidence',
+    'confidenceBasis',
+    'uncertainty',
+    'detectionMethod'
+  ]) {
+    assert.equal(field in withoutOptionals, false, `${field} must be absent when null`);
+  }
+});
+
+test('malformed optional finding metadata is rejected instead of inferred', () => {
+  assert.throws(
+    () => normalizeFinding(createRawFinding({ startLine: -1 })),
+    /startLine must be a non-negative integer/
+  );
+  assert.throws(
+    () => normalizeFinding(createRawFinding({ startColumn: 1.5 })),
+    /startColumn must be a non-negative integer/
+  );
+  assert.throws(
+    () => normalizeFinding(createRawFinding({ confidence: 'high' })),
+    /confidence must be/
+  );
+  assert.throws(
+    () => normalizeFinding(createRawFinding({ uncertainty: 'unknown' })),
+    /uncertainty must be an array/
+  );
+});

@@ -15,6 +15,14 @@ function createUri(uriString) {
   };
 }
 
+function joinUri(base, ...segments) {
+  const parsed = new URL(base.toString());
+  const prefix = parsed.pathname.replace(/\/$/, '');
+  const joined = [prefix, ...segments.map((segment) => String(segment))].join('/');
+  parsed.pathname = joined;
+  return createUri(parsed.toString());
+}
+
 function createWorkspaceFolder(fsPath = '/workspace', name = 'workspace') {
   const uriText = fsPath.startsWith('file:') ? fsPath : `file://${fsPath}`;
   return { name, index: 0, uri: createUri(uriText) };
@@ -85,6 +93,23 @@ class FakeMarkdownString {
   constructor(value) {
     this.value = value;
     this.isTrusted = true;
+  }
+}
+
+class FakeThemeColor {
+  constructor(id) {
+    this.id = id;
+  }
+}
+
+class FakeTextEditorDecorationType {
+  constructor(options) {
+    this.options = options;
+    this.disposed = false;
+  }
+
+  dispose() {
+    this.disposed = true;
   }
 }
 
@@ -160,11 +185,16 @@ function createFakeRegistry() {
 function createFakeVscode(options = {}) {
   const workspaceFolders = options.workspaceFolders ?? [createWorkspaceFolder('/workspace')];
   const collections = [];
+  const decorationTypes = [];
+  const visibleEditorListeners = [];
+  const visibleEditorSubscriptions = [];
   const registry = createFakeRegistry();
+  const visibleTextEditors = options.visibleTextEditors ?? [];
 
   const vscode = {
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
     CodeActionKind: { QuickFix: 'quickfix' },
+    OverviewRulerLane: { Left: 1, Center: 2, Right: 4, Full: 7 },
     Range: FakeRange,
     Diagnostic: FakeDiagnostic,
     Location: FakeLocation,
@@ -172,9 +202,16 @@ function createFakeVscode(options = {}) {
     MarkdownString: FakeMarkdownString,
     Hover: FakeHover,
     CodeAction: FakeCodeAction,
+    ThemeColor: FakeThemeColor,
     Uri: {
       parse(uriString) {
         return createUri(uriString);
+      },
+      file(fsPath) {
+        return createUri(`file://${fsPath}`);
+      },
+      joinPath(base, ...segments) {
+        return joinUri(base, ...segments);
       }
     },
     workspace: {
@@ -183,6 +220,28 @@ function createFakeVscode(options = {}) {
         return workspaceFolders.find(
           (folder) => uri.scheme === 'file' && isPathWithinRoot(uri.fsPath, folder.uri.fsPath)
         );
+      }
+    },
+    window: {
+      visibleTextEditors,
+      get activeTextEditor() {
+        return options.activeTextEditor;
+      },
+      createTextEditorDecorationType(decorationOptions) {
+        const type = new FakeTextEditorDecorationType(decorationOptions);
+        decorationTypes.push(type);
+        return type;
+      },
+      onDidChangeVisibleTextEditors(listener) {
+        visibleEditorListeners.push(listener);
+        const subscription = {
+          disposed: false,
+          dispose() {
+            subscription.disposed = true;
+          }
+        };
+        visibleEditorSubscriptions.push(subscription);
+        return subscription;
       }
     },
     languages: {
@@ -200,7 +259,16 @@ function createFakeVscode(options = {}) {
     }
   };
 
-  return { vscode, collections, registry, logger: createFakeLogger() };
+  return {
+    vscode,
+    collections,
+    decorationTypes,
+    visibleTextEditors,
+    visibleEditorListeners,
+    visibleEditorSubscriptions,
+    registry,
+    logger: createFakeLogger()
+  };
 }
 
 function createRawFinding(overrides = {}) {
@@ -239,9 +307,13 @@ function createFinding(overrides = {}) {
 
 module.exports = {
   createUri,
+  joinUri,
   createWorkspaceFolder,
   createFakeLogger,
   createFakeVscode,
   createRawFinding,
-  createFinding
+  createFinding,
+  FakeRange,
+  FakeThemeColor,
+  FakeTextEditorDecorationType
 };

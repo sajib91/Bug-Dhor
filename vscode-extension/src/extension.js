@@ -9,11 +9,18 @@ const { registerCommands } = require('./commands');
 const { registerSidebarView } = require('./webviews/sidebarView');
 const { DashboardPanelController } = require('./webviews/dashboardPanel');
 const { buildDashboardState } = require('./webviews/dashboardModel');
+const {
+  appendLiveScanHistory,
+  buildLiveScanDashboardPatch,
+  buildLiveScanHistoryEntry,
+  mergeLiveFindings
+} = require('./webviews/liveFindingState');
 const { registerDiagnostics } = require('./diagnostics');
 const { WorkspaceMonitor } = require('./monitoring/workspaceMonitor');
 const { onSettingsChanged, readSettings } = require('./config');
 const { createProviderRegistry, SecurityHooks } = require('./integrations');
 const { FeedbackController } = require('./feedback');
+const { offerWorkspaceScan } = require('./commands/repositoryCommands');
 
 /** @type {import('./logging/output').Logger | undefined} */
 let logger;
@@ -109,6 +116,27 @@ function getRecommendationSettings() {
 }
 
 /**
+ * Map settings used by bounded repository inventory and explicit-path scans.
+ *
+ * @returns {object}
+ */
+function getRepositorySettings() {
+  const settings = readSettings();
+  return {
+    backendUrl: settings.backendUrl,
+    sendSourceText: settings.sendSourceText,
+    monitoringAllowAutomaticSourceSharing: settings.monitoringAllowAutomaticSourceSharing,
+    repositoryMaxFiles: settings.repositoryMaxFiles,
+    repositoryMaxFileBytes: settings.repositoryMaxFileBytes,
+    repositoryExcludeGlobs: settings.repositoryExcludeGlobs,
+    repositoryIncludeUntrackedFiles: settings.repositoryIncludeUntrackedFiles,
+    repositoryGitTimeoutMs: settings.repositoryGitTimeoutMs,
+    repositoryNotifyOnWorkspaceOpen: settings.repositoryNotifyOnWorkspaceOpen,
+    repositoryAutoScanOnWorkspaceOpen: settings.repositoryAutoScanOnWorkspaceOpen
+  };
+}
+
+/**
  * Activate the Bug Dhor extension.
  *
  * This starts no Python process and performs no analysis. It connects to an
@@ -164,11 +192,52 @@ function activate(context) {
     }
   }
 
+  const dashboard = new DashboardPanelController({
+    vscode,
+    extensionUri: context.extensionUri,
+    logger,
+    feedback,
+    memento: context.globalState,
+    getState: (dataMode) =>
+      buildDashboardState({
+        dataMode,
+        settings: readSettings()
+      })
+  });
+  /** @type {object[]} */
+  let liveFindings = [];
+
   const diagnostics = registerDiagnostics({
     vscode,
+    extensionUri: context.extensionUri,
     logger,
     onFindingsPublished: (event) => {
       const findings = Array.isArray(event?.findings) ? event.findings : [];
+      // These are the already-normalized findings accepted by diagnostics, so
+      // the dashboard never re-parses the raw backend response. Scoped scans
+      // replace only their own findings; an unscoped scan replaces the set.
+      liveFindings = mergeLiveFindings(liveFindings, findings, event?.scopeUris ?? []);
+      const generatedAt = new Date().toISOString();
+      const historyEntry = buildLiveScanHistoryEntry({
+        result: event?.response,
+        findings,
+        scopeUris: event?.scopeUris ?? [],
+        generatedAt,
+        status:
+          typeof event?.response?.status === 'string' &&
+          ['partial', 'unavailable', 'cancelled'].includes(event.response.status)
+            ? event.response.status
+            : undefined
+      });
+      const scanHistory = appendLiveScanHistory(dashboard.liveData?.scanHistory, historyEntry);
+      dashboard.updateLiveState(
+        buildLiveScanDashboardPatch({
+          result: event?.response,
+          findings: liveFindings,
+          generatedAt,
+          scanHistory
+        })
+      );
       feedback.afterScan({
         documentUri: findings[0]?.documentUri ?? event?.scopeUris?.[0],
         findings,
@@ -176,17 +245,6 @@ function activate(context) {
         response: event?.response
       });
     }
-  });
-  const dashboard = new DashboardPanelController({
-    vscode,
-    extensionUri: context.extensionUri,
-    logger,
-    feedback,
-    getState: (dataMode) =>
-      buildDashboardState({
-        dataMode,
-        settings: readSettings()
-      })
   });
   const feedbackSubscription = feedback.subscribe((snapshot) => {
     dashboard.updateLiveState({ feedback: snapshot });
@@ -215,7 +273,8 @@ function activate(context) {
     assistantRegistry,
     assistantHooks,
     feedback,
-    getRecommendationSettings
+    getRecommendationSettings,
+    getRepositorySettings
   });
   const sidebarRegistration = registerSidebarView(context, logger);
 
@@ -274,7 +333,15 @@ function activate(context) {
     );
   }
 
-  void checkBackendHealth();
+  void checkBackendHealth().then((health) =>
+    offerWorkspaceScan({
+      vscode,
+      logger,
+      memento: context.globalState,
+      settings: getRepositorySettings(),
+      backendReachable: Boolean(health)
+    })
+  );
   logger.info('Bug Dhor activated.');
 
   return {

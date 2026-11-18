@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 
 const { COMMANDS } = require('../../src/constants');
 const { COMMAND_DEFINITIONS } = require('../../src/commands/definitions');
@@ -34,6 +35,13 @@ function createUri(fsPath, scheme = 'file') {
       return `${scheme}://${fsPath}`;
     }
   };
+}
+
+class FakeRange {
+  constructor(startLine, startCharacter, endLine, endCharacter) {
+    this.start = { line: startLine, character: startCharacter };
+    this.end = { line: endLine, character: endCharacter };
+  }
 }
 
 /**
@@ -114,11 +122,18 @@ function createFakeVscode(options = {}) {
   const warningMessages = [];
   const errorMessages = [];
   const executedCommands = [];
+  const shownDocuments = [];
   const workspaceFolders = options.workspaceFolders ?? [];
   let activeTextEditor = options.activeTextEditor;
 
   const vscode = {
     ProgressLocation: { Notification: 15 },
+    FileType: Object.freeze({ File: 1, Directory: 2, SymbolicLink: 64 }),
+    Uri: {
+      file: createUri,
+      joinPath: (base, ...parts) => createUri(path.join(base.fsPath, ...parts))
+    },
+    Range: FakeRange,
     commands: {
       registerCommand(commandId, handler) {
         if (handlers.has(commandId)) {
@@ -161,6 +176,10 @@ function createFakeVscode(options = {}) {
         errorMessages.push({ message, actions });
         return options.errorMessageResult;
       },
+      async showTextDocument(document, documentOptions) {
+        shownDocuments.push({ document, options: documentOptions });
+        return { document, selection: documentOptions?.selection };
+      },
       async withProgress(configuration, task) {
         progressOptions.push(configuration);
         const progress = {
@@ -179,6 +198,32 @@ function createFakeVscode(options = {}) {
     },
     workspace: {
       workspaceFolders,
+      fs: {
+        async readDirectory(uri) {
+          if (uri.fsPath === '/workspace') {
+            return [['src', 2]];
+          }
+          if (uri.fsPath === path.join('/workspace', 'src')) {
+            return [['app.js', 1]];
+          }
+          return [];
+        },
+        async stat(uri) {
+          if (uri.fsPath === '/workspace' || uri.fsPath === path.join('/workspace', 'src')) {
+            return { type: 2, size: 0 };
+          }
+          if (uri.fsPath === path.join('/workspace', 'src', 'app.js')) {
+            return { type: 1, size: 16 };
+          }
+          return { type: 0, size: 0 };
+        },
+        async readFile(uri) {
+          if (uri.fsPath === path.join('/workspace', 'src', 'app.js')) {
+            return new TextEncoder().encode('const value = 1;');
+          }
+          throw new Error(`ENOENT: ${uri.fsPath}`);
+        }
+      },
       getConfiguration() {
         return {
           get(key, defaultValue) {
@@ -208,6 +253,7 @@ function createFakeVscode(options = {}) {
     warningMessages,
     errorMessages,
     executedCommands,
+    shownDocuments,
     setActiveTextEditor(editor) {
       activeTextEditor = editor;
     }
@@ -291,13 +337,41 @@ function createFakeDashboard(options = {}) {
   };
 }
 
-function createFakeDiagnostics() {
+function createFakeDiagnostics(options = {}) {
   const publications = [];
+  const findingsByUri = options.findingsByUri ?? {};
   return {
     publications,
-    publishScanResult(result, options) {
-      publications.push({ result, options });
+    getFindingsForUri(uri) {
+      const key = typeof uri === 'string' ? uri : uri.toString();
+      return findingsByUri[key] ?? [];
+    },
+    getPublishedUris() {
+      return ['file:///workspace/src/app.js'];
+    },
+    publishScanResult(result, publishOptions) {
+      publications.push({ result, options: publishOptions });
       return { published: 0, files: [], rejected: [] };
+    }
+  };
+}
+
+const REPAIR_DIFF =
+  '--- a/src/app.js\n' +
+  '+++ b/src/app.js\n' +
+  '@@ -1,1 +1,1 @@\n' +
+  '-const value = 1;\n' +
+  '+const value = 2;\n';
+
+function createRepairProvider(options = {}) {
+  return {
+    providerId: options.providerId ?? 'test-provider',
+    model: { id: 'test-model' },
+    capabilities: options.capabilities ?? ['B', 'C'],
+    status: options.status ?? 'available',
+    hosted: false,
+    async generate() {
+      return { text: `Explanation\n\`\`\`diff\n${REPAIR_DIFF}\n\`\`\`` };
     }
   };
 }
@@ -307,13 +381,35 @@ function createHarness(options = {}) {
   const logger = createFakeLogger();
   const { service, calls } = createFakeService(options.serviceOverrides);
   const { dashboard, openCalls } = createFakeDashboard(options);
-  const { publications, ...diagnostics } = createFakeDiagnostics();
+  const { publications, ...diagnostics } = createFakeDiagnostics({
+    findingsByUri: options.findingsByUri
+  });
   const registry = registerCommands({
     vscode: fake.vscode,
     service,
     logger,
     dashboard,
-    diagnostics
+    diagnostics,
+    assistantRegistry: options.assistantRegistry,
+    getRecommendationSettings:
+      options.getRecommendationSettings ??
+      (() => ({
+        runFunctionalTests: false,
+        allowSandboxedExecution: false,
+        testCommand: [],
+        testTimeoutSeconds: 120
+      })),
+    getRepositorySettings: () => ({
+      backendUrl: 'http://127.0.0.1:8765',
+      sendSourceText: true,
+      monitoringAllowAutomaticSourceSharing: false,
+      repositoryMaxFiles: 2000,
+      repositoryMaxFileBytes: 1_048_576,
+      repositoryExcludeGlobs: [],
+      repositoryIncludeUntrackedFiles: true,
+      repositoryGitTimeoutMs: 1000
+    }),
+    gitRunner: options.gitRunner ?? (async () => 'src/app.js\0')
   });
   return {
     ...fake,
@@ -332,10 +428,10 @@ test('registerCommands registers every declared command exactly once', () => {
   const harness = createHarness();
   const expected = [...expectedCommandIds()].sort();
 
-  assert.equal(harness.registry.size, 13);
+  assert.equal(harness.registry.size, expected.length);
   assert.deepEqual(harness.registry.ids().sort(), expected);
   assert.deepEqual([...harness.handlers.keys()].sort(), expected);
-  assert.equal(harness.registrations.length, 13);
+  assert.equal(harness.registrations.length, expected.length);
 
   harness.registry.dispose();
 });
@@ -485,11 +581,15 @@ test('every engine-backed command invokes its declared service method', async ()
     activeTextEditor: createEditor(),
     workspaceFolders: [createWorkspaceFolder('/workspace')]
   });
-  // Generate Secure Code is a custom, provider-backed workflow: it obtains the
-  // backend prompt and then submits generated candidates through the
-  // recommendation endpoint. It is covered by secureCodeGeneration tests.
+  // Generate Secure Code and Repair Vulnerability are custom, provider-backed
+  // workflows. They obtain a backend prompt before submitting generated
+  // candidates to the engine and are covered by their dedicated tests.
   const engineDefinitions = COMMAND_DEFINITIONS.filter(
-    (definition) => definition.serviceMethod && definition.id !== COMMANDS.generateSecureCode
+    (definition) =>
+      definition.serviceMethod &&
+      definition.id !== COMMANDS.generateSecureCode &&
+      definition.id !== COMMANDS.repairVulnerability &&
+      definition.id !== COMMANDS.scanSelectedFolder
   );
 
   for (const definition of engineDefinitions) {
@@ -717,6 +817,101 @@ test('show logs opens the Bug Dhor output channel', async () => {
   harness.registry.dispose();
 });
 
+test('next finding navigates to an accepted finding and wraps at the end', async () => {
+  const uri = createUri('/workspace/src/app.js');
+  const findings = [
+    {
+      id: 'first',
+      range: {
+        start: { line: 1, character: 2 },
+        end: { line: 1, character: 12 }
+      }
+    },
+    {
+      id: 'second',
+      range: {
+        start: { line: 8, character: 4 },
+        end: { line: 8, character: 14 }
+      }
+    }
+  ];
+  const harness = createHarness({
+    activeTextEditor: createEditor({
+      selection: createSelection({
+        start: { line: 9, character: 0 },
+        end: { line: 9, character: 0 }
+      })
+    }),
+    findingsByUri: { [uri.toString()]: findings }
+  });
+
+  const target = await harness.handlers.get(COMMANDS.nextFinding)();
+
+  assert.equal(target.id, 'first');
+  assert.equal(harness.shownDocuments.length, 1);
+  assert.equal(harness.shownDocuments[0].document.uri.toString(), uri.toString());
+  assert.deepEqual(harness.shownDocuments[0].options.selection.start, { line: 1, character: 2 });
+  assert.deepEqual(harness.shownDocuments[0].options.selection.end, { line: 1, character: 12 });
+  assert.equal(harness.shownDocuments[0].options.preserveFocus, false);
+  assert.equal(harness.shownDocuments[0].options.preview, false);
+
+  harness.registry.dispose();
+});
+
+test('previous finding walks backward through accepted findings', async () => {
+  const uri = createUri('/workspace/src/app.js');
+  const findings = [
+    {
+      id: 'first',
+      range: {
+        start: { line: 1, character: 2 },
+        end: { line: 1, character: 12 }
+      }
+    },
+    {
+      id: 'second',
+      range: {
+        start: { line: 8, character: 4 },
+        end: { line: 8, character: 14 }
+      }
+    }
+  ];
+  const harness = createHarness({
+    activeTextEditor: createEditor({
+      selection: createSelection({
+        start: { line: 9, character: 0 },
+        end: { line: 9, character: 0 }
+      })
+    }),
+    findingsByUri: { [uri.toString()]: findings }
+  });
+
+  const target = await harness.handlers.get(COMMANDS.previousFinding)();
+
+  assert.equal(target.id, 'second');
+  assert.deepEqual(harness.shownDocuments[0].options.selection.start, { line: 8, character: 4 });
+
+  harness.registry.dispose();
+});
+
+test('finding navigation reports missing context instead of inventing a target', async () => {
+  const harness = createHarness();
+
+  assert.equal(await harness.handlers.get(COMMANDS.nextFinding)(), undefined);
+  assert.equal(await harness.handlers.get(COMMANDS.previousFinding)(), undefined);
+  assert.equal(harness.informationMessages.length, 2);
+  assert.match(harness.informationMessages[0].message, /Open a source file/);
+  assert.equal(harness.shownDocuments.length, 0);
+
+  harness.setActiveTextEditor(createEditor());
+  assert.equal(await harness.handlers.get(COMMANDS.nextFinding)(), undefined);
+  assert.equal(harness.informationMessages.length, 3);
+  assert.match(harness.informationMessages.at(-1).message, /no findings in the active file/);
+  assert.equal(harness.shownDocuments.length, 0);
+
+  harness.registry.dispose();
+});
+
 test('scan results are published to diagnostics with the scanned file scope', async () => {
   const backendResult = { findings: [] };
   const harness = createHarness({
@@ -813,9 +1008,16 @@ test('failed scans never publish diagnostics', async () => {
 });
 
 test('a repair Quick Fix sends finding context with the editor request', async () => {
+  const provider = createRepairProvider();
   const harness = createHarness({
     activeTextEditor: createEditor(),
-    workspaceFolders: [createWorkspaceFolder('/workspace')]
+    workspaceFolders: [createWorkspaceFolder('/workspace')],
+    assistantRegistry: { getActiveProvider: () => provider },
+    serviceOverrides: {
+      generateRecommendation: async () => ({
+        result: { prompt: { text: 'Repository-aware repair prompt.', promptHash: 'hash' } }
+      })
+    }
   });
   const finding = {
     findingId: 'finding-1',
@@ -830,11 +1032,37 @@ test('a repair Quick Fix sends finding context with the editor request', async (
 
   await harness.handlers.get(COMMANDS.repairVulnerability)(finding);
 
-  assert.equal(harness.calls.length, 1);
-  assert.equal(harness.calls[0].method, 'repairVulnerability');
-  assert.deepEqual(harness.calls[0].request.finding, finding);
-  assert.equal(harness.calls[0].request.filePath, '/workspace/src/app.js');
+  const serviceCalls = harness.calls.map((call) => call.method);
+  assert.deepEqual(serviceCalls, ['generateRecommendation', 'repairVulnerability']);
+  const repairCall = harness.calls.find((call) => call.method === 'repairVulnerability');
+  assert.deepEqual(repairCall.request.finding, finding);
+  assert.equal(repairCall.request.filePath, '/workspace/src/app.js');
+  assert.equal(repairCall.request.generate, false);
+  assert.equal(repairCall.request.patch, REPAIR_DIFF.trim());
   assert.equal(harness.errorMessages.length, 0);
+
+  harness.registry.dispose();
+});
+
+test('repair generation fails honestly when no B/C provider is configured', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+  const finding = {
+    findingId: 'finding-1',
+    documentUri: 'file:///workspace/src/app.js',
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 5 }
+    }
+  };
+
+  await harness.handlers.get(COMMANDS.repairVulnerability)(finding);
+
+  assert.equal(harness.calls.length, 0);
+  assert.equal(harness.errorMessages.length, 1);
+  assert.match(harness.errorMessages[0].message, /No configured generation provider/);
 
   harness.registry.dispose();
 });

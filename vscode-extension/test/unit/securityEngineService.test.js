@@ -518,6 +518,56 @@ test('repair generation maps a finding and validated proposal', async () => {
   assert.equal(result.result.requiresApproval, true);
 });
 
+test('repair generation forwards only validated workflow fields', async () => {
+  const { service, client } = createService(repairPayload());
+  const patch = '--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-a\n+b\n';
+  const request = editorRequest({
+    finding: {
+      findingId: 'finding-1',
+      documentUri: FILE_URI,
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 1, character: 10 }
+      },
+      cwe: 'CWE-89'
+    },
+    patch,
+    generate: false,
+    snapshotHash: SHA,
+    runFunctionalTests: false,
+    executionConsent: {
+      granted: true,
+      allowNetwork: true,
+      allowPrivileged: true,
+      allowDestructive: true,
+      source: 'user-setting',
+      apiKey: 'never-forward-me'
+    },
+    testTimeoutSeconds: 45,
+    projectTestCommand: ['pytest', '-q']
+  });
+
+  await service.repairVulnerability(request, {});
+
+  assert.equal(client.calls.length, 1);
+  const [call] = client.calls;
+  assert.equal(call.path, '/repair/generate');
+  assert.equal(call.body.patch, patch);
+  assert.equal(call.body.generate, false);
+  assert.equal(call.body.snapshotHash, SHA);
+  assert.equal(call.body.runFunctionalTests, false);
+  assert.deepEqual(call.body.executionConsent, {
+    granted: true,
+    allowNetwork: true,
+    allowPrivileged: true,
+    allowDestructive: true,
+    source: 'user-setting'
+  });
+  assert.equal('apiKey' in call.body.executionConsent, false);
+  assert.equal(call.body.testTimeoutSeconds, 45);
+  assert.deepEqual(call.body.projectTestCommand, ['pytest', '-q']);
+});
+
 test('recommendation generation sends only validated, non-secret request fields', async () => {
   const { service, client } = createService(recommendationPayload());
   const request = editorRequest({
@@ -597,6 +647,49 @@ test('verification requires an explicit repair target', async () => {
     }
   );
   assert.equal(client.calls.length, 0);
+});
+
+test('verification forwards explicit repair targets and metadata', async () => {
+  const { service, client } = createService({
+    operation: 'verification_run',
+    status: 'partial',
+    apiVersion: 'v1',
+    requestId: 'req-verify',
+    stages: [stage()],
+    warnings: [],
+    result: {
+      analysisAvailable: false,
+      verdict: 'not_run',
+      checks: [],
+      sandboxBackend: 'docker',
+      limitations: []
+    }
+  });
+  const patchedSource = 'const value = 2;\n';
+
+  await service.verifyRepair(
+    editorRequest({
+      repairId: ' repair-1 ',
+      patch: '--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-a\n+b\n',
+      patchedSource,
+      cwe: 'CWE-89',
+      findingId: 'finding-1',
+      profile: 'static_only',
+      runExecution: false
+    }),
+    {}
+  );
+
+  assert.equal(client.calls.length, 1);
+  const [call] = client.calls;
+  assert.equal(call.path, '/verification/run');
+  assert.equal(call.body.repairId, 'repair-1');
+  assert.match(call.body.patch, /^\-\-\- a\/app\.js/);
+  assert.equal(call.body.patchedSource, patchedSource);
+  assert.equal(call.body.cwe, 'CWE-89');
+  assert.equal(call.body.findingId, 'finding-1');
+  assert.equal(call.body.profile, 'static_only');
+  assert.equal(call.body.runExecution, false);
 });
 
 test('buildFileRequestBody rejects incomplete contexts', () => {

@@ -79,7 +79,16 @@
   let state = null;
   let activeSection = navSections[0] ? navSections[0].id : sectionIds[0];
   let transientNotice = null;
-  let vulnerabilityFilter = { severity: 'all', cwe: 'all' };
+  let vulnerabilityFilter = {
+    severity: 'all',
+    cwe: 'all',
+    category: 'all',
+    language: 'all',
+    status: 'all',
+    reviewed: 'all',
+    groupBy: 'none',
+    search: ''
+  };
 
   const restored = readRememberedState();
   if (restored && navSections.some((section) => section.id === restored.activeSection)) {
@@ -285,6 +294,19 @@
     };
   }
 
+  function normalizeFindingReviews(raw) {
+    const reviews = {};
+    if (!isRecord(raw)) {
+      return reviews;
+    }
+    for (const [id, value] of Object.entries(raw)) {
+      if (typeof id === 'string' && id.length > 0 && typeof value === 'boolean') {
+        reviews[id] = value;
+      }
+    }
+    return reviews;
+  }
+
   function normalizeState(raw) {
     const source = isRecord(raw) ? raw : {};
     const summary = isRecord(source.summary) ? source.summary : {};
@@ -311,6 +333,8 @@
           medium: numberOrNull(severity.medium),
           low: numberOrNull(severity.low)
         },
+        categories: countMap(summary.categories),
+        statuses: countMap(summary.statuses),
         lastScanAt: stringOrNull(summary.lastScanAt),
         workspaceName: stringOrNull(summary.workspaceName)
       },
@@ -318,6 +342,7 @@
       cweDistribution: arrayOfRecords(source.cweDistribution),
       scanHistory: arrayOfRecords(source.scanHistory),
       vulnerabilities: arrayOfRecords(source.vulnerabilities),
+      findingReviews: normalizeFindingReviews(source.findingReviews),
       sae: isRecord(source.sae) ? source.sae : {},
       featureInteractions: isRecord(source.featureInteractions) ? source.featureInteractions : {},
       steering: isRecord(source.steering) ? source.steering : {},
@@ -592,6 +617,7 @@
       kpis.appendChild(kpi(severityLabels[severity], count, note, severityTones[severity]));
     }
     section.appendChild(kpis);
+    section.appendChild(renderInsectFindingsCard());
 
     const distributionGrid = el('div', 'split-grid');
     distributionGrid.appendChild(
@@ -649,6 +675,292 @@
     return section;
   }
 
+  function resolvedFindingIds() {
+    const resolved = new Set();
+    for (const entry of state.feedback.findings) {
+      if (entry.state !== 'resolved') {
+        continue;
+      }
+      const id =
+        stringOrNull(entry.findingId) ??
+        stringOrNull(entry.id) ??
+        (typeof entry.key === 'string' && entry.key.startsWith('id:') ? entry.key.slice(3) : null);
+      if (id) {
+        resolved.add(id);
+      }
+    }
+    return resolved;
+  }
+
+  function feedbackStateForFinding(finding) {
+    const id = stringOrNull(finding.id);
+    if (!id) {
+      return null;
+    }
+    for (const entry of state.feedback.findings) {
+      const entryId =
+        stringOrNull(entry.findingId) ??
+        stringOrNull(entry.id) ??
+        (typeof entry.key === 'string' && entry.key.startsWith('id:') ? entry.key.slice(3) : null);
+      if (entryId === id) {
+        return stringOrNull(entry.state);
+      }
+    }
+    return null;
+  }
+
+  function findingReviewState(finding) {
+    const id = stringOrNull(finding.id);
+    return id ? state.findingReviews[id] === true : false;
+  }
+
+  function findingDisplayLocation(finding) {
+    const file =
+      stringOrNull(finding.file) ?? stringOrNull(finding.path) ?? stringOrNull(finding.documentUri);
+    if (!file) {
+      return 'Location not reported';
+    }
+    const line = numberOrNull(finding.line);
+    return line === null ? file : `${file}:${line}`;
+  }
+
+  function openFindingLocation(finding) {
+    const path = stringOrNull(finding.path) ?? stringOrNull(finding.file);
+    const line = numberOrNull(finding.startLine);
+    if (!path || line === null) {
+      sendMessage({
+        type: 'notice',
+        level: 'warning',
+        message: 'This finding does not include a navigable source location.'
+      });
+      return;
+    }
+    const column = numberOrNull(finding.startColumn) ?? 0;
+    sendMessage({ type: 'openLocation', path, line, column });
+  }
+
+  function rescanFinding(finding) {
+    const path = stringOrNull(finding.path) ?? stringOrNull(finding.file);
+    const line = numberOrNull(finding.startLine);
+    if (!path || line === null) {
+      sendMessage({
+        type: 'notice',
+        level: 'warning',
+        message: 'This finding cannot be rescanned without a navigable source location.'
+      });
+      return;
+    }
+    const column = numberOrNull(finding.startColumn) ?? 0;
+    sendMessage({ type: 'rescanFinding', path, line, column });
+  }
+
+  function svgAttributes(node, attributes) {
+    for (const [key, value] of Object.entries(attributes)) {
+      node.setAttribute(key, String(value));
+    }
+    return node;
+  }
+
+  function createInsectGlyph(severity, phase, resolved) {
+    const tone = severityTones[severity] ?? 'neutral';
+    const svg = svgAttributes(svgElement('svg'), {
+      viewBox: '0 0 72 44',
+      class: `insect-glyph insect-glyph--${tone}${resolved ? ' is-resolved' : ''}`,
+      role: 'img',
+      'aria-label': `${severityLabels[severity] ?? 'Unknown'} severity finding insect`
+    });
+
+    const legs = svgAttributes(svgElement('g'), { class: 'insect-glyph__legs' });
+    for (const d of [
+      'M27 21 15 13',
+      'M25 27 11 26',
+      'M27 33 15 40',
+      'M45 21 57 13',
+      'M47 27 61 26',
+      'M45 33 57 40'
+    ]) {
+      legs.appendChild(svgAttributes(svgElement('path'), { d }));
+    }
+    svg.appendChild(legs);
+
+    svg.appendChild(
+      svgAttributes(svgElement('path'), {
+        d: 'M36 7c-2.8 0-5 2.2-5 5v3h10v-3c0-2.8-2.2-5-5-5Z',
+        class: 'insect-glyph__head'
+      })
+    );
+    svg.appendChild(
+      svgAttributes(svgElement('ellipse'), {
+        cx: '36',
+        cy: '27',
+        rx: '13',
+        ry: '14',
+        class: 'insect-glyph__body'
+      })
+    );
+    svg.appendChild(
+      svgAttributes(svgElement('path'), {
+        d: 'M36 14v26M27 22h18M29 30h14',
+        class: 'insect-glyph__shell'
+      })
+    );
+    svg.appendChild(
+      svgAttributes(svgElement('path'), {
+        d: 'M32 8 27 2M40 8l5-6',
+        class: 'insect-glyph__antennae'
+      })
+    );
+    svg.appendChild(
+      svgAttributes(svgElement('circle'), {
+        cx: '31',
+        cy: '10',
+        r: '1.2',
+        class: 'insect-glyph__eye'
+      })
+    );
+    svg.appendChild(
+      svgAttributes(svgElement('circle'), {
+        cx: '41',
+        cy: '10',
+        r: '1.2',
+        class: 'insect-glyph__eye'
+      })
+    );
+
+    const wrapper = el('span', `insect-glyph-wrap insect-phase-${phase % 4}`);
+    wrapper.appendChild(svg);
+    return wrapper;
+  }
+
+  function renderInsectFindingsCard(options = {}) {
+    const compact = options.compact === true;
+    const findings = [...state.vulnerabilities].sort(compareFindings);
+    const resolved = resolvedFindingIds();
+    // Count categories from the displayed findings only. The summary object is
+    // already derived from the same findings, so seeding from it would double
+    // every category in live mode.
+    const categoryCounts = {};
+    for (const finding of findings) {
+      const category = stringOrNull(finding.category) ?? 'Uncategorized';
+      categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
+    }
+
+    const counts = el('div', 'insect-counts');
+    counts.appendChild(insectCount('Findings', findings.length, 'neutral'));
+    counts.appendChild(
+      insectCount(
+        'Active',
+        findings.filter((finding) => !resolved.has(String(finding.id ?? ''))).length,
+        'info'
+      )
+    );
+    counts.appendChild(
+      insectCount(
+        'Resolved',
+        findings.filter((finding) => resolved.has(String(finding.id ?? ''))).length,
+        'success'
+      )
+    );
+    const categoryEntries = Object.entries(categoryCounts).sort((left, right) =>
+      left[0].localeCompare(right[0])
+    );
+    for (const [label, count] of categoryEntries) {
+      counts.appendChild(insectCount(label, count, 'neutral'));
+    }
+
+    const description = compact
+      ? 'A real finding is shown as an insect. Select one to open its exact source location.'
+      : 'Each insect represents one finding returned by a scan. Resolved findings stop moving. ' +
+        'The dashboard never generates insects without backend findings.';
+    const body = el('div', 'insect-panel');
+    body.appendChild(counts);
+
+    if (findings.length === 0) {
+      body.appendChild(
+        emptyState(
+          '—',
+          'No finding insects',
+          'No scan findings are loaded. Insects appear only when the backend reports a finding.'
+        )
+      );
+      return card('Finding insects', description, body);
+    }
+
+    const visible = compact ? findings.slice(0, 6) : findings;
+    const grid = el('div', 'insect-grid');
+    visible.forEach((finding, index) => {
+      const severity = typeof finding.severity === 'string' ? finding.severity : 'info';
+      const isResolved = resolved.has(String(finding.id ?? ''));
+      const tone = severityTones[severity] ?? 'neutral';
+      const title = textOrDash(finding.title, 'Untitled finding');
+      const location = findingDisplayLocation(finding);
+
+      const item = el(
+        'button',
+        `insect-card insect-card--${tone} insect-phase-${index % 4}${
+          isResolved ? ' is-resolved' : ''
+        }`
+      );
+      item.type = 'button';
+      item.setAttribute(
+        'aria-label',
+        `${title}, ${severityLabels[severity] ?? 'Unknown'} severity, ${location}`
+      );
+      item.addEventListener('click', () => openFindingLocation(finding));
+
+      const scene = el('span', 'insect-card__scene');
+      scene.appendChild(el('span', 'insect-card__trail'));
+      scene.appendChild(createInsectGlyph(severity, index, isResolved));
+      item.appendChild(scene);
+
+      const copy = el('span', 'insect-card__copy');
+      const header = el('span', 'insect-card__header');
+      header.appendChild(severityBadge(severity));
+      header.appendChild(statusBadge(isResolved ? 'resolved' : finding.status));
+      copy.appendChild(header);
+      copy.appendChild(el('span', 'insect-card__title', title));
+      copy.appendChild(
+        el(
+          'span',
+          'insect-card__summary',
+          stringOrNull(finding.summary) ?? 'No backend summary was provided.'
+        )
+      );
+      const meta = el('span', 'insect-card__meta');
+      meta.appendChild(
+        el('span', 'insect-card__category', textOrDash(finding.category, 'Uncategorized'))
+      );
+      if (stringOrNull(finding.cwe)) {
+        meta.appendChild(el('span', 'mono', finding.cwe));
+      }
+      meta.appendChild(el('span', 'location', location));
+      copy.appendChild(meta);
+      item.appendChild(copy);
+      grid.appendChild(item);
+    });
+    body.appendChild(grid);
+
+    if (compact && findings.length > visible.length) {
+      body.appendChild(
+        el(
+          'p',
+          'toolbar-meta',
+          `Showing ${formatNumber(visible.length)} of ${formatNumber(findings.length)} findings. ` +
+            'Open the Vulnerabilities section for the full list.'
+        )
+      );
+    }
+
+    return card('Finding insects', description, body);
+  }
+
+  function insectCount(label, count, tone) {
+    const node = el('span', `insect-count${tone ? ` insect-count--${tone}` : ''}`);
+    node.appendChild(el('span', 'insect-count__value', formatNumber(count)));
+    node.appendChild(el('span', 'insect-count__label', label));
+    return node;
+  }
+
   function renderVulnerabilitiesSection() {
     const section = sectionContainer('vulnerabilities', [
       internalButton('Go to Security Scan', 'scan')
@@ -666,13 +978,29 @@
       return section;
     }
 
-    const findings = [...state.vulnerabilities].sort(compareFindings);
+    const resolved = resolvedFindingIds();
+    const findings = [...state.vulnerabilities].map((finding) => ({
+      finding,
+      status: effectiveFindingStatus(finding, resolved),
+      category: stringOrNull(finding.category) ?? 'Uncategorized',
+      language: stringOrNull(finding.language) ?? 'unknown'
+    }));
     const cwes = [
-      ...new Set(findings.map((finding) => stringOrNull(finding.cwe)).filter(Boolean))
+      ...new Set(findings.map((item) => stringOrNull(item.finding.cwe)).filter(Boolean))
     ].sort();
-    if (vulnerabilityFilter.cwe !== 'all' && !cwes.includes(vulnerabilityFilter.cwe)) {
-      vulnerabilityFilter.cwe = 'all';
+    const categories = [...new Set(findings.map((item) => item.category))].sort();
+    const languages = [...new Set(findings.map((item) => item.language))].sort();
+    const statuses = [...new Set(findings.map((item) => item.status))].sort();
+
+    keepFilterValid('cwe', cwes);
+    keepFilterValid('category', categories);
+    keepFilterValid('language', languages);
+    keepFilterValid('status', statuses);
+    if (!['none', 'file', 'category', 'severity'].includes(vulnerabilityFilter.groupBy)) {
+      vulnerabilityFilter.groupBy = 'none';
     }
+
+    section.appendChild(renderInsectFindingsCard({ compact: true }));
 
     const toolbar = el('div', 'table-toolbar');
     const filters = el('div', 'filter-row');
@@ -693,66 +1021,256 @@
         }
       )
     );
-
-    if (cwes.length > 0) {
-      const cweGroup = el('div', 'filter-group');
-      const label = el('label', 'filter-label', 'CWE');
-      const select = el('select', 'select-control');
-      select.id = 'cwe-filter';
-      label.htmlFor = select.id;
-      select.appendChild(option('all', 'All CWEs'));
-      for (const cwe of cwes) {
-        select.appendChild(option(cwe, cwe));
-      }
-      select.value = vulnerabilityFilter.cwe;
-      select.addEventListener('change', () => {
-        vulnerabilityFilter.cwe = select.value;
+    filters.appendChild(
+      selectFilterGroup('CWE', 'cwe-filter', 'All CWEs', cwes, vulnerabilityFilter.cwe, (value) => {
+        vulnerabilityFilter.cwe = value;
         applyVulnerabilityFilters();
-      });
-      cweGroup.appendChild(label);
-      cweGroup.appendChild(select);
-      filters.appendChild(cweGroup);
-    }
+      })
+    );
+    filters.appendChild(
+      selectFilterGroup(
+        'Category',
+        'category-filter',
+        'All categories',
+        categories,
+        vulnerabilityFilter.category,
+        (value) => {
+          vulnerabilityFilter.category = value;
+          applyVulnerabilityFilters();
+        }
+      )
+    );
+    filters.appendChild(
+      selectFilterGroup(
+        'Language',
+        'language-filter',
+        'All languages',
+        languages,
+        vulnerabilityFilter.language,
+        (value) => {
+          vulnerabilityFilter.language = value;
+          applyVulnerabilityFilters();
+        }
+      )
+    );
+    filters.appendChild(
+      selectFilterGroup(
+        'Status',
+        'status-filter',
+        'All statuses',
+        statuses,
+        vulnerabilityFilter.status,
+        (value) => {
+          vulnerabilityFilter.status = value;
+          applyVulnerabilityFilters();
+        }
+      )
+    );
+    filters.appendChild(
+      selectFilterGroup(
+        'Review',
+        'review-filter',
+        'Any review state',
+        [
+          { value: 'reviewed', label: 'Reviewed' },
+          { value: 'unreviewed', label: 'Not reviewed' }
+        ],
+        vulnerabilityFilter.reviewed,
+        (value) => {
+          vulnerabilityFilter.reviewed = value;
+          applyVulnerabilityFilters();
+        }
+      )
+    );
+    filters.appendChild(
+      selectFilterGroup(
+        'Group by',
+        'group-filter',
+        'No grouping',
+        [
+          { value: 'file', label: 'File' },
+          { value: 'category', label: 'Category' },
+          { value: 'severity', label: 'Severity' }
+        ],
+        vulnerabilityFilter.groupBy,
+        (value) => {
+          vulnerabilityFilter.groupBy = value;
+          renderActiveSection();
+        }
+      )
+    );
+
+    const searchGroup = el('div', 'filter-group');
+    const searchLabel = el('label', 'filter-label', 'Search');
+    const searchInput = el('input', 'input-control');
+    searchInput.type = 'search';
+    searchInput.id = 'finding-search';
+    searchInput.placeholder = 'ID, file, CWE, evidence, text';
+    searchLabel.htmlFor = searchInput.id;
+    searchInput.value = vulnerabilityFilter.search;
+    searchInput.addEventListener('input', () => {
+      vulnerabilityFilter.search = searchInput.value.trim().toLowerCase();
+      applyVulnerabilityFilters();
+    });
+    searchGroup.appendChild(searchLabel);
+    searchGroup.appendChild(searchInput);
+    filters.appendChild(searchGroup);
 
     toolbar.appendChild(filters);
     const visibleCount = el('p', 'toolbar-meta');
     toolbar.appendChild(visibleCount);
     section.appendChild(toolbar);
 
-    const table = createTable({
-      caption: 'Vulnerability findings',
-      columns: [
-        { label: 'ID' },
-        { label: 'Finding' },
-        { label: 'Severity' },
-        { label: 'CWE' },
-        { label: 'Location' },
-        { label: 'Status' }
-      ],
-      rows: findings.map((finding) => {
-        const row = [
-          el('span', 'mono', textOrDash(finding.id)),
-          stackedCell(textOrDash(finding.title), stringOrNull(finding.summary)),
-          severityBadge(finding.severity),
-          el('span', 'mono', textOrDash(finding.cwe)),
-          locationCell(finding.file, finding.line),
-          statusBadge(finding.status)
-        ];
-        return row;
-      })
-    });
+    const columns = [
+      { label: 'ID' },
+      { label: 'Finding' },
+      { label: 'Severity' },
+      { label: 'CWE' },
+      { label: 'Category' },
+      { label: 'Language' },
+      { label: 'Location' },
+      { label: 'Status' },
+      { label: 'Review' },
+      { label: 'Details' },
+      { label: 'Actions' }
+    ];
+    const table = createTable({ caption: 'Vulnerability findings', columns, rows: [] });
+    const findingRows = [];
+    const groupRows = [];
+    let currentGroupKey = null;
 
-    const bodyRows = Array.from(table.tbody.querySelectorAll('tr'));
-    bodyRows.forEach((row, index) => {
-      const finding = findings[index];
-      row.dataset.severity = typeof finding.severity === 'string' ? finding.severity : '';
-      row.dataset.cwe = typeof finding.cwe === 'string' ? finding.cwe : '';
-    });
+    const sorted = [...findings];
+    if (vulnerabilityFilter.groupBy !== 'none') {
+      const keyFor = (item) => groupKeyFor(item, vulnerabilityFilter.groupBy);
+      sorted.sort((left, right) => {
+        const key = keyFor(left).localeCompare(keyFor(right));
+        return key === 0 ? compareFindings(left.finding, right.finding) : key;
+      });
+    }
+
+    for (const item of sorted) {
+      const { finding, status, category, language } = item;
+      const groupKey = groupKeyFor(item, vulnerabilityFilter.groupBy);
+      if (vulnerabilityFilter.groupBy !== 'none' && groupKey !== currentGroupKey) {
+        const groupRow = el('tr', 'finding-group-row');
+        const groupCell = el('th', null, `${groupLabel(vulnerabilityFilter.groupBy)}: ${groupKey}`);
+        groupCell.colSpan = columns.length;
+        groupCell.scope = 'colgroup';
+        groupRow.appendChild(groupCell);
+        groupRow.dataset.group = groupKey;
+        table.tbody.appendChild(groupRow);
+        groupRows.push(groupRow);
+        currentGroupKey = groupKey;
+      }
+
+      const reviewed = findingReviewState(finding);
+      const row = el('tr', 'finding-row');
+      row.dataset.severity = stringOrNull(finding.severity) ?? '';
+      row.dataset.cwe = stringOrNull(finding.cwe) ?? '';
+      row.dataset.category = category;
+      row.dataset.language = language;
+      row.dataset.status = status;
+      row.dataset.reviewed = reviewed ? 'reviewed' : 'unreviewed';
+      row.dataset.group = groupKey;
+      row.dataset.search = findingSearchText(finding, item).toLowerCase();
+
+      const idCell = el('td');
+      idCell.appendChild(el('span', 'mono', textOrDash(finding.id)));
+      row.appendChild(idCell);
+
+      const findingCell = el('td');
+      findingCell.appendChild(
+        stackedCell(textOrDash(finding.title), stringOrNull(finding.summary))
+      );
+      row.appendChild(findingCell);
+
+      const severityCell = el('td');
+      severityCell.appendChild(severityBadge(finding.severity));
+      row.appendChild(severityCell);
+
+      const cweCell = el('td');
+      cweCell.appendChild(el('span', 'mono', textOrDash(finding.cwe)));
+      row.appendChild(cweCell);
+
+      const categoryCell = el('td', null, category);
+      row.appendChild(categoryCell);
+
+      const languageCell = el('td');
+      languageCell.appendChild(
+        el('span', 'text-muted', finding.languageSource === 'file-extension' ? language : 'unknown')
+      );
+      row.appendChild(languageCell);
+
+      const locationCellNode = el('td');
+      const file = stringOrNull(finding.file) ?? stringOrNull(finding.path);
+      if (file) {
+        const line = numberOrNull(finding.line);
+        const column = numberOrNull(finding.column);
+        locationCellNode.appendChild(
+          el(
+            'span',
+            'location',
+            line === null ? file : column === null ? `${file}:${line}` : `${file}:${line}:${column}`
+          )
+        );
+      } else {
+        locationCellNode.appendChild(el('span', 'location', '—'));
+      }
+      row.appendChild(locationCellNode);
+
+      const statusCell = el('td');
+      statusCell.appendChild(statusBadge(status));
+      row.appendChild(statusCell);
+
+      const reviewCell = el('td');
+      reviewCell.appendChild(
+        reviewed ? badge('Reviewed', 'success') : badge('Not reviewed', 'neutral')
+      );
+      const reviewButton = el(
+        'button',
+        'button button--small',
+        reviewed ? 'Clear review' : 'Mark reviewed'
+      );
+      reviewButton.type = 'button';
+      const findingId = stringOrNull(finding.id);
+      if (findingId) {
+        reviewButton.addEventListener('click', () => {
+          sendMessage({
+            type: 'setFindingReviewed',
+            findingId,
+            reviewed: !reviewed
+          });
+        });
+      } else {
+        reviewButton.disabled = true;
+      }
+      reviewCell.appendChild(reviewButton);
+      row.appendChild(reviewCell);
+
+      const detailsCell = el('td');
+      detailsCell.appendChild(findingDetailCell(finding));
+      row.appendChild(detailsCell);
+
+      const actionsCell = el('td');
+      const openButton = el('button', 'button button--small', 'Open source');
+      openButton.type = 'button';
+      openButton.addEventListener('click', () => openFindingLocation(finding));
+      const rescanButton = el('button', 'button button--small button--ghost', 'Rescan file');
+      rescanButton.type = 'button';
+      rescanButton.addEventListener('click', () => rescanFinding(finding));
+      actionsCell.appendChild(openButton);
+      actionsCell.appendChild(rescanButton);
+      row.appendChild(actionsCell);
+
+      table.tbody.appendChild(row);
+      findingRows.push(row);
+    }
 
     section.appendChild(
       card(
         'Findings',
-        'Sorted by severity. Filters apply only to the data already loaded.',
+        'Filters and search apply only to findings already returned by a scan. Review state is ' +
+          'stored locally by the extension host.',
         table.element
       )
     );
@@ -760,46 +1278,170 @@
     const noMatches = emptyState(
       '—',
       'No findings match these filters',
-      'Change the severity or CWE filter to show other findings.'
+      'Change the filters or search text to show other findings.'
     );
     noMatches.hidden = true;
     section.appendChild(noMatches);
 
+    function keepFilterValid(key, values) {
+      const entries = values
+        .map((value) => (typeof value === 'string' ? value : value.value))
+        .filter(Boolean);
+      if (vulnerabilityFilter[key] !== 'all' && !entries.includes(vulnerabilityFilter[key])) {
+        vulnerabilityFilter[key] = 'all';
+      }
+    }
+
     function applyVulnerabilityFilters() {
       let shown = 0;
-      bodyRows.forEach((row) => {
-        const severityMatch =
-          vulnerabilityFilter.severity === 'all' ||
-          row.dataset.severity === vulnerabilityFilter.severity;
-        const cweMatch =
-          vulnerabilityFilter.cwe === 'all' || row.dataset.cwe === vulnerabilityFilter.cwe;
-        const matches = severityMatch && cweMatch;
+      for (const row of findingRows) {
+        const matches =
+          (vulnerabilityFilter.severity === 'all' ||
+            row.dataset.severity === vulnerabilityFilter.severity) &&
+          (vulnerabilityFilter.cwe === 'all' || row.dataset.cwe === vulnerabilityFilter.cwe) &&
+          (vulnerabilityFilter.category === 'all' ||
+            row.dataset.category === vulnerabilityFilter.category) &&
+          (vulnerabilityFilter.language === 'all' ||
+            row.dataset.language === vulnerabilityFilter.language) &&
+          (vulnerabilityFilter.status === 'all' ||
+            row.dataset.status === vulnerabilityFilter.status) &&
+          (vulnerabilityFilter.reviewed === 'all' ||
+            row.dataset.reviewed === vulnerabilityFilter.reviewed) &&
+          (vulnerabilityFilter.search === '' ||
+            row.dataset.search.includes(vulnerabilityFilter.search));
         row.hidden = !matches;
         if (matches) {
           shown += 1;
         }
-      });
-
+      }
+      for (const row of groupRows) {
+        row.hidden = !findingRows.some(
+          (candidate) => candidate.dataset.group === row.dataset.group && !candidate.hidden
+        );
+      }
       visibleCount.textContent = `Showing ${formatNumber(shown)} of ${formatNumber(
         findings.length
       )} findings`;
       noMatches.hidden = shown !== 0;
-
-      for (const chip of filters.querySelectorAll('.filter-chip')) {
-        const active = chip.dataset.filterValue === vulnerabilityFilter.severity;
-        chip.classList.toggle('is-active', active);
-        chip.setAttribute('aria-pressed', active ? 'true' : 'false');
-      }
-      if (cwes.length > 0) {
-        const select = filters.querySelector('#cwe-filter');
-        if (select) {
-          select.value = vulnerabilityFilter.cwe;
-        }
-      }
     }
 
     applyVulnerabilityFilters();
     return section;
+  }
+
+  function selectFilterGroup(labelText, id, allLabel, values, selected, onChange) {
+    const group = el('div', 'filter-group');
+    const label = el('label', 'filter-label', labelText);
+    const select = el('select', 'select-control');
+    select.id = id;
+    label.htmlFor = id;
+    select.appendChild(option('all', allLabel));
+    for (const value of values) {
+      if (typeof value === 'string') {
+        select.appendChild(option(value, value));
+      } else if (value && typeof value.value === 'string') {
+        select.appendChild(option(value.value, value.label ?? value.value));
+      }
+    }
+    select.value = selected;
+    select.addEventListener('change', () => onChange(select.value));
+    group.appendChild(label);
+    group.appendChild(select);
+    return group;
+  }
+
+  function effectiveFindingStatus(finding, resolved) {
+    const lifecycle = feedbackStateForFinding(finding);
+    if (lifecycle === 'regressed') {
+      return 'regressed';
+    }
+    if (lifecycle === 'resolved' || resolved.has(String(finding.id ?? ''))) {
+      return 'resolved';
+    }
+    return stringOrNull(finding.status) ?? 'not-reported';
+  }
+
+  function groupKeyFor(item, mode) {
+    if (mode === 'file') {
+      return (
+        stringOrNull(item.finding.file) ??
+        stringOrNull(item.finding.path) ??
+        stringOrNull(item.finding.documentUri) ??
+        'Location not reported'
+      );
+    }
+    if (mode === 'category') {
+      return item.category;
+    }
+    if (mode === 'severity') {
+      return typeof item.finding.severity === 'string' ? item.finding.severity : 'unknown';
+    }
+    return '';
+  }
+
+  function groupLabel(mode) {
+    if (mode === 'file') {
+      return 'File';
+    }
+    if (mode === 'category') {
+      return 'Category';
+    }
+    return 'Severity';
+  }
+
+  function findingSearchText(finding, item) {
+    const uncertainty = Array.isArray(finding.uncertainty)
+      ? finding.uncertainty.filter((part) => typeof part === 'string').join(' ')
+      : '';
+    return [
+      finding.id,
+      finding.title,
+      finding.summary,
+      finding.cwe,
+      finding.ruleId,
+      item.category,
+      item.language,
+      finding.file,
+      finding.path,
+      finding.evidence,
+      finding.explanation,
+      finding.suggestedRemediation,
+      finding.confidence,
+      finding.detectionMethod,
+      uncertainty,
+      item.status
+    ]
+      .filter((part) => typeof part === 'string')
+      .join(' ');
+  }
+
+  function findingDetailCell(finding) {
+    const details = el('details', 'finding-details');
+    details.appendChild(el('summary', 'finding-details__summary', 'Evidence and fix'));
+    const body = el('div', 'finding-details__body');
+    body.appendChild(detailRow('Evidence', finding.evidence));
+    body.appendChild(detailRow('Explanation', finding.explanation ?? finding.summary));
+    body.appendChild(detailRow('Suggested fix', finding.suggestedRemediation));
+    body.appendChild(detailRow('Confidence', finding.confidence));
+    body.appendChild(detailRow('Basis', finding.confidenceBasis));
+    body.appendChild(detailRow('Scanner', finding.scanner ?? finding.detectionMethod));
+    if (Array.isArray(finding.uncertainty) && finding.uncertainty.length > 0) {
+      body.appendChild(
+        detailRow(
+          'Uncertainty',
+          finding.uncertainty.filter((part) => typeof part === 'string').join('; ')
+        )
+      );
+    }
+    details.appendChild(body);
+    return details;
+  }
+
+  function detailRow(labelText, value) {
+    const row = el('div', 'finding-details__row');
+    row.appendChild(el('span', 'finding-details__label', labelText));
+    row.appendChild(el('span', 'finding-details__value', textOrDash(value)));
+    return row;
   }
 
   function renderSaeSection() {
@@ -1689,6 +2331,19 @@
     return renderEvidenceRecords(interactions, 'No validated interaction evidence supplied.');
   }
 
+  function renderRecordFacts(record, emptyMessage) {
+    if (!isRecord(record)) {
+      return unavailableEvidence(emptyMessage);
+    }
+    const entries = Object.entries(record)
+      .filter(([, value]) => isDisplayValue(value))
+      .map(([key, value]) => [
+        humanize(key.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()),
+        value
+      ]);
+    return definitionList(entries, emptyMessage);
+  }
+
   function renderRepairSection() {
     const section = sectionContainer('automatedRepair');
     const actions = actionGrid('automatedRepair');
@@ -1732,9 +2387,15 @@
         definitionList(
           [
             ['Finding', repair.findingId],
+            ['CWE', repair.cwe],
             ['Base snapshot', repair.baseSnapshotId],
+            ['Applied snapshot', repair.appliedSnapshotId],
             ['Generator', repair.generator],
-            ['Status', repair.status]
+            ['Status', repair.status],
+            ['Workflow state', repair.state],
+            ['Verification verdict', repair.verification?.verdict ?? repair.verificationStatus],
+            ['Verification classification', repair.verification?.classification],
+            ['Verified at', repair.verifiedAt ? formatDateTime(repair.verifiedAt) : null]
           ],
           'No repair metadata was provided.'
         )
@@ -1764,6 +2425,55 @@
       if (Array.isArray(repair.riskNotes) && repair.riskNotes.length > 0) {
         body.appendChild(el('h4', 'subheading', 'Risk notes'));
         body.appendChild(renderStringList(repair.riskNotes, 'policy-list'));
+      }
+
+      const workflowSteps = arrayOfRecords(repair.workflowSteps);
+      if (workflowSteps.length > 0) {
+        body.appendChild(el('h4', 'subheading', 'Workflow trace'));
+        body.appendChild(
+          renderEvidenceRecords(
+            workflowSteps.map((step) => ({
+              title: step.name ?? step.stage ?? step.step,
+              status: step.status,
+              detail: step.detail ?? step.message
+            })),
+            'No workflow steps were supplied.'
+          )
+        );
+      }
+
+      for (const [title, value, emptyMessage] of [
+        [
+          'Security verification',
+          repair.securityVerification,
+          'No security verification evidence was supplied.'
+        ],
+        [
+          'Functional verification',
+          repair.functionalVerification,
+          'No functional verification evidence was supplied.'
+        ],
+        [
+          'Before-and-after comparison',
+          repair.beforeAfterComparison,
+          'No before-and-after comparison was supplied.'
+        ],
+        [
+          'Latest independent verification',
+          repair.verification,
+          'No separate verification run was recorded.'
+        ]
+      ]) {
+        body.appendChild(el('h4', 'subheading', title));
+        body.appendChild(renderRecordFacts(value, emptyMessage));
+        if (isRecord(value) && Array.isArray(value.checks)) {
+          body.appendChild(
+            renderEvidenceRecords(value.checks, 'No verification checks were supplied.')
+          );
+        }
+        if (isRecord(value) && Array.isArray(value.limitations) && value.limitations.length > 0) {
+          body.appendChild(el('p', 'text-muted', `Limitations: ${value.limitations.join('; ')}`));
+        }
       }
 
       const candidates = Array.isArray(repair.candidates)
@@ -1837,7 +2547,8 @@
         el(
           'p',
           'setting-note',
-          'No patch has been applied. Patch review and approval are handled outside this dashboard.'
+          'The dashboard never applies a patch itself. A patch is written to the source file only ' +
+            'after explicit approval in VS Code; verification evidence is recorded separately.'
         )
       );
 
@@ -2786,14 +3497,6 @@
     return container;
   }
 
-  function locationCell(file, line) {
-    if (typeof file !== 'string' || file.length === 0) {
-      return el('span', 'location', '—');
-    }
-    const location = typeof line === 'number' && Number.isFinite(line) ? `${file}:${line}` : file;
-    return el('span', 'location', location);
-  }
-
   function describeFeaturePair(item) {
     const features = Array.isArray(item.features)
       ? item.features
@@ -2939,6 +3642,19 @@
 
   function arrayOfRecords(value) {
     return Array.isArray(value) ? value.filter((entry) => isRecord(entry)) : [];
+  }
+
+  function countMap(value) {
+    const result = {};
+    if (!isRecord(value)) {
+      return result;
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      if (typeof key === 'string' && key.length > 0 && typeof entry === 'number' && Number.isFinite(entry)) {
+        result[key] = entry;
+      }
+    }
+    return result;
   }
 
   function numberOrNull(value) {

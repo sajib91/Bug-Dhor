@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.resolve(__dirname, '../../media/dashboard.js'), 'utf8');
+const cssSource = fs.readFileSync(path.resolve(__dirname, '../../media/dashboard.css'), 'utf8');
 
 test('dashboard client avoids unsafe rendering and network APIs', () => {
   assert.ok(!/\.innerHTML\s*=/.test(source), 'dynamic innerHTML is forbidden');
@@ -50,7 +51,7 @@ test('dashboard client labels demo and unavailability states honestly', () => {
   assert.match(source, /not real-world causal claims/i);
   assert.match(source, /Not run is not a pass/i);
   assert.match(source, /No activation values are inferred/i);
-  assert.match(source, /No patch has been applied/i);
+  assert.match(source, /The dashboard never applies a patch itself/i);
   assert.match(source, /not probabilities/i);
 });
 
@@ -92,8 +93,8 @@ test('dashboard client renders secure recommendations and feedback lifecycle sta
   assert.ok(source.includes('function renderRecommendationCards'));
   assert.ok(source.includes('function renderFeedbackLifecycle'));
   assert.ok(source.includes('function normalizeFeedback'));
-  assert.ok(source.includes("recommendations: arrayOfRecords(source.recommendations)"));
-  assert.ok(source.includes("feedback: normalizeFeedback(source.feedback)"));
+  assert.ok(source.includes('recommendations: arrayOfRecords(source.recommendations)'));
+  assert.ok(source.includes('feedback: normalizeFeedback(source.feedback)'));
   assert.ok(source.includes('A recommendation never guarantees'));
   assert.ok(source.includes('perfect security and is never applied without explicit approval.'));
 });
@@ -102,4 +103,86 @@ test('dashboard client validates commands before posting them', () => {
   assert.ok(source.includes('safeCommandPattern'));
   assert.ok(source.includes('/^bugdhor\\.[A-Za-z][A-Za-z0-9]*$/'));
   assert.ok(source.includes('command: action.command'));
+});
+
+test('dashboard client renders real findings as clickable, status-aware insects', () => {
+  for (const marker of [
+    'function renderInsectFindingsCard',
+    'function createInsectGlyph',
+    'function resolvedFindingIds',
+    'function openFindingLocation',
+    "type: 'openLocation'",
+    'Finding insects',
+    'No finding insects',
+    'The dashboard never generates insects without backend findings.',
+    'Resolved findings stop moving.',
+    'vulnerabilities: arrayOfRecords(source.vulnerabilities)',
+    'finding.startLine'
+  ]) {
+    assert.ok(source.includes(marker), `${marker} must be present`);
+  }
+  assert.ok(!/Math\.random/.test(source), 'insects must not be randomized');
+});
+
+test('dashboard client provides finding search, filters, grouping, review, and rescan actions', () => {
+  for (const marker of [
+    "type: 'setFindingReviewed'",
+    "type: 'rescanFinding'",
+    'finding-search',
+    'category-filter',
+    'language-filter',
+    'status-filter',
+    'review-filter',
+    'group-filter',
+    'finding-group-row',
+    'finding-details',
+    'Evidence and fix',
+    'Suggested fix',
+    'Mark reviewed',
+    'Rescan file',
+    'normalizeFindingReviews'
+  ]) {
+    assert.ok(source.includes(marker), `${marker} must be present`);
+  }
+  assert.ok(
+    source.includes('Count categories from the displayed findings only'),
+    'category counts must not be double counted'
+  );
+  assert.ok(
+    !source.includes('{ ...state.summary.categories }'),
+    'summary categories must not seed counts'
+  );
+});
+
+test('insect styling is theme-aware, responsive, and animation-safe', () => {
+  for (const marker of [
+    '.insect-card',
+    '.insect-glyph',
+    '.insect-count',
+    '--vscode-foreground',
+    '--vscode-editor-background',
+    '@media (max-width: 640px)',
+    '.insect-grid',
+    '@media (prefers-reduced-motion: no-preference)',
+    '@media (forced-colors: active)',
+    'CanvasText'
+  ]) {
+    assert.ok(cssSource.includes(marker), `${marker} must be present in the stylesheet`);
+  }
+
+  const motionMatch = cssSource.match(
+    /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/
+  );
+  assert.ok(motionMatch, 'animations must be nested in a no-preference media query');
+  assert.match(motionMatch[1], /animation: bugdhor-crawl/);
+  assert.match(motionMatch[1], /animation: bugdhor-leg-wiggle/);
+  assert.ok(
+    !/animation:/.test(cssSource.replace(motionMatch[0], '')),
+    'animations must not run outside the reduced-motion guard'
+  );
+
+  const forcedColors = cssSource.slice(cssSource.indexOf('@media (forced-colors: active)'));
+  assert.match(forcedColors, /\.insect-card/);
+  assert.match(forcedColors, /\.insect-count/);
+  assert.match(forcedColors, /CanvasText/);
 });

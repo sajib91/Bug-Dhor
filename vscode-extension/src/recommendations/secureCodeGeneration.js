@@ -339,5 +339,6 @@ module.exports = {
   extractCandidates,
   toFindingContext,
   toProviderMetadata,
-  buildSecurityEvidence
+  buildSecurityEvidence,
+  selectFinding
 };

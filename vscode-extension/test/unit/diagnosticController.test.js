@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 
 const {
   DiagnosticController,
-  DIAGNOSTIC_COLLECTION_NAME
+  DIAGNOSTIC_COLLECTION_NAME,
+  buildDiagnosticMessage
 } = require('../../src/diagnostics/diagnosticController');
 const { createFinding, createRawFinding, createFakeVscode } = require('./diagnosticsFake');
 
@@ -14,9 +15,15 @@ function createHarness(options = {}) {
   const controller = new DiagnosticController({
     vscode: fake.vscode,
     logger: fake.logger,
-    isWithinWorkspace: options.isWithinWorkspace
+    isWithinWorkspace: options.isWithinWorkspace,
+    decorations: options.decorations,
+    onFindingsPublished: options.onFindingsPublished
   });
   return { ...fake, controller };
+}
+
+function relatedMessage(diagnostic, prefix) {
+  return diagnostic.relatedInformation.find((item) => item.message.startsWith(prefix))?.message;
 }
 
 test('publishes backend findings as diagnostics with CWE, evidence, and sources', () => {
@@ -35,7 +42,10 @@ test('publishes backend findings as diagnostics with CWE, evidence, and sources'
 
   const uri = 'file:///workspace/src/app.js';
   const [diagnostic] = collection.entries.get(uri);
-  assert.equal(diagnostic.message, 'User input reaches a SQL query.');
+  assert.equal(
+    diagnostic.message,
+    'Bug Dhor: User input reaches a SQL query. · High severity · CWE-89'
+  );
   assert.equal(diagnostic.severity, 0, 'high severity must map to Error');
   assert.equal(diagnostic.source, 'Bug Dhor');
   assert.equal(diagnostic.code.value, 'CWE-89');
@@ -43,11 +53,19 @@ test('publishes backend findings as diagnostics with CWE, evidence, and sources'
   assert.deepEqual(diagnostic.range.start, { line: 4, character: 2 });
   assert.deepEqual(diagnostic.range.end, { line: 4, character: 42 });
 
-  assert.equal(diagnostic.relatedInformation.length, 2);
-  assert.match(diagnostic.relatedInformation[0].message, /^Evidence: db\.query/);
-  assert.match(diagnostic.relatedInformation[1].message, /^Source: CWE-89/);
+  assert.equal(diagnostic.relatedInformation.length, 7);
+  assert.match(relatedMessage(diagnostic, 'Severity:'), /^Severity: High \(backend value: high\)$/);
+  assert.equal(relatedMessage(diagnostic, 'CWE:'), 'CWE: CWE-89');
+  assert.match(relatedMessage(diagnostic, 'Scanner:'), /^Scanner: not provided by the backend/);
+  assert.match(relatedMessage(diagnostic, 'Explanation:'), /^Explanation: The request parameter/);
+  assert.match(relatedMessage(diagnostic, 'Evidence:'), /^Evidence: db\.query/);
   assert.equal(
-    diagnostic.relatedInformation[1].message,
+    relatedMessage(diagnostic, 'Suggested fix:'),
+    'Suggested fix: Use a parameterized query.'
+  );
+  assert.equal(buildDiagnosticMessage(createFinding()), diagnostic.message);
+  assert.equal(
+    relatedMessage(diagnostic, 'Source:'),
     'Source: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)'
   );
 
@@ -92,14 +110,19 @@ test('source references outside the workspace are not clickable', () => {
   });
 
   const [diagnostic] = harness.collections[0].entries.get('file:///workspace/src/app.js');
-  assert.equal(diagnostic.relatedInformation.length, 3);
+  assert.equal(diagnostic.relatedInformation.length, 8);
 
-  const outside = diagnostic.relatedInformation[1];
+  const sources = diagnostic.relatedInformation.filter((item) =>
+    item.message.startsWith('Source:')
+  );
+  const outside = sources.find((item) => item.message.includes('Local sink'));
+  assert.ok(outside);
   assert.equal(outside.location.uri.toString(), 'file:///workspace/src/app.js');
   assert.deepEqual(outside.location.range.start, { line: 4, character: 2 });
   assert.equal(outside.message, 'Source: Local sink (file:///tmp/outside.js)');
 
-  const inside = diagnostic.relatedInformation[2];
+  const inside = sources.find((item) => item.message.includes('Helper'));
+  assert.ok(inside);
   assert.equal(inside.location.uri.toString(), 'file:///workspace/src/helper.js');
   assert.deepEqual(inside.location.range.start, { line: 2, character: 1 });
   assert.equal(inside.message, 'Source: Helper');
@@ -286,4 +309,134 @@ test('a finding can be located by identifier for Quick Fix diagnostics', () => {
   assert.equal(harness.controller.getDiagnosticForFinding({ ...stored, id: 'unknown' }), undefined);
 
   harness.controller.dispose();
+});
+
+test('diagnostics expose all backend detail fields without inventing values', () => {
+  const harness = createHarness();
+  harness.controller.publishScanResult({
+    findings: [
+      createRawFinding({
+        detectionMethod: 'ast-taint-analysis',
+        suggestedRemediation: 'Bind the request id as a query parameter.',
+        confidence: 'inference',
+        confidenceBasis: 'taint path from request to query sink',
+        uncertainty: ['The sanitizer may neutralize the parameter.'],
+        verificationStatus: 'potential'
+      })
+    ]
+  });
+
+  const [diagnostic] = harness.collections[0].entries.get('file:///workspace/src/app.js');
+  assert.match(diagnostic.message, /scanner: ast-taint-analysis$/);
+  assert.equal(relatedMessage(diagnostic, 'CWE:'), 'CWE: CWE-89');
+  assert.equal(
+    relatedMessage(diagnostic, 'Scanner:'),
+    'Scanner: ast-taint-analysis · Rule: js/sql-injection'
+  );
+  assert.equal(
+    relatedMessage(diagnostic, 'Explanation:'),
+    'Explanation: The request parameter is concatenated into a SQL statement.'
+  );
+  assert.match(relatedMessage(diagnostic, 'Evidence:'), /^Evidence: db\.query/);
+  assert.equal(
+    relatedMessage(diagnostic, 'Suggested fix:'),
+    'Suggested fix: Bind the request id as a query parameter.'
+  );
+  assert.equal(
+    relatedMessage(diagnostic, 'Confidence:'),
+    'Confidence: inference · Basis: taint path from request to query sink'
+  );
+  assert.equal(
+    relatedMessage(diagnostic, 'Uncertainty:'),
+    'Uncertainty: The sanitizer may neutralize the parameter.'
+  );
+  assert.equal(
+    relatedMessage(diagnostic, 'Verification:'),
+    'Verification: potential (from backend evidence)'
+  );
+
+  harness.controller.dispose();
+});
+
+test('duplicate backend findings at one exact location are suppressed', () => {
+  const events = [];
+  const harness = createHarness({
+    onFindingsPublished: (event) => events.push(event)
+  });
+  const result = harness.controller.publishScanResult({
+    findings: [createRawFinding(), createRawFinding({ id: 'finding-2' })]
+  });
+
+  assert.equal(result.published, 1);
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].code, 'E_DUPLICATE_LOCATION');
+  assert.deepEqual(result.files, ['file:///workspace/src/app.js']);
+  assert.equal(harness.collections[0].entries.get('file:///workspace/src/app.js').length, 1);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].findings.length, 1);
+
+  harness.controller.dispose();
+});
+
+test('publication forwards normalized findings and response to observers', () => {
+  const events = [];
+  const harness = createHarness({ onFindingsPublished: (event) => events.push(event) });
+  const result = {
+    findings: [createRawFinding()],
+    scope: { uris: ['file:///workspace/src/app.js'] },
+    analysisAvailable: true
+  };
+
+  harness.controller.publishScanResult(result, { scopeUris: ['file:///workspace/src/app.js'] });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].response, result);
+  assert.deepEqual(events[0].scopeUris, ['file:///workspace/src/app.js']);
+  assert.equal(events[0].findings.length, 1);
+  assert.equal(events[0].findings[0].id, 'finding-1');
+  assert.equal(events[0].findings[0].documentUri, 'file:///workspace/src/app.js');
+  assert.equal('uri' in events[0].findings[0], false);
+
+  harness.controller.dispose();
+});
+
+test('decorations are set, cleared, and disposed with the diagnostic lifecycle', () => {
+  const calls = {
+    sets: [],
+    clearedUris: [],
+    clearAll: 0,
+    dispose: 0
+  };
+  const decorations = {
+    setFindings(...args) {
+      calls.sets.push(args);
+    },
+    clearUri(uri) {
+      calls.clearedUris.push(uri);
+    },
+    clearAll() {
+      calls.clearAll += 1;
+    },
+    dispose() {
+      calls.dispose += 1;
+    }
+  };
+  const harness = createHarness({ decorations });
+  const uri = 'file:///workspace/src/app.js';
+
+  harness.controller.publishScanResult({ findings: [createRawFinding()] });
+  assert.equal(calls.sets.length, 1);
+  assert.equal(calls.sets[0][0].toString(), uri);
+  assert.equal(calls.sets[0][1].length, 1);
+
+  harness.controller.clearUri(uri);
+  assert.equal(calls.clearedUris.length, 1);
+  assert.equal(calls.clearedUris[0].toString(), uri);
+
+  harness.controller.publishScanResult({ findings: [createRawFinding()] });
+  harness.controller.clearAll();
+  assert.equal(calls.clearAll, 1);
+
+  harness.controller.dispose();
+  assert.equal(calls.dispose, 1);
 });

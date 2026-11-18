@@ -10,6 +10,7 @@ import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from bugdhor.core.errors import (
     NotFoundAppError,
@@ -310,6 +311,89 @@ def enumerate_workspace_sources(root: Path, settings: Settings) -> list[SourceFi
                     language_id=language_for_path(path),
                 )
             )
+    return files
+
+
+def inspect_explicit_workspace_sources(
+    roots: list[Path],
+    values: list[str],
+    settings: Settings,
+    token: Any | None = None,
+) -> list[SourceFile]:
+    """Validate explicit absolute paths and return bounded source metadata.
+
+    The caller supplies roots that have already passed ``ensure_allowed_root``.
+    Every explicit path must be an absolute, non-symlink source file contained
+    in at least one root. Cancellation is checked while iterating so a large
+    explicit list can be stopped promptly.
+    """
+    files: list[SourceFile] = []
+    seen: set[str] = set()
+    if len(values) > settings.max_workspace_files:
+        raise ResourceLimitAppError(
+            "The explicit file list exceeds the configured file scan limit.",
+            code="E_WORKSPACE_TOO_LARGE",
+        )
+
+    saw_not_found = False
+    for value in values:
+        if token is not None and hasattr(token, "raise_if_cancelled"):
+            token.raise_if_cancelled()
+        if not isinstance(value, str) or not value.strip():
+            raise ValidationAppError("Explicit file paths must be non-empty strings.")
+        candidate = Path(value)
+        if not candidate.is_absolute():
+            raise ValidationAppError("Explicit file paths must be absolute.")
+        if candidate.is_symlink():
+            raise SecurityAppError(
+                "Explicit file paths must not be symbolic links.",
+                code="E_PATH_OUTSIDE_WORKSPACE",
+            )
+
+        resolved: Path | None = None
+        for root in roots:
+            try:
+                resolved = resolve_file(root, candidate, settings)
+                break
+            except NotFoundAppError:
+                saw_not_found = True
+                continue
+            except SecurityAppError:
+                continue
+
+        if resolved is None:
+            if saw_not_found and len(roots) == 1:
+                raise NotFoundAppError("An explicitly requested file does not exist.")
+            raise SecurityAppError(
+                "An explicit file path is outside the workspace roots.",
+                code="E_PATH_OUTSIDE_WORKSPACE",
+            )
+        if not is_source_file(resolved):
+            raise UnsupportedMediaAppError("Only supported source files can be scanned.")
+        size = resolved.stat().st_size
+        if size > settings.max_file_bytes:
+            raise ResourceLimitAppError(
+                f"The file exceeds the {settings.max_file_bytes}-byte analysis limit.",
+                code="E_FILE_TOO_LARGE",
+            )
+
+        uri = resolved.as_uri()
+        if uri in seen:
+            continue
+        seen.add(uri)
+        if len(files) >= settings.max_workspace_files:
+            raise ResourceLimitAppError(
+                "The explicit file list exceeds the configured file scan limit.",
+                code="E_WORKSPACE_TOO_LARGE",
+            )
+        files.append(
+            SourceFile(
+                path=resolved,
+                uri=uri,
+                size=size,
+                language_id=language_for_path(resolved),
+            )
+        )
     return files
 
 

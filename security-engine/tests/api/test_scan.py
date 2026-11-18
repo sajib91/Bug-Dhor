@@ -331,3 +331,108 @@ def test_scan_workspace_enforces_the_file_count_limit(api) -> None:
 
     assert response.status_code == 413
     assert response.json()["code"] == "E_WORKSPACE_TOO_LARGE"
+
+
+def test_scan_workspace_scans_only_explicit_file_paths(api) -> None:
+    (api.root / "second.py").write_text("second = True\n", encoding="utf-8")
+    (api.root / "notes.md").write_text("# ignored\n", encoding="utf-8")
+
+    response = api.client.post(
+        "/api/v1/scan/workspace",
+        json={
+            "workspaceFolders": [{"name": "workspace", "path": str(api.root)}],
+            "filePaths": [str(api.root / "app.py")],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["filesScanned"] == 1
+    assert body["scope"]["uris"] == [(api.root / "app.py").as_uri()]
+    assert body["stages"][0]["data"] == {"fileCount": 1, "rootCount": 1}
+
+
+def test_scan_workspace_deduplicates_explicit_paths_and_accepts_snake_case(api) -> None:
+    response = api.client.post(
+        "/api/v1/scan/workspace",
+        json={
+            "workspaceFolders": [{"name": "workspace", "path": str(api.root)}],
+            "file_paths": [str(api.root / "app.py"), str(api.root / "app.py")],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["filesScanned"] == 1
+    assert body["scope"]["uris"] == [(api.root / "app.py").as_uri()]
+
+
+def test_scan_workspace_rejects_relative_explicit_paths(api) -> None:
+    response = api.client.post(
+        "/api/v1/scan/workspace",
+        json={
+            "workspaceFolders": [{"name": "workspace", "path": str(api.root)}],
+            "filePaths": ["app.py"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "E_VALIDATION"
+
+
+def test_scan_workspace_rejects_explicit_paths_outside_the_workspace(api, tmp_path: Path) -> None:
+    outside = tmp_path / "outside.py"
+    outside.write_text("outside = True\n", encoding="utf-8")
+
+    response = api.client.post(
+        "/api/v1/scan/workspace",
+        json={
+            "workspaceFolders": [{"name": "workspace", "path": str(api.root)}],
+            "filePaths": [str(outside)],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "E_PATH_OUTSIDE_WORKSPACE"
+
+
+def test_scan_workspace_rejects_explicit_symlinks(api, tmp_path: Path) -> None:
+    outside = tmp_path / "outside.py"
+    outside.write_text("outside = True\n", encoding="utf-8")
+    link = api.root / "link.py"
+    try:
+        link.symlink_to(outside)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform dependent
+        pytest.skip("symlinks are unavailable on this platform")
+
+    response = api.client.post(
+        "/api/v1/scan/workspace",
+        json={
+            "workspaceFolders": [{"name": "workspace", "path": str(api.root)}],
+            "filePaths": [str(link)],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "E_PATH_OUTSIDE_WORKSPACE"
+
+
+def test_scan_workspace_enforces_the_explicit_file_count_limit(api) -> None:
+    (api.root / "second.py").write_text("second = True\n", encoding="utf-8")
+    settings = Settings(
+        _env_file=None,
+        workspace_roots=[api.root],
+        log_level="CRITICAL",
+        max_workspace_files=1,
+    )
+    with TestClient(create_app(settings), raise_server_exceptions=False) as client:
+        response = client.post(
+            "/api/v1/scan/workspace",
+            json={
+                "workspaceFolders": [{"name": "workspace", "path": str(api.root)}],
+                "filePaths": [str(api.root / "app.py"), str(api.root / "second.py")],
+            },
+        )
+
+    assert response.status_code == 413
+    assert response.json()["code"] == "E_WORKSPACE_TOO_LARGE"

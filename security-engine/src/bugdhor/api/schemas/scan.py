@@ -53,6 +53,17 @@ class WorkspaceFolder(APIModel):
 
 class ScanWorkspaceRequest(APIModel):
     workspace_folders: list[WorkspaceFolder] = Field(min_length=1, max_length=50)
+    file_paths: list[str] | None = Field(
+        default=None,
+        max_length=50_000,
+        validation_alias=AliasChoices("filePaths", "file_paths"),
+        serialization_alias="filePaths",
+        description=(
+            "Optional explicit absolute source paths. When present, the engine scans only these "
+            "already-discovered files instead of enumerating every workspace source. Every path "
+            "is still resolved and containment-checked against a workspace root."
+        ),
+    )
 
 
 class ScanResponse(OperationResponse):

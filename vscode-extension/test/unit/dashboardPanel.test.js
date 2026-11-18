@@ -260,6 +260,7 @@ function createHarness(options = {}) {
     extensionUri: createUri('/extension'),
     logger,
     feedback: options.feedback,
+    memento: options.memento,
     getState(dataMode) {
       stateCalls.push(dataMode);
       return {
@@ -301,6 +302,36 @@ function repairRequest() {
     workspaceFolder: '/workspace',
     languageId: 'javascript',
     finding: { findingId: 'finding-1' }
+  };
+}
+
+function verificationResponse(overrides = {}) {
+  return {
+    result: {
+      analysisAvailable: true,
+      repairId: 'repair-1',
+      verdict: 'passed',
+      classification: 'verified_security_improvement',
+      profile: 'static_only',
+      checks: [
+        {
+          checkId: 'check-01',
+          kind: 'security',
+          name: 'Static security comparison',
+          status: 'passed'
+        }
+      ],
+      sandboxBackend: 'none',
+      limitations: ['No isolated execution backend was available.'],
+      report: {
+        priorWorkflowEvidence: {
+          repairId: 'repair-1',
+          state: 'FULLY_VERIFIED',
+          beforeAfterComparison: { security: { before: 1, after: 0 } }
+        }
+      },
+      ...overrides
+    }
   };
 }
 
@@ -371,10 +402,60 @@ test('repair approval applies a single-file patch and keeps verification separat
   assert.equal(harness.appliedEdits.length, 1);
   assert.equal(harness.document.getText(), 'const value = 2;\n');
   assert.equal(harness.controller.repairRecords.get('repair-1').status, 'accepted');
-  assert.equal(
-    harness.controller.repairRecords.get('repair-1').verificationStatus,
-    'not-run'
+  assert.equal(harness.controller.repairRecords.get('repair-1').verificationStatus, 'not-run');
+});
+
+test('repair approval starts verification with the stored repair identity', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  const panel = harness.controller.open();
+  await harness.controller.recordRepairResult(repairResponse(), repairRequest());
+
+  await harness.controller.acceptRepair({ repairId: 'repair-1', candidateId: 'selected' });
+
+  const verificationCall = harness.executedCommands.find(
+    (call) => call.command === COMMANDS.verifyRepair
   );
+  assert.ok(verificationCall);
+  assert.equal(verificationCall.args[0].repairId, 'repair-1');
+  assert.equal(verificationCall.args[0].patch, REPAIR_PATCH);
+  assert.equal(verificationCall.args[0].findingId, 'finding-1');
+  assert.ok(!('cwe' in verificationCall.args[0]));
+
+  await harness.controller.recordVerificationResult(verificationResponse(), {
+    repairId: 'repair-1'
+  });
+  const state = panel.postedMessages.at(-1).state;
+  const [repair] = state.repairs;
+  assert.equal(repair.verificationStatus, 'passed');
+  assert.equal(repair.verification.verdict, 'passed');
+  assert.equal(repair.verification.report.priorWorkflowEvidence.state, 'FULLY_VERIFIED');
+  assert.ok(repair.verifiedAt);
+});
+
+test('repair proposals surface workflow, functional, and before/after evidence', async () => {
+  const harness = createHarness({ documentText: 'const value = 1;\n' });
+  const panel = harness.controller.open();
+  const response = repairResponse();
+  response.result.workflow = {
+    state: 'FULLY_VERIFIED',
+    steps: [{ name: 'Run independent security checks', status: 'completed', detail: 'passed' }],
+    security: { classification: 'verified_security_improvement', verdict: 'passed' },
+    functional: { status: 'passed', executed: true },
+    comparison: { security: { before: 1, after: 0 }, regressions: [] }
+  };
+
+  await harness.controller.recordRepairResult(response, repairRequest());
+
+  const state = panel.postedMessages.at(-1).state;
+  const [repair] = state.repairs;
+  assert.equal(repair.state, 'FULLY_VERIFIED');
+  assert.equal(repair.securityVerification.verdict, 'passed');
+  assert.equal(repair.functionalVerification.status, 'passed');
+  assert.deepEqual(repair.beforeAfterComparison.regressions, []);
+  assert.equal(repair.workflowSteps[0].name, 'Run independent security checks');
 });
 
 test('repair acceptance rejects stale document content', async () => {
@@ -394,10 +475,7 @@ test('recommendation result records original and repaired code without applying 
   const harness = createHarness();
   const panel = harness.controller.open();
 
-  await harness.controller.recordRecommendationResult(
-    recommendationResponse(),
-    repairRequest()
-  );
+  await harness.controller.recordRecommendationResult(recommendationResponse(), repairRequest());
 
   const state = panel.postedMessages.at(-1).state;
   assert.equal(state.recommendations.length, 1);
@@ -429,10 +507,7 @@ test('an approved recommendation application records applied-patch feedback only
     }
   };
   const harness = createHarness({ approval: 'Apply Patch', feedback });
-  await harness.controller.recordRecommendationResult(
-    recommendationResponse(),
-    repairRequest()
-  );
+  await harness.controller.recordRecommendationResult(recommendationResponse(), repairRequest());
 
   await harness.controller.acceptRepair({
     repairId: 'recommendation-1',
@@ -458,10 +533,7 @@ test('a stale recommendation snapshot cannot record applied-patch feedback', asy
       }
     }
   });
-  await harness.controller.recordRecommendationResult(
-    recommendationResponse(),
-    repairRequest()
-  );
+  await harness.controller.recordRecommendationResult(recommendationResponse(), repairRequest());
   harness.setDocumentText('const value = 9;\n');
 
   await harness.controller.acceptRepair({ repairId: 'recommendation-1' });
@@ -522,11 +594,21 @@ test('ready and refresh messages post the current state', async () => {
   assert.deepEqual(panel.postedMessages, [
     {
       type: 'state',
-      state: { dataMode: 'empty', generatedAt: '2026-11-11T12:00:00.000Z', request: 1 }
+      state: {
+        dataMode: 'empty',
+        generatedAt: '2026-11-11T12:00:00.000Z',
+        request: 1,
+        findingReviews: {}
+      }
     },
     {
       type: 'state',
-      state: { dataMode: 'empty', generatedAt: '2026-11-11T12:00:00.000Z', request: 2 }
+      state: {
+        dataMode: 'empty',
+        generatedAt: '2026-11-11T12:00:00.000Z',
+        request: 2,
+        findingReviews: {}
+      }
     }
   ]);
 
@@ -549,7 +631,8 @@ test('live backend results replace unavailable dashboard data without inventing 
       generatedAt: '2026-11-11T12:00:00.000Z',
       request: 2,
       vulnerabilities: [{ findingId: 'finding-1' }],
-      explanations: [{ findingId: 'finding-1', analysisAvailable: true }]
+      explanations: [{ findingId: 'finding-1', analysisAvailable: true }],
+      findingReviews: {}
     }
   });
 
@@ -571,6 +654,63 @@ test('demo mode toggling validates input and rebuilds state', async () => {
   await panel.send({ type: 'setDemoMode', enabled: 'yes' });
   assert.deepEqual(harness.stateCalls, ['empty', 'demo', 'empty']);
   assert.ok(harness.logger.entries.some((entry) => entry.level === 'warn'));
+
+  harness.controller.dispose();
+});
+
+test('finding review decisions are validated, persisted, and published', async () => {
+  const stored = new Map();
+  const memento = {
+    get(key, fallback) {
+      return stored.has(key) ? stored.get(key) : fallback;
+    },
+    async update(key, value) {
+      stored.set(key, value);
+    }
+  };
+  const harness = createHarness({ memento });
+  const panel = harness.controller.open();
+
+  await panel.send({ type: 'setFindingReviewed', findingId: 'finding-1', reviewed: true });
+  assert.deepEqual(stored.get('bugdhor.dashboard.findingReviews'), { 'finding-1': true });
+  assert.equal(panel.postedMessages.at(-1).state.findingReviews['finding-1'], true);
+
+  const restored = createHarness({ memento });
+  const restoredPanel = restored.controller.open();
+  await restoredPanel.send({ type: 'ready' });
+  assert.equal(restoredPanel.postedMessages.at(-1).state.findingReviews['finding-1'], true);
+
+  await restoredPanel.send({ type: 'setFindingReviewed', findingId: 'finding-1', reviewed: false });
+  assert.deepEqual(stored.get('bugdhor.dashboard.findingReviews'), { 'finding-1': false });
+
+  await restoredPanel.send({ type: 'setFindingReviewed', findingId: 42, reviewed: true });
+  assert.ok(restored.logger.entries.some((entry) => entry.level === 'warn'));
+
+  harness.controller.dispose();
+  restored.controller.dispose();
+});
+
+test('finding rescan opens the validated source location before scanning', async () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+
+  await panel.send({
+    type: 'rescanFinding',
+    path: '/workspace/src/app.js',
+    line: 4,
+    column: 2
+  });
+
+  assert.deepEqual(harness.executedCommands, [{ command: COMMANDS.scanCurrentFile, args: [] }]);
+  assert.equal(harness.shownDocuments.length, 1);
+  assert.equal(harness.shownDocuments[0].options.selection.start.line, 4);
+  assert.equal(harness.shownDocuments[0].options.selection.start.character, 2);
+
+  await panel.send({ type: 'rescanFinding', path: '/outside/secret.js', line: 0 });
+  assert.deepEqual(harness.executedCommands, [{ command: COMMANDS.scanCurrentFile, args: [] }]);
+  assert.ok(
+    panel.postedMessages.some((message) => message.type === 'notice' && message.level === 'warning')
+  );
 
   harness.controller.dispose();
 });

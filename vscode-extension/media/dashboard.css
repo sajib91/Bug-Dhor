@@ -1146,6 +1146,224 @@ h1 {
   word-break: break-all;
 }
 
+/* Finding insects -------------------------------------------------------- */
+
+.insect-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insect-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.insect-count {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 5px 9px;
+  border: 1px solid var(--bugdhor-border);
+  border-radius: 999px;
+  background: var(--vscode-editorWidget-background, transparent);
+}
+
+.insect-count__value {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.insect-count__label {
+  color: var(--bugdhor-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.insect-count--info .insect-count__value {
+  color: var(--bugdhor-low);
+}
+
+.insect-count--success .insect-count__value {
+  color: var(--bugdhor-success);
+}
+
+.insect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.insect-card {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--bugdhor-border);
+  border-left-width: 3px;
+  border-radius: var(--bugdhor-radius);
+  color: var(--vscode-foreground);
+  background: var(--bugdhor-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.insect-card:hover {
+  border-color: var(--bugdhor-border-strong);
+  background: var(--vscode-list-hoverBackground, var(--bugdhor-surface));
+}
+
+.insect-card:focus-visible {
+  outline: 2px solid var(--bugdhor-focus);
+  outline-offset: 2px;
+}
+
+.insect-card--critical {
+  border-left-color: var(--bugdhor-critical);
+}
+
+.insect-card--high {
+  border-left-color: var(--bugdhor-high);
+}
+
+.insect-card--medium {
+  border-left-color: var(--bugdhor-medium);
+}
+
+.insect-card--low {
+  border-left-color: var(--bugdhor-low);
+}
+
+.insect-card.is-resolved {
+  border-left-color: var(--bugdhor-success);
+}
+
+.insect-card__scene {
+  position: relative;
+  display: block;
+  height: 58px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--vscode-editorWidget-background, transparent),
+    var(--vscode-editor-background, transparent)
+  );
+}
+
+.insect-card__trail {
+  position: absolute;
+  top: 36px;
+  right: 10px;
+  left: 10px;
+  border-top: 1px dashed var(--bugdhor-border-strong);
+  opacity: 0.55;
+}
+
+.insect-glyph-wrap {
+  position: absolute;
+  top: 10px;
+  left: 6px;
+  width: 52px;
+  height: 38px;
+}
+
+.insect-glyph {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: var(--bugdhor-low);
+}
+
+.insect-glyph--critical {
+  color: var(--bugdhor-critical);
+}
+
+.insect-glyph--high {
+  color: var(--bugdhor-high);
+}
+
+.insect-glyph--medium {
+  color: var(--bugdhor-medium);
+}
+
+.insect-glyph--low {
+  color: var(--bugdhor-low);
+}
+
+.insect-glyph__body,
+.insect-glyph__head {
+  fill: currentColor;
+  stroke: var(--vscode-editor-background, #000000);
+  stroke-width: 1.4;
+}
+
+.insect-glyph__shell,
+.insect-glyph__legs path,
+.insect-glyph__antennae {
+  fill: none;
+  stroke: var(--vscode-editor-background, #000000);
+  stroke-linecap: round;
+  stroke-width: 1.6;
+  opacity: 0.82;
+}
+
+.insect-glyph__eye {
+  fill: var(--vscode-editor-background, #000000);
+}
+
+.insect-card.is-resolved .insect-glyph {
+  color: var(--bugdhor-muted);
+  opacity: 0.7;
+}
+
+.insect-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 12px;
+}
+
+.insect-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.insect-card__title {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.insect-card__summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--bugdhor-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.insect-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.insect-card__category {
+  color: var(--vscode-charts-purple, var(--bugdhor-muted));
+  font-size: 10px;
+  font-weight: 600;
+}
+
 /* Actions ---------------------------------------------------------------- */
 
 .action-grid {
@@ -1259,6 +1477,77 @@ h1 {
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.input-control {
+  min-height: 25px;
+  min-width: 190px;
+  padding: 2px 7px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  background: var(--vscode-input-background, rgba(128, 128, 128, 0.15));
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+}
+
+.input-control:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--bugdhor-info));
+  outline-offset: 1px;
+}
+
+.button--small {
+  min-height: 21px;
+  margin: 3px 4px 0 0;
+  padding: 1px 6px;
+  font-size: 9.5px;
+}
+
+.finding-group-row th {
+  padding-top: 8px;
+  color: var(--vscode-textPreformat-foreground, var(--bugdhor-muted));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.finding-details__summary {
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+  font-size: 10px;
+}
+
+.finding-details__summary:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--bugdhor-info));
+  outline-offset: 2px;
+}
+
+.finding-details__body {
+  display: grid;
+  gap: 5px;
+  min-width: 260px;
+  padding: 6px 0 2px;
+}
+
+.finding-details__row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.finding-details__label {
+  color: var(--bugdhor-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.finding-details__value {
+  color: var(--vscode-foreground);
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .filter-group {
@@ -1607,17 +1896,64 @@ h1 {
     padding-bottom: 10px;
     border-bottom: 1px solid var(--bugdhor-border);
   }
+
+  .insect-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .button,
   .nav-item,
   .action-card,
-  .filter-chip {
+  .filter-chip,
+  .insect-card {
     transition:
       background-color 120ms ease,
       border-color 120ms ease,
       color 120ms ease;
+  }
+
+  .insect-card:not(.is-resolved) .insect-glyph-wrap {
+    animation: bugdhor-crawl 9s ease-in-out infinite;
+  }
+
+  .insect-card:not(.is-resolved) .insect-glyph__legs {
+    transform-origin: 36px 27px;
+    animation: bugdhor-leg-wiggle 280ms ease-in-out infinite alternate;
+  }
+
+  .insect-phase-1 .insect-glyph-wrap {
+    animation-delay: -2.2s;
+  }
+
+  .insect-phase-2 .insect-glyph-wrap {
+    animation-delay: -4.5s;
+  }
+
+  .insect-phase-3 .insect-glyph-wrap {
+    animation-delay: -6.8s;
+  }
+
+  @keyframes bugdhor-crawl {
+    0%,
+    100% {
+      left: 6px;
+      transform: translateY(0) rotate(-2deg);
+    }
+    50% {
+      left: calc(100% - 58px);
+      transform: translateY(-2px) rotate(2deg);
+    }
+  }
+
+  @keyframes bugdhor-leg-wiggle {
+    from {
+      transform: rotate(-5deg);
+    }
+    to {
+      transform: rotate(5deg);
+    }
   }
 }
 
@@ -1629,11 +1965,25 @@ h1 {
   .banner,
   .button,
   .badge,
-  .engine-pill {
+  .engine-pill,
+  .insect-card,
+  .insect-count {
     border: 1px solid CanvasText;
   }
 
   .nav-item.is-active {
     outline: 2px solid Highlight;
+  }
+
+  .insect-glyph__body,
+  .insect-glyph__head {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .insect-glyph__shell,
+  .insect-glyph__legs path,
+  .insect-glyph__antennae {
+    stroke: Canvas;
   }
 }

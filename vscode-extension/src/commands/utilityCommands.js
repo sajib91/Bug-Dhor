@@ -1,11 +1,14 @@
 'use strict';
 
 const { COMMANDS } = require('../constants');
+const { comparePositions } = require('../diagnostics/findingModel');
 
 const UTILITY_COMMANDS = Object.freeze([
   COMMANDS.showStatus,
   COMMANDS.showLogs,
-  COMMANDS.showAssistantCapabilities
+  COMMANDS.showAssistantCapabilities,
+  COMMANDS.nextFinding,
+  COMMANDS.previousFinding
 ]);
 
 /**
@@ -31,7 +34,61 @@ function describeHealth(health) {
 }
 
 /**
- * Register the status and log commands.
+ * Navigate only among findings that the diagnostics controller accepted from a
+ * backend scan. The active editor's current position selects the neighbor.
+ *
+ * @param {import('vscode')} vscode
+ * @param {import('../diagnostics/diagnosticController').DiagnosticController | undefined} diagnostics
+ * @param {'next' | 'previous'} direction
+ */
+async function navigateFindings(vscode, diagnostics, direction) {
+  const editor = vscode.window?.activeTextEditor;
+  if (!editor?.document?.uri) {
+    void vscode.window?.showInformationMessage?.(
+      'Open a source file to navigate Bug Dhor findings.'
+    );
+    return undefined;
+  }
+
+  const findings = diagnostics?.getFindingsForUri?.(editor.document.uri) ?? [];
+  if (!Array.isArray(findings) || findings.length === 0) {
+    void vscode.window?.showInformationMessage?.(
+      'Bug Dhor has no findings in the active file to navigate.'
+    );
+    return undefined;
+  }
+
+  const sorted = [...findings].sort(
+    (left, right) =>
+      comparePositions(left.range.start, right.range.start) ||
+      comparePositions(left.range.end, right.range.end)
+  );
+  const selection = editor.selection ?? {};
+  const current = selection.active ?? selection.start ?? { line: 0, character: 0 };
+
+  const target =
+    direction === 'next'
+      ? (sorted.find((finding) => comparePositions(finding.range.start, current) > 0) ?? sorted[0])
+      : ([...sorted]
+          .reverse()
+          .find((finding) => comparePositions(finding.range.start, current) < 0) ?? sorted.at(-1));
+
+  if (!target) {
+    return undefined;
+  }
+
+  const { start, end } = target.range;
+  const range = new vscode.Range(start.line, start.character, end.line, end.character);
+  await vscode.window.showTextDocument(editor.document, {
+    selection: range,
+    preserveFocus: false,
+    preview: false
+  });
+  return target;
+}
+
+/**
+ * Register the status, log, and finding-navigation commands.
  *
  * The status command checks the real backend and reports an error when it
  * cannot be reached. It never claims that an analysis succeeded.
@@ -41,10 +98,18 @@ function describeHealth(health) {
  *   service: import('../api/securityEngineService').SecurityEngineService,
  *   logger: import('../logging/output').Logger,
  *   registry: import('./registry').CommandRegistry,
+ *   diagnostics?: import('../diagnostics/diagnosticController').DiagnosticController,
  *   assistantRegistry?: ReturnType<import('../integrations/registry').createProviderRegistry>
  * }} context
  */
-function registerUtilityCommands({ vscode, service, logger, registry, assistantRegistry }) {
+function registerUtilityCommands({
+  vscode,
+  service,
+  logger,
+  registry,
+  diagnostics,
+  assistantRegistry
+}) {
   registry.register(COMMANDS.showStatus, async () => {
     let health;
     try {
@@ -94,6 +159,17 @@ function registerUtilityCommands({ vscode, service, logger, registry, assistantR
     logger.info(`Bug Dhor assistant capabilities: ${JSON.stringify(snapshot)}`);
     return snapshot;
   });
+
+  registry.register(COMMANDS.nextFinding, () => navigateFindings(vscode, diagnostics, 'next'));
+
+  registry.register(COMMANDS.previousFinding, () =>
+    navigateFindings(vscode, diagnostics, 'previous')
+  );
 }
 
-module.exports = { registerUtilityCommands, describeHealth, UTILITY_COMMANDS };
+module.exports = {
+  registerUtilityCommands,
+  describeHealth,
+  navigateFindings,
+  UTILITY_COMMANDS
+};

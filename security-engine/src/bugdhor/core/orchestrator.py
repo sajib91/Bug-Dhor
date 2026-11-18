@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import traceback
+import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,6 +69,7 @@ from bugdhor.core.paths import (
     SourceFile,
     ensure_allowed_root,
     enumerate_workspace_sources,
+    inspect_explicit_workspace_sources,
     inspect_source_file,
     inspect_source_text,
     validate_selection,
@@ -254,6 +256,11 @@ class Orchestrator:
                 "run": lambda self, ctx: StageResult(stage="recommendation", status=StageStatus.OK),
             },
         )()
+        # Bounded in-memory record of proposal patches. The local backend keeps
+        # this only so a later explicit verification can resolve a repairId
+        # without trusting a patch supplied by the client. Source snapshots are
+        # never persisted to disk by this store.
+        self._repair_store: dict[str, dict[str, Any]] = {}
         self._analysis_cache: dict[str, dict[str, Any]] = {}
         self._analysis_cache_dir = (
             Path(getattr(self.settings, "data_dir", Path(".bugdhor-data"))) / "cache" / "analysis"
@@ -953,13 +960,25 @@ class Orchestrator:
             for folder in request.workspace_folders:
                 root = ensure_allowed_root(folder.path, self.settings)
                 roots.append(root)
-                for source in enumerate_workspace_sources(root, self.settings):
+
+            if request.file_paths is not None:
+                # Explicit paths come from the editor's bounded repository
+                # inventory. They still pass through the same containment,
+                # media, and resource validation as ordinary workspace files.
+                explicit_sources = inspect_explicit_workspace_sources(
+                    roots, request.file_paths, self.settings, token
+                )
+                for source in explicit_sources:
                     files[source.uri] = source
-                    if len(files) > self.settings.max_workspace_files:
-                        raise ResourceLimitAppError(
-                            "The workspace exceeds the configured file scan limit.",
-                            code="E_WORKSPACE_TOO_LARGE",
-                        )
+            else:
+                for root in roots:
+                    for source in enumerate_workspace_sources(root, self.settings):
+                        files[source.uri] = source
+                        if len(files) > self.settings.max_workspace_files:
+                            raise ResourceLimitAppError(
+                                "The workspace exceeds the configured file scan limit.",
+                                code="E_WORKSPACE_TOO_LARGE",
+                            )
             progress(
                 "workspace_snapshot",
                 "ok",
@@ -1412,6 +1431,8 @@ class Orchestrator:
                 test_timeout_seconds=float(getattr(request, "test_timeout_seconds", 120.0)),
                 project_test_command=getattr(request, "project_test_command", None),
             )
+            repair_id = uuid.uuid4().hex
+            record.metadata["repairId"] = repair_id
             workflow_dict = record.to_dict()
             analysis_available = bool(
                 (record.security or {}).get("analysisAvailable")
@@ -1430,6 +1451,22 @@ class Orchestrator:
                 ),
             ]
             candidate = record.candidate or {}
+            if candidate.get("patch"):
+                self._store_repair(
+                    repair_id,
+                    {
+                        "repairId": repair_id,
+                        "patch": candidate["patch"],
+                        "originalSource": snapshot.text,
+                        "originalSourceSha256": snapshot.sha256,
+                        "patchedSourceSha256": candidate.get("patchedSourceSha256"),
+                        "filePath": request.file_path,
+                        "cwe": request.finding.cwe,
+                        "findingId": request.finding.finding_id,
+                        "workflow": workflow_dict,
+                        "state": record.state,
+                    },
+                )
             resp = RepairResponse(
                 **self._base_fields_from_reports("repair_generate", request_id, reports, []),
                 result=RepairResult(
@@ -1584,7 +1621,31 @@ class Orchestrator:
         def run(
             progress: ProgressCallback, token: CancellationToken | None
         ) -> VerificationResponse:
+            stored = self._resolve_repair(request.repair_id)
             snapshot = self._inspect(request)
+            source_text = snapshot.text
+            patch = request.patch
+            patched_source = request.patched_source
+            cwe = request.cwe
+            finding_id = request.finding_id
+            if stored is not None:
+                # A repairId is resolved only against this process's stored
+                # proposal. The current file must still be the original or the
+                # exact approved patched snapshot before the stored patch is used.
+                allowed_hashes = {
+                    stored.get("originalSourceSha256"),
+                    stored.get("patchedSourceSha256"),
+                }
+                if snapshot.sha256 not in allowed_hashes:
+                    raise ConflictAppError(
+                        "The source no longer matches the stored repair snapshot.",
+                        code="E_REPAIR_SNAPSHOT_MISMATCH",
+                    )
+                source_text = str(stored.get("originalSource") or snapshot.text)
+                if patch is None and patched_source is None:
+                    patch = str(stored.get("patch") or "")
+                cwe = cwe or stored.get("cwe")
+                finding_id = finding_id or stored.get("findingId")
             progress("verification", "running", "Running independent verification", None)
             execution = self._execute_declared(
                 "verification_run",
@@ -1592,12 +1653,12 @@ class Orchestrator:
                 self._payload(
                     snapshot,
                     request.language_id,
-                    sourceText=snapshot.text,
+                    sourceText=source_text,
                     repairId=request.repair_id,
-                    patch=request.patch,
-                    patchedSource=request.patched_source,
-                    cwe=request.cwe,
-                    findingId=request.finding_id,
+                    patch=patch,
+                    patchedSource=patched_source,
+                    cwe=cwe,
+                    findingId=finding_id,
                     profile=request.profile,
                     runExecution=request.run_execution,
                     sandboxBackend=self.settings.sandbox_backend,
@@ -1620,6 +1681,18 @@ class Orchestrator:
                     "limitations": ["Independent verification did not produce a result payload."],
                     "report": {},
                 }
+            if stored is not None:
+                workflow = stored.get("workflow") or {}
+                report = data.setdefault("report", {})
+                # This is prior evidence from the proposal workflow, not a new
+                # execution claim. Static checks above are run fresh in this call.
+                report["priorWorkflowEvidence"] = {
+                    "repairId": stored.get("repairId"),
+                    "state": stored.get("state"),
+                    "securityVerification": workflow.get("security"),
+                    "functionalVerification": workflow.get("functional"),
+                    "beforeAfterComparison": workflow.get("comparison"),
+                }
             resp = VerificationResponse(
                 **self._base_fields("verification_run", request_id, combined),
                 result=VerificationResult(**data),
@@ -1630,6 +1703,17 @@ class Orchestrator:
         return self._run_with_job("verification_run", request_id, job_store, job_id, run)
 
     # ---- internal helpers ----
+    def _store_repair(self, repair_id: str, entry: dict[str, Any]) -> None:
+        """Keep a bounded proposal record for later repairId verification."""
+        self._repair_store[repair_id] = entry
+        while len(self._repair_store) > 256:
+            self._repair_store.pop(next(iter(self._repair_store)))
+
+    def _resolve_repair(self, repair_id: str | None) -> dict[str, Any] | None:
+        if not repair_id:
+            return None
+        return self._repair_store.get(repair_id)
+
     def _snapshot(self, root: Path, request: Any) -> FileSnapshot:
         if request.source_text is not None:
             return inspect_source_text(root, request.file_path, request.source_text, self.settings)

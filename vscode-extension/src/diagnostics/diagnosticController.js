@@ -6,11 +6,30 @@ const {
   normalizeScanResult,
   normalizeFileUri,
   findingContainsPosition,
+  severityLabel,
   cweUrl
 } = require('./findingModel');
 const { isFileUriWithinFolders } = require('../security/paths');
 
 const DIAGNOSTIC_COLLECTION_NAME = 'bugdhor';
+
+/**
+ * Compact Problems-panel text. Full details remain in the native hover.
+ *
+ * @param {object} finding
+ * @returns {string}
+ */
+function buildDiagnosticMessage(finding) {
+  const parts = [
+    finding.message,
+    `${severityLabel(finding.severity)} severity`,
+    finding.cwe ? finding.cwe : 'CWE not provided'
+  ];
+  if (finding.detectionMethod) {
+    parts.push(`scanner: ${finding.detectionMethod}`);
+  }
+  return `Bug Dhor: ${parts.join(' · ')}`;
+}
 
 /**
  * @param {import('vscode')} vscode
@@ -39,10 +58,11 @@ class DiagnosticController {
    *   vscode: import('vscode'),
    *   logger: import('../logging/output').Logger,
    *   isWithinWorkspace?: (uri: import('vscode').Uri) => boolean,
-   *   onFindingsPublished?: (event: object) => void
+   *   onFindingsPublished?: (event: object) => void,
+   *   decorations?: import('./decorationController').DecorationController
    * }} dependencies
    */
-  constructor({ vscode, logger, isWithinWorkspace, onFindingsPublished }) {
+  constructor({ vscode, logger, isWithinWorkspace, onFindingsPublished, decorations }) {
     if (!vscode) {
       throw new TypeError('DiagnosticController requires a vscode API object.');
     }
@@ -75,6 +95,7 @@ class DiagnosticController {
         : (uri) => defaultIsWithinWorkspace(vscode, uri);
     this.onFindingsPublished =
       typeof onFindingsPublished === 'function' ? onFindingsPublished : null;
+    this.decorations = decorations ?? null;
 
     /**
      * @type {Map<string, {
@@ -118,9 +139,29 @@ class DiagnosticController {
 
     /** @type {Array<object & { documentUri: string, uri: import('vscode').Uri }>} */
     const accepted = [];
+    const seenLocations = new Set();
 
     for (const finding of normalized.findings) {
       const uri = this.vscode.Uri.parse(finding.documentUri);
+      const locationKey = [
+        finding.documentUri,
+        finding.range.start.line,
+        finding.range.start.character,
+        finding.range.end.line,
+        finding.range.end.character,
+        finding.severity,
+        finding.message,
+        finding.cwe ?? ''
+      ].join('|');
+      if (seenLocations.has(locationKey)) {
+        rejected.push({
+          index: null,
+          code: 'E_DUPLICATE_LOCATION',
+          reason: `Duplicate Bug Dhor finding at the same source range: ${finding.id}`
+        });
+        continue;
+      }
+      seenLocations.add(locationKey);
       if (!this.isAllowedUri(uri)) {
         rejected.push({
           index: null,
@@ -150,9 +191,7 @@ class DiagnosticController {
       const uriText = normalizeFileUri(value, `scopeUris[${index}]`);
       const uri = this.vscode.Uri.parse(uriText);
       if (!this.isAllowedUri(uri)) {
-        this.logger.warn(
-          `Discarded an out-of-workspace Bug Dhor diagnostic scope URI: ${uriText}`
-        );
+        this.logger.warn(`Discarded an out-of-workspace Bug Dhor diagnostic scope URI: ${uriText}`);
         return;
       }
       scopeKeys.add(uri.toString());
@@ -167,6 +206,7 @@ class DiagnosticController {
     for (const [key, group] of groups) {
       this.entries.set(key, group);
       this.collection.set(group.uri, group.diagnostics);
+      this.decorations?.setFindings(group.uri, group.findings);
     }
 
     if (accepted.length > 0) {
@@ -224,7 +264,7 @@ class DiagnosticController {
   createDiagnostic(finding) {
     const diagnostic = new this.vscode.Diagnostic(
       this.toRange(finding.range),
-      finding.message,
+      buildDiagnosticMessage(finding),
       this.toSeverity(finding.severityKind)
     );
     diagnostic.source = DIAGNOSTIC_SOURCE;
@@ -253,23 +293,33 @@ class DiagnosticController {
   createRelatedInformation(finding) {
     const related = [];
     const findingRange = this.toRange(finding.range);
+    const anchor = () => new this.vscode.Location(finding.uri, findingRange);
+    const add = (message) =>
+      related.push(new this.vscode.DiagnosticRelatedInformation(anchor(), message));
 
-    if (finding.verificationStatus) {
-      related.push(
-        new this.vscode.DiagnosticRelatedInformation(
-          new this.vscode.Location(finding.uri, findingRange),
-          `Verification: ${finding.verificationStatus} (from backend evidence)`
-        )
-      );
+    add(`Severity: ${severityLabel(finding.severity)} (backend value: ${finding.severity})`);
+    add(`CWE: ${finding.cwe ?? 'not provided by the backend'}`);
+    add(
+      `Scanner: ${finding.detectionMethod ?? 'not provided by the backend'}` +
+        (finding.ruleId ? ` · Rule: ${finding.ruleId}` : '')
+    );
+    add(`Explanation: ${finding.explanation ?? 'not provided by the backend'}`);
+    add(`Evidence: ${finding.evidence ?? 'not provided by the backend'}`);
+    add(
+      `Suggested fix: ${
+        finding.suggestedRemediation ?? finding.repair?.description ?? 'not provided by the backend'
+      }`
+    );
+
+    if (finding.confidence) {
+      const basis = finding.confidenceBasis ? ` · Basis: ${finding.confidenceBasis}` : '';
+      add(`Confidence: ${finding.confidence}${basis}`);
     }
-
-    if (finding.evidence) {
-      related.push(
-        new this.vscode.DiagnosticRelatedInformation(
-          new this.vscode.Location(finding.uri, findingRange),
-          `Evidence: ${finding.evidence}`
-        )
-      );
+    if (Array.isArray(finding.uncertainty) && finding.uncertainty.length > 0) {
+      add(`Uncertainty: ${finding.uncertainty.join('; ')}`);
+    }
+    if (finding.verificationStatus) {
+      add(`Verification: ${finding.verificationStatus} (from backend evidence)`);
     }
 
     for (const reference of finding.sourceReferences) {
@@ -390,6 +440,16 @@ class DiagnosticController {
   }
 
   /**
+   * Return workspace file URIs that currently have published Bug Dhor
+   * findings. Used only to scope an explicit user-invoked rescan.
+   *
+   * @returns {string[]}
+   */
+  getPublishedUris() {
+    return [...this.entries.keys()].filter((key) => key.startsWith('file:'));
+  }
+
+  /**
    * @param {string | import('vscode').Uri} value
    * @returns {import('vscode').Diagnostic[]}
    */
@@ -429,6 +489,7 @@ class DiagnosticController {
     this.assertActive();
     this.collection.clear();
     this.entries.clear();
+    this.decorations?.clearAll();
   }
 
   /** @param {string} key */
@@ -437,6 +498,7 @@ class DiagnosticController {
     if (entry) {
       this.collection.delete(entry.uri);
       this.entries.delete(key);
+      this.decorations?.clearUri(entry.uri);
     }
   }
 
@@ -456,8 +518,14 @@ class DiagnosticController {
       this.collection.dispose();
     } finally {
       this.entries.clear();
+      this.decorations?.dispose();
     }
   }
 }
 
-module.exports = { DiagnosticController, DIAGNOSTIC_COLLECTION_NAME, defaultIsWithinWorkspace };
+module.exports = {
+  DiagnosticController,
+  DIAGNOSTIC_COLLECTION_NAME,
+  defaultIsWithinWorkspace,
+  buildDiagnosticMessage
+};

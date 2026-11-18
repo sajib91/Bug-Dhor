@@ -124,9 +124,13 @@ test('hover is absent outside a finding range or on another document', () => {
   assert.equal(provider.provideHover(undefined, undefined), undefined);
 });
 
-test('hover reports missing explanation, sources, and repair metadata without inventing them', () => {
+test('hover reports missing backend details without inventing them', () => {
   const finding = createFinding({
+    cwe: undefined,
     explanation: undefined,
+    evidence: undefined,
+    suggestedRemediation: undefined,
+    detectionMethod: undefined,
     sourceReferences: [],
     repair: undefined
   });
@@ -137,9 +141,34 @@ test('hover reports missing explanation, sources, and repair metadata without in
     { line: 4, character: 10 }
   );
 
+  assert.match(hover.contents.value, /\*\*CWE:\*\* not provided by the backend/);
+  assert.match(hover.contents.value, /\*\*Scanner:\*\* not provided by the backend/);
   assert.match(hover.contents.value, /No explanation was provided by the backend\./);
+  assert.match(hover.contents.value, /No evidence was provided by the backend\./);
+  assert.match(hover.contents.value, /No suggested fix was provided by the backend\./);
   assert.match(hover.contents.value, /No source references were provided by the backend\./);
   assert.match(hover.contents.value, /did not provide repair metadata/);
+});
+
+test('hover includes backend scanner, fix, confidence, and uncertainty details', () => {
+  const finding = createFinding({
+    detectionMethod: 'ast-taint-analysis',
+    suggestedRemediation: 'Parameterize the query.',
+    confidence: 'hypothesis',
+    confidenceBasis: 'backend heuristic rule',
+    uncertainty: ['No runtime proof was available.']
+  });
+  const { provider } = createHoverProvider([finding]);
+
+  const hover = provider.provideHover(
+    { uri: createUri(finding.documentUri) },
+    { line: 4, character: 10 }
+  );
+
+  assert.match(hover.contents.value, /\*\*Scanner:\*\* ast\\-taint\\-analysis/);
+  assert.match(hover.contents.value, /\*\*Suggested fix\*\*\n\nParameterize the query/);
+  assert.match(hover.contents.value, /\*\*Confidence:\*\* hypothesis \(backend heuristic rule\)/);
+  assert.match(hover.contents.value, /\*\*Uncertainty\*\*\n\n- No runtime proof was available/);
 });
 
 test('hover shows explicit repair ineligibility from the backend', () => {

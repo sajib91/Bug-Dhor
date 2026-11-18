@@ -16,6 +16,7 @@ const { pathToFileURL } = require('node:url');
 
 const { createApiClient } = require('./apiClient');
 const { createConfigurationService } = require('./configurationService');
+const { isPathWithinRoot } = require('../security/paths');
 const {
   validateAnalysisResponse,
   validateDetectionResponse,
@@ -24,6 +25,7 @@ const {
 } = require('./securityResultService');
 
 const MAX_WORKSPACE_FOLDERS = 50;
+const MAX_WORKSPACE_FILE_PATHS = 50_000;
 
 /**
  * @typedef {Object} EngineRequestContext
@@ -604,10 +606,50 @@ class HttpSecurityEngineService {
       workspaceFolders.push(entry);
     }
 
+    const body = { workspaceFolders };
+    if (request.filePaths !== undefined && request.filePaths !== null) {
+      if (!Array.isArray(request.filePaths)) {
+        throw new SecurityEngineRequestError(
+          'The explicit file list must be an array.',
+          'E_INVALID_FILE_PATH'
+        );
+      }
+      if (request.filePaths.length > MAX_WORKSPACE_FILE_PATHS) {
+        throw new SecurityEngineRequestError(
+          `The explicit file list exceeds ${MAX_WORKSPACE_FILE_PATHS} paths.`,
+          'E_TOO_MANY_FILE_PATHS'
+        );
+      }
+      const roots = workspaceFolders.map((folder) => folder.path);
+      const seenPaths = new Set();
+      const filePaths = [];
+      for (const candidate of request.filePaths) {
+        if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) {
+          throw new SecurityEngineRequestError(
+            'Explicit file paths must be absolute strings.',
+            'E_INVALID_FILE_PATH'
+          );
+        }
+        if (!roots.some((root) => isPathWithinRoot(candidate, root))) {
+          throw new SecurityEngineRequestError(
+            `Explicit file path is outside every workspace folder: ${candidate}`,
+            'E_PATH_OUTSIDE_WORKSPACE'
+          );
+        }
+        if (seenPaths.has(candidate)) {
+          continue;
+        }
+        seenPaths.add(candidate);
+        filePaths.push(candidate);
+      }
+      body.filePaths = filePaths;
+    }
+
     this.logger?.debug(
-      `Sending POST /api/v1/scan/workspace for ${workspaceFolders.length} folder(s).`
+      `Sending POST /api/v1/scan/workspace for ${workspaceFolders.length} folder(s)` +
+        `${body.filePaths ? ` and ${body.filePaths.length} explicit path(s)` : ''}.`
     );
-    const { data } = await client.post('/scan/workspace', { workspaceFolders }, context?.token);
+    const { data } = await client.post('/scan/workspace', body, context?.token);
     return validateScanResponse(data, { kind: 'workspace' });
   }
 
@@ -736,6 +778,39 @@ class HttpSecurityEngineService {
     if (typeof request.snapshotHash === 'string') {
       body.snapshotHash = request.snapshotHash;
     }
+    if (typeof request.patch === 'string' && request.patch.length > 0) {
+      body.patch = request.patch;
+    }
+    if (typeof request.generate === 'boolean') {
+      body.generate = request.generate;
+    }
+    if (typeof request.runFunctionalTests === 'boolean') {
+      body.runFunctionalTests = request.runFunctionalTests;
+    }
+    if (isPlainObject(request.executionConsent)) {
+      body.executionConsent = {
+        granted: request.executionConsent.granted === true,
+        allowNetwork: request.executionConsent.allowNetwork === true,
+        allowPrivileged: request.executionConsent.allowPrivileged === true,
+        allowDestructive: request.executionConsent.allowDestructive === true,
+        source:
+          typeof request.executionConsent.source === 'string'
+            ? request.executionConsent.source
+            : 'user'
+      };
+    }
+    if (
+      typeof request.testTimeoutSeconds === 'number' &&
+      Number.isFinite(request.testTimeoutSeconds)
+    ) {
+      body.testTimeoutSeconds = request.testTimeoutSeconds;
+    }
+    if (
+      Array.isArray(request.projectTestCommand) &&
+      request.projectTestCommand.every((entry) => typeof entry === 'string')
+    ) {
+      body.projectTestCommand = request.projectTestCommand;
+    }
     this.logger?.debug(`${operationLabel}: sending POST /api/v1/repair/generate.`);
     const { data } = await client.post('/repair/generate', body, context?.token);
     return validateAnalysisResponse(data, { operation: 'repair_generate' });
@@ -751,10 +826,12 @@ class HttpSecurityEngineService {
     const body = buildFileRequestBody(request, configuration);
     const hasRepairId = typeof request.repairId === 'string' && request.repairId.trim().length > 0;
     const hasPatch = typeof request.patch === 'string' && request.patch.length > 0;
-    if (!hasRepairId && !hasPatch) {
+    const hasPatchedSource =
+      typeof request.patchedSource === 'string' && request.patchedSource.length > 0;
+    if (!hasRepairId && !hasPatch && !hasPatchedSource) {
       throw new SecurityEngineRequestError(
-        'Verification requires an approved repair ID or patch. The extension does not invent ' +
-          'a repair target.',
+        'Verification requires a repair ID, patch, or patched source. The extension does not ' +
+          'invent a repair target.',
         'E_REPAIR_TARGET_REQUIRED'
       );
     }
@@ -763,6 +840,14 @@ class HttpSecurityEngineService {
     }
     if (hasPatch) {
       body.patch = request.patch;
+    }
+    if (hasPatchedSource) {
+      body.patchedSource = request.patchedSource;
+    }
+    for (const key of ['cwe', 'findingId']) {
+      if (typeof request[key] === 'string' && request[key].length > 0) {
+        body[key] = request[key];
+      }
     }
     if (request.profile === 'static_only' || request.profile === 'sandbox') {
       body.profile = request.profile;

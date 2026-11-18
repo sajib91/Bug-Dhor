@@ -5,6 +5,7 @@ const { getCommandDefinition } = require('./definitions');
 const { registerEngineCommand } = require('./registerEngineCommand');
 const { runEngineCommand } = require('./runEngineCommand');
 const { createSecureCodeGenerator } = require('../recommendations/secureCodeGeneration');
+const { createRepairGenerator } = require('../repair/repairGeneration');
 const {
   requireActiveEditor,
   createEditorRequest,
@@ -56,13 +57,24 @@ function registerRepairCommands(context) {
     })
   );
 
-  registerEngineCommand(
-    context,
-    getCommandDefinition(COMMANDS.repairVulnerability),
-    (finding) => createRepairRequest(vscode, finding),
-    {
+  // Repair is a provider-backed workflow, not a direct engine call. The
+  // backend builds the repository-aware prompt, only a configured B/C provider
+  // may generate a candidate, and the backend verifies the candidate before a
+  // proposal is returned for review.
+  const repairDefinition = getCommandDefinition(COMMANDS.repairVulnerability);
+  context.registry.register(repairDefinition.id, (finding) =>
+    runEngineCommand(context, {
+      definition: repairDefinition,
+      prepare: () => {
+        const editor = requireActiveEditor(vscode);
+        return { ...createRepairRequest(vscode, finding), editor };
+      },
+      invoke: createRepairGenerator({
+        ...context,
+        getSettings: context.getRecommendationSettings
+      }),
       onResult: recordRepair
-    }
+    })
   );
 
   registerEngineCommand(
@@ -81,6 +93,14 @@ function registerRepairCommands(context) {
       if (typeof target.patch === 'string' && target.patch.length > 0) {
         request.patch = target.patch;
       }
+      if (typeof target.patchedSource === 'string' && target.patchedSource.length > 0) {
+        request.patchedSource = target.patchedSource;
+      }
+      for (const key of ['cwe', 'findingId']) {
+        if (typeof target[key] === 'string' && target[key].length > 0) {
+          request[key] = target[key];
+        }
+      }
       if (target.profile === 'static_only' || target.profile === 'sandbox') {
         request.profile = target.profile;
       }
@@ -90,7 +110,10 @@ function registerRepairCommands(context) {
       return request;
     },
     {
-      onResult: (result, request) => {
+      onResult: async (result, request) => {
+        if (typeof dashboard?.recordVerificationResult === 'function') {
+          await dashboard.recordVerificationResult(result, request);
+        }
         if (typeof context.feedback?.recordVerification !== 'function') {
           return undefined;
         }

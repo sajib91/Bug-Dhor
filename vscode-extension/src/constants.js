@@ -9,6 +9,11 @@ const COMMANDS = Object.freeze({
   scanCurrentFile: 'bugdhor.scanCurrentFile',
   scanSelection: 'bugdhor.scanSelection',
   scanWorkspace: 'bugdhor.scanWorkspace',
+  scanRepository: 'bugdhor.scanRepository',
+  scanChangedFiles: 'bugdhor.scanChangedFiles',
+  scanSelectedFolder: 'bugdhor.scanSelectedFolder',
+  scanIncremental: 'bugdhor.scanIncremental',
+  rescanAll: 'bugdhor.rescanAll',
   explainVulnerability: 'bugdhor.explainVulnerability',
   analyzeSecurityFeatures: 'bugdhor.analyzeSecurityFeatures',
   counterfactualAnalysis: 'bugdhor.counterfactualAnalysis',
@@ -16,7 +21,9 @@ const COMMANDS = Object.freeze({
   repairVulnerability: 'bugdhor.repairVulnerability',
   verifyRepair: 'bugdhor.verifyRepair',
   openSecurityDashboard: 'bugdhor.openSecurityDashboard',
-  showAssistantCapabilities: 'bugdhor.showAssistantCapabilities'
+  showAssistantCapabilities: 'bugdhor.showAssistantCapabilities',
+  nextFinding: 'bugdhor.nextFinding',
+  previousFinding: 'bugdhor.previousFinding'
 });
 
 module.exports = { CONTAINER_ID, VIEW_ID, COMMANDS };

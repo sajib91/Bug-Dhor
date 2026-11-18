@@ -9,6 +9,7 @@ const {
   DEFAULT_HEALTH_TIMEOUT_MS
 } = require('./api/configurationService');
 const { DEFAULT_MONITORING_SETTINGS } = require('./monitoring/settings');
+const { DEFAULT_EXCLUDE_GLOBS } = require('./monitoring/changeAnalyzer');
 
 /**
  * @typedef {Object} ExtensionSettings
@@ -39,6 +40,13 @@ const { DEFAULT_MONITORING_SETTINGS } = require('./monitoring/settings');
  * @property {number} monitoringMaxWorkspaceFiles
  * @property {boolean} monitoringExcludeBinaryFiles
  * @property {boolean} monitoringExcludeGeneratedFiles
+ * @property {number} repositoryMaxFiles
+ * @property {number} repositoryMaxFileBytes
+ * @property {string[]} repositoryExcludeGlobs
+ * @property {boolean} repositoryIncludeUntrackedFiles
+ * @property {number} repositoryGitTimeoutMs
+ * @property {boolean} repositoryNotifyOnWorkspaceOpen
+ * @property {boolean} repositoryAutoScanOnWorkspaceOpen
  * @property {string} assistantProvider
  * @property {object} assistantVscodeLanguageModelSelector
  * @property {string} assistantOpenAiEndpoint
@@ -143,6 +151,18 @@ function readSettings() {
     monitoringExcludeGeneratedFiles: configuration.get(
       'monitoring.excludeGeneratedFiles',
       DEFAULT_MONITORING_SETTINGS.excludeGeneratedFiles
+    ),
+    repositoryMaxFiles: configuration.get('repository.maxFiles', 2000),
+    repositoryMaxFileBytes: configuration.get('repository.maxFileBytes', 1_048_576),
+    repositoryExcludeGlobs: configuration.get('repository.excludeGlobs', [
+      ...DEFAULT_EXCLUDE_GLOBS
+    ]),
+    repositoryIncludeUntrackedFiles: configuration.get('repository.includeUntrackedFiles', true),
+    repositoryGitTimeoutMs: configuration.get('repository.gitTimeoutMs', 10000),
+    repositoryNotifyOnWorkspaceOpen: configuration.get('repository.notifyOnWorkspaceOpen', true),
+    repositoryAutoScanOnWorkspaceOpen: configuration.get(
+      'repository.autoScanOnWorkspaceOpen',
+      false
     ),
     assistantProvider: configuration.get('assistant.provider', 'editor'),
     assistantVscodeLanguageModelSelector: configuration.get(

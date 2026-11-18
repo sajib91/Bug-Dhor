@@ -16,7 +16,10 @@ const { runEngineCommand } = require('./runEngineCommand');
  * }} context
  * @param {{ id: string, title: string, progressTitle: string, serviceMethod: string | null }} definition
  * @param {(...args: unknown[]) => object | Promise<object>} prepare
- * @param {{ onResult?: (result: unknown, request: object) => void | Promise<void> }} [options]
+ * @param {{
+ *   onResult?: (result: unknown, request: object) => void | Promise<void>,
+ *   passContextToPrepare?: boolean
+ * }} [options]
  * @returns {import('vscode').Disposable}
  */
 function registerEngineCommand(context, definition, prepare, options = {}) {
@@ -38,7 +41,11 @@ function registerEngineCommand(context, definition, prepare, options = {}) {
       { vscode, logger },
       {
         definition,
-        prepare: () => prepare(...args),
+        // Only repository-style commands opt in to receiving the progress and
+        // cancellation context. Other commands keep their original args so an
+        // optional finding argument is never replaced by the engine context.
+        prepare: (context) =>
+          options.passContextToPrepare ? prepare(...args, context) : prepare(...args),
         invoke: (request, engineContext) => method.call(service, request, engineContext),
         onResult: options.onResult
       }

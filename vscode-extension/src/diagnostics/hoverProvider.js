@@ -75,6 +75,8 @@ function buildFindingSection(finding) {
   const metadata = [`**Severity:** ${severityLabel(finding.severity)}`];
   if (finding.cwe) {
     metadata.push(`**CWE:** [${finding.cwe}](${cweUrl(finding.cwe)})`);
+  } else {
+    metadata.push('**CWE:** not provided by the backend');
   }
   if (finding.ruleId) {
     metadata.push(`**Rule:** ${inlineCode(finding.ruleId)}`);
@@ -83,6 +85,14 @@ function buildFindingSection(finding) {
     metadata.push(`**Verification:** ${finding.verificationStatus}`);
   }
   lines.push(metadata.join(' · '), '');
+  lines.push(
+    `**Scanner:** ${
+      finding.detectionMethod
+        ? escapeMarkdown(finding.detectionMethod)
+        : 'not provided by the backend'
+    }`,
+    ''
+  );
   lines.push(...buildRiskMarkdown(finding));
 
   lines.push('**Explanation**', '');
@@ -93,8 +103,29 @@ function buildFindingSection(finding) {
     ''
   );
 
-  if (finding.evidence) {
-    lines.push('**Evidence**', '', fencedCode(finding.evidence), '');
+  lines.push('**Evidence**', '');
+  lines.push(
+    finding.evidence ? fencedCode(finding.evidence) : '_No evidence was provided by the backend._',
+    ''
+  );
+
+  const suggestedFix = finding.suggestedRemediation ?? finding.repair?.description;
+  lines.push('**Suggested fix**', '');
+  lines.push(
+    suggestedFix ? escapeMarkdown(suggestedFix) : '_No suggested fix was provided by the backend._',
+    ''
+  );
+
+  if (finding.confidence) {
+    const basis = finding.confidenceBasis ? ` (${escapeMarkdown(finding.confidenceBasis)})` : '';
+    lines.push(`**Confidence:** ${escapeMarkdown(finding.confidence)}${basis}`);
+    if (Array.isArray(finding.uncertainty) && finding.uncertainty.length > 0) {
+      lines.push('', '**Uncertainty**', '');
+      for (const item of finding.uncertainty) {
+        lines.push(`- ${escapeMarkdown(item)}`);
+      }
+    }
+    lines.push('');
   }
 
   lines.push('**Sources**', '');

@@ -26,6 +26,36 @@ const COMMAND_DEFINITIONS = Object.freeze([
     serviceMethod: 'scanWorkspace'
   }),
   Object.freeze({
+    id: COMMANDS.scanRepository,
+    title: 'Scan Full Repository',
+    progressTitle: 'Bug Dhor: Scanning full repository',
+    serviceMethod: 'scanWorkspace'
+  }),
+  Object.freeze({
+    id: COMMANDS.scanChangedFiles,
+    title: 'Scan Changed Files',
+    progressTitle: 'Bug Dhor: Scanning changed files',
+    serviceMethod: 'scanWorkspace'
+  }),
+  Object.freeze({
+    id: COMMANDS.scanSelectedFolder,
+    title: 'Scan Selected Folder',
+    progressTitle: 'Bug Dhor: Scanning selected folder',
+    serviceMethod: 'scanWorkspace'
+  }),
+  Object.freeze({
+    id: COMMANDS.scanIncremental,
+    title: 'Scan Incremental Findings',
+    progressTitle: 'Bug Dhor: Rescanning incremental findings',
+    serviceMethod: 'scanWorkspace'
+  }),
+  Object.freeze({
+    id: COMMANDS.rescanAll,
+    title: 'Rescan All',
+    progressTitle: 'Bug Dhor: Rescanning all findings',
+    serviceMethod: 'scanWorkspace'
+  }),
+  Object.freeze({
     id: COMMANDS.explainVulnerability,
     title: 'Explain Vulnerability',
     progressTitle: 'Bug Dhor: Explaining vulnerability',

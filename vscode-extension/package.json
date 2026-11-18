@@ -29,6 +29,11 @@
     "onCommand:bugdhor.scanCurrentFile",
     "onCommand:bugdhor.scanSelection",
     "onCommand:bugdhor.scanWorkspace",
+    "onCommand:bugdhor.scanRepository",
+    "onCommand:bugdhor.scanChangedFiles",
+    "onCommand:bugdhor.scanSelectedFolder",
+    "onCommand:bugdhor.scanIncremental",
+    "onCommand:bugdhor.rescanAll",
     "onCommand:bugdhor.explainVulnerability",
     "onCommand:bugdhor.analyzeSecurityFeatures",
     "onCommand:bugdhor.counterfactualAnalysis",
@@ -37,6 +42,8 @@
     "onCommand:bugdhor.verifyRepair",
     "onCommand:bugdhor.openSecurityDashboard",
     "onCommand:bugdhor.showAssistantCapabilities",
+    "onCommand:bugdhor.nextFinding",
+    "onCommand:bugdhor.previousFinding",
     "onView:bugdhor.sidebar"
   ],
   "main": "./src/extension.js",
@@ -67,6 +74,31 @@
       {
         "command": "bugdhor.scanWorkspace",
         "title": "Scan Workspace",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.scanRepository",
+        "title": "Scan Full Repository",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.scanChangedFiles",
+        "title": "Scan Changed Files",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.scanSelectedFolder",
+        "title": "Scan Selected Folder",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.scanIncremental",
+        "title": "Scan Incremental Findings",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.rescanAll",
+        "title": "Rescan All",
         "category": "Bug Dhor"
       },
       {
@@ -110,6 +142,32 @@
         "title": "Show Assistant Capabilities",
         "category": "Bug Dhor",
         "icon": "$(plug)"
+      },
+      {
+        "command": "bugdhor.nextFinding",
+        "title": "Next Finding",
+        "category": "Bug Dhor",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "bugdhor.previousFinding",
+        "title": "Previous Finding",
+        "category": "Bug Dhor",
+        "icon": "$(arrow-up)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "bugdhor.nextFinding",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "bugdhor.previousFinding",
+        "key": "ctrl+shift+alt+n",
+        "mac": "cmd+shift+alt+n",
+        "when": "editorTextFocus"
       }
     ],
     "menus": {
@@ -117,6 +175,30 @@
         {
           "command": "bugdhor.showLogs",
           "when": "view == bugdhor.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "bugdhor.scanRepository",
+          "when": "view == bugdhor.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "bugdhor.rescanAll",
+          "when": "view == bugdhor.sidebar",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "bugdhor.scanSelectedFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "bugdhor.scanChangedFiles",
+          "when": "workspaceFolderCount != 0",
           "group": "navigation"
         }
       ]
@@ -373,6 +455,78 @@
           "default": true,
           "scope": "machine-overridable",
           "description": "Show a non-blocking notification when a background scan publishes findings."
+        },
+        "bugdhor.repository.maxFiles": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 1,
+          "maximum": 50000,
+          "scope": "machine-overridable",
+          "markdownDescription": "Maximum number of source files discovered for an explicit repository scan. The inventory is truncated at this bound and the truncation is reported."
+        },
+        "bugdhor.repository.maxFileBytes": {
+          "type": "number",
+          "default": 1048576,
+          "minimum": 1024,
+          "maximum": 10485760,
+          "scope": "machine-overridable",
+          "markdownDescription": "Largest source file included in an explicit repository inventory."
+        },
+        "bugdhor.repository.excludeGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/bower_components/**",
+            "**/.git/**",
+            "**/.venv/**",
+            "**/venv/**",
+            "**/site-packages/**",
+            "**/__pycache__/**",
+            "**/.pytest_cache/**",
+            "**/.mypy_cache/**",
+            "**/.ruff_cache/**",
+            "**/dist/**",
+            "**/out/**",
+            "**/build/**",
+            "**/target/**",
+            "**/obj/**",
+            "**/.next/**",
+            "**/.turbo/**",
+            "**/coverage/**",
+            "**/vendor/**",
+            "**/.bugdhor-data/**"
+          ],
+          "scope": "machine-overridable",
+          "markdownDescription": "Additional glob exclusions applied during repository discovery. Built-in exclusions, `.gitignore`, symlink safety, and binary/generated file filters always apply."
+        },
+        "bugdhor.repository.includeUntrackedFiles": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "markdownDescription": "Include untracked files reported by Git when scanning changed files. Ignored files are still excluded by `.gitignore`."
+        },
+        "bugdhor.repository.gitTimeoutMs": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "scope": "machine-overridable",
+          "markdownDescription": "Timeout for each read-only Git metadata query used to find changed files."
+        },
+        "bugdhor.repository.notifyOnWorkspaceOpen": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "markdownDescription": "Offer an explicit repository scan once when a workspace with source files is detected. This never sends source text by itself."
+        },
+        "bugdhor.repository.autoScanOnWorkspaceOpen": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine-overridable",
+          "markdownDescription": "Automatically scan a newly detected workspace. Requires a loopback backend plus both automatic source-sharing consent and privacy source-text consent; otherwise only a notification is shown."
         },
         "bugdhor.feedback.notifyOnPatchApplied": {
           "type": "boolean",

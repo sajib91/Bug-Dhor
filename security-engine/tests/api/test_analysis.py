@@ -31,6 +31,19 @@ def login(username):
 """
 
 
+SIMPLE_PATCH = (
+    "--- a/app.py\n"
+    "+++ b/app.py\n"
+    "@@ -1,5 +1,5 @@\n"
+    " import sqlite3\n"
+    " \n"
+    " \n"
+    "-def connect(value):\n"
+    "+def connect_safely(value):\n"
+    "     return sqlite3.connect(value)\n"
+)
+
+
 def _validation_messages(response) -> str:
     errors = response.json()["details"]["errors"]
     return " ".join(error.get("message", "") for error in errors).lower()
@@ -266,6 +279,82 @@ def test_verification_runs_independently_and_reports_classification(api) -> None
     assert isinstance(body["result"]["checks"], list) and body["result"]["checks"]
     assert "report" in body["result"]
     assert body["result"]["report"]["staticAnalysisComparison"]["touchedFiles"] if False else True
+
+
+def test_repair_id_resolves_the_stored_patch_for_verification(api) -> None:
+    repair = api.client.post(
+        "/api/v1/repair/generate",
+        json=api.payload(
+            finding={
+                "findingId": "finding-1",
+                "documentUri": _file_uri(api),
+                "range": _range(),
+                "cwe": "CWE-89",
+            },
+            patch=SIMPLE_PATCH,
+            runFunctionalTests=False,
+        ),
+    )
+    assert repair.status_code == 200
+    repair_id = repair.json()["result"]["metadata"]["repairId"]
+    assert repair_id
+
+    verification = api.client.post(
+        "/api/v1/verification/run",
+        json=api.payload(repairId=repair_id, cwe="CWE-89"),
+    )
+
+    assert verification.status_code == 200
+    result = verification.json()["result"]
+    assert result["repairId"] == repair_id
+    assert result["verdict"] in {"passed", "failed", "inconclusive"}
+    assert result["report"]["priorWorkflowEvidence"]["repairId"] == repair_id
+    assert result["report"]["priorWorkflowEvidence"]["state"]
+    assert result["report"]["priorWorkflowEvidence"]["securityVerification"] is not None
+    assert result["report"]["priorWorkflowEvidence"]["beforeAfterComparison"] is not None
+    assert any(check["kind"] == "security" for check in result["checks"])
+
+
+def test_verification_rejects_a_repair_id_after_an_unrelated_source_change(api) -> None:
+    repair = api.client.post(
+        "/api/v1/repair/generate",
+        json=api.payload(
+            finding={
+                "findingId": "finding-1",
+                "documentUri": _file_uri(api),
+                "range": _range(),
+                "cwe": "CWE-89",
+            },
+            patch=SIMPLE_PATCH,
+            runFunctionalTests=False,
+        ),
+    )
+    assert repair.status_code == 200
+    repair_id = repair.json()["result"]["metadata"]["repairId"]
+
+    (api.root / "app.py").write_text("value = 'unrelated'\n", encoding="utf-8")
+    verification = api.client.post(
+        "/api/v1/verification/run",
+        json=api.payload(repairId=repair_id),
+    )
+
+    assert verification.status_code == 409
+    assert verification.json()["code"] == "E_REPAIR_SNAPSHOT_MISMATCH"
+
+
+def test_verification_accepts_explicit_patched_source(api) -> None:
+    patched = (api.root / "app.py").read_text(encoding="utf-8").replace(
+        "def connect(value)", "def connect_safely(value)"
+    )
+    response = api.client.post(
+        "/api/v1/verification/run",
+        json=api.payload(patchedSource=patched, cwe="CWE-89", findingId="finding-1"),
+    )
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["verdict"] in {"passed", "failed", "inconclusive"}
+    assert any(check["kind"] == "security" for check in result["checks"])
 
 
 def test_explanation_requires_a_finding_target(api) -> None:

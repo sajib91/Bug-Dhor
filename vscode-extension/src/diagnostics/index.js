@@ -1,6 +1,7 @@
 'use strict';
 
 const { DiagnosticController } = require('./diagnosticController');
+const { DecorationController } = require('./decorationController');
 const { FindingHoverProvider } = require('./hoverProvider');
 const { FindingCodeActionProvider } = require('./codeActionProvider');
 
@@ -14,17 +15,19 @@ const { FindingCodeActionProvider } = require('./codeActionProvider');
  *
  * @param {{
  *   vscode: import('vscode'),
+ *   extensionUri?: import('vscode').Uri,
  *   logger: import('../logging/output').Logger,
  *   onFindingsPublished?: (event: object) => void
  * }} dependencies
  * @returns {{
  *   controller: DiagnosticController,
+ *   decorations: DecorationController | null,
  *   hoverProvider: FindingHoverProvider,
  *   codeActionProvider: FindingCodeActionProvider,
  *   dispose: () => void
  * }}
  */
-function registerDiagnostics({ vscode, logger, onFindingsPublished }) {
+function registerDiagnostics({ vscode, extensionUri, logger, onFindingsPublished }) {
   if (
     !vscode?.languages ||
     typeof vscode.languages.registerHoverProvider !== 'function' ||
@@ -33,7 +36,18 @@ function registerDiagnostics({ vscode, logger, onFindingsPublished }) {
     throw new TypeError('registerDiagnostics requires the VS Code language provider APIs.');
   }
 
-  const controller = new DiagnosticController({ vscode, logger, onFindingsPublished });
+  let decorations = null;
+  if (extensionUri && typeof vscode.window?.createTextEditorDecorationType === 'function') {
+    decorations = new DecorationController({ vscode, extensionUri, logger });
+  }
+
+  let controller;
+  try {
+    controller = new DiagnosticController({ vscode, logger, onFindingsPublished, decorations });
+  } catch (error) {
+    decorations?.dispose();
+    throw error;
+  }
   const hoverProvider = new FindingHoverProvider({ vscode, findings: controller });
   const codeActionProvider = new FindingCodeActionProvider({ vscode, findings: controller });
   const disposables = [controller];
@@ -57,6 +71,7 @@ function registerDiagnostics({ vscode, logger, onFindingsPublished }) {
   let disposed = false;
   return {
     controller,
+    decorations,
     hoverProvider,
     codeActionProvider,
     dispose() {

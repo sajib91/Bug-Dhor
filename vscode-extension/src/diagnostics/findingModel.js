@@ -12,10 +12,16 @@
  * {
  *   findings: [{
  *     id: string,
- *     message: string,
+ *     message: string,                      // backend finding title
  *     severity: 'critical' | 'high' | 'medium' | 'low' | 'info',
+ *     category?: string,                    // backend bug category
  *     cwe?: string,                         // CWE-89
  *     ruleId?: string,
+ *     filePath?: string,
+ *     startLine?: number,                   // zero-based, when supplied by backend
+ *     startColumn?: number,
+ *     endLine?: number,
+ *     endColumn?: number,
  *     location: {
  *       uri: string,                        // file: URI
  *       range: {                            // zero-based, like VS Code/LSP
@@ -25,6 +31,11 @@
  *     },
  *     evidence?: string,
  *     explanation?: string,
+ *     suggestedRemediation?: string,
+ *     confidence?: 'observation' | 'inference' | 'hypothesis',
+ *     confidenceBasis?: string,
+ *     uncertainty?: string[],
+ *     detectionMethod?: string,             // backend scanner or method name
  *     verificationStatus?: 'confirmed' | 'potential',
  *     sourceReferences?: [{
  *       label: string,
@@ -53,6 +64,7 @@
 
 /** @typedef {'critical' | 'high' | 'medium' | 'low' | 'info'} FindingSeverity */
 /** @typedef {'error' | 'warning' | 'information' | 'hint'} SeverityKind */
+/** @typedef {'observation' | 'inference' | 'hypothesis'} FindingConfidence */
 /** @typedef {'heuristic_index'} RiskScoreKind */
 /** @typedef {'calibrated_probability' | null} ProbabilityKind */
 
@@ -120,6 +132,53 @@ function optionalString(value, field) {
     return undefined;
   }
   return requireString(value, field);
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} field
+ * @returns {number | undefined}
+ */
+function optionalNonNegativeInteger(value, field) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Number.isInteger(value) || value < 0) {
+    throw new FindingValidationError(`${field} must be a non-negative integer.`);
+  }
+  return value;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {FindingConfidence | undefined}
+ */
+function normalizeConfidence(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (value !== 'observation' && value !== 'inference' && value !== 'hypothesis') {
+    throw new FindingValidationError(
+      "confidence must be 'observation', 'inference', or 'hypothesis' when supplied."
+    );
+  }
+  return value;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string[] | undefined}
+ */
+function normalizeUncertainty(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new FindingValidationError('uncertainty must be an array when supplied.');
+  }
+  return value.map((entry, index) =>
+    requireString(entry, `uncertainty[${index}]`, { allowEmpty: true })
+  );
 }
 
 /**
@@ -461,12 +520,23 @@ function normalizeRiskAssessment(value, field = 'riskAssessment') {
  *   message: string,
  *   severity: FindingSeverity,
  *   severityKind: SeverityKind,
+ *   category?: string,
  *   cwe?: string,
  *   ruleId?: string,
+ *   filePath?: string,
+ *   startLine?: number,
+ *   startColumn?: number,
+ *   endLine?: number,
+ *   endColumn?: number,
  *   documentUri: string,
  *   range: ReturnType<typeof normalizeRange>,
  *   evidence?: string,
  *   explanation?: string,
+ *   suggestedRemediation?: string,
+ *   confidence?: FindingConfidence,
+ *   confidenceBasis?: string,
+ *   uncertainty?: string[],
+ *   detectionMethod?: string,
  *   verificationStatus?: 'confirmed' | 'potential',
  *   sourceReferences: ReturnType<typeof normalizeSourceReference>[],
  *   repair?: { eligible: boolean, description?: string },
@@ -483,6 +553,12 @@ function normalizeFinding(rawFinding) {
   const message = requireString(rawFinding.message, 'message');
   const severity = normalizeSeverity(rawFinding.severity, 'severity');
   const location = normalizeLocation(rawFinding.location);
+  const category = optionalString(rawFinding.category, 'category');
+  const filePath = optionalString(rawFinding.filePath, 'filePath');
+  const startLine = optionalNonNegativeInteger(rawFinding.startLine, 'startLine');
+  const startColumn = optionalNonNegativeInteger(rawFinding.startColumn, 'startColumn');
+  const endLine = optionalNonNegativeInteger(rawFinding.endLine, 'endLine');
+  const endColumn = optionalNonNegativeInteger(rawFinding.endColumn, 'endColumn');
 
   /** @type {string | undefined} */
   let cwe;
@@ -498,6 +574,14 @@ function normalizeFinding(rawFinding) {
 
   const evidence = optionalString(rawFinding.evidence, 'evidence');
   const explanation = optionalString(rawFinding.explanation, 'explanation');
+  const suggestedRemediation = optionalString(
+    rawFinding.suggestedRemediation,
+    'suggestedRemediation'
+  );
+  const confidence = normalizeConfidence(rawFinding.confidence);
+  const confidenceBasis = optionalString(rawFinding.confidenceBasis, 'confidenceBasis');
+  const uncertainty = normalizeUncertainty(rawFinding.uncertainty);
+  const detectionMethod = optionalString(rawFinding.detectionMethod, 'detectionMethod');
   const verificationStatus = normalizeVerificationStatus(rawFinding.verificationStatus);
 
   let sourceReferences = [];
@@ -516,12 +600,23 @@ function normalizeFinding(rawFinding) {
     message,
     severity,
     severityKind: severityToKind(severity),
+    ...(category === undefined ? {} : { category }),
     ...(cwe === undefined ? {} : { cwe }),
     ...(ruleId === undefined ? {} : { ruleId }),
+    ...(filePath === undefined ? {} : { filePath }),
+    ...(startLine === undefined ? {} : { startLine }),
+    ...(startColumn === undefined ? {} : { startColumn }),
+    ...(endLine === undefined ? {} : { endLine }),
+    ...(endColumn === undefined ? {} : { endColumn }),
     documentUri: location.uri,
     range: location.range,
     ...(evidence === undefined ? {} : { evidence }),
     ...(explanation === undefined ? {} : { explanation }),
+    ...(suggestedRemediation === undefined ? {} : { suggestedRemediation }),
+    ...(confidence === undefined ? {} : { confidence }),
+    ...(confidenceBasis === undefined ? {} : { confidenceBasis }),
+    ...(uncertainty === undefined ? {} : { uncertainty }),
+    ...(detectionMethod === undefined ? {} : { detectionMethod }),
     ...(verificationStatus === undefined ? {} : { verificationStatus }),
     sourceReferences,
     ...(repair === undefined ? {} : { repair }),
@@ -661,6 +756,8 @@ module.exports = {
   normalizeFinding,
   normalizeScanResult,
   normalizeSeverity,
+  normalizeConfidence,
+  normalizeUncertainty,
   normalizeVerificationStatus,
   normalizeCwe,
   normalizeFileUri,

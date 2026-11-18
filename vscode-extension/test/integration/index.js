@@ -508,6 +508,9 @@ async function run() {
   assert.ok(trackedBefore, 'the scan must be recorded separately from research tracking');
   assert.notEqual(trackedBefore.state, 'resolved');
 
+  // The default editor provider exposes capability A only. Repair generation
+  // must therefore fail honestly instead of inventing a proposal, and it must
+  // leave the scanned source untouched.
   const repair = await vscode.commands.executeCommand(COMMANDS.repairVulnerability, {
     findingId: finding.id,
     documentUri: vulnerableDocument.uri.toString(),
@@ -515,10 +518,11 @@ async function run() {
     cwe: finding.cwe,
     ruleId: finding.ruleId
   });
-  assert.ok(repair);
-  assert.equal(repair.operation, 'repair_generate');
-  assert.ok(repair.result, 'the backend must return an explicit repair workflow result');
-  assert.equal(repair.result.requiresApproval, true);
+  assert.equal(
+    repair,
+    undefined,
+    'repair generation must not return a proposal without a configured B/C provider'
+  );
   assert.equal(
     vulnerableEditor.document.getText(),
     VULNERABLE_SOURCE,
@@ -528,7 +532,7 @@ async function run() {
   const trackedAfterRepair = api.feedback
     .getSnapshot()
     .findings.find((entry) => entry.findingId === finding.id);
-  assert.notEqual(trackedAfterRepair?.state, 'resolved', 'a proposal is not an approved patch');
+  assert.notEqual(trackedAfterRepair?.state, 'resolved', 'no patch was applied');
 
   const verificationsBefore = api.feedback.getSnapshot().stats.verifications;
   const verification = await vscode.commands.executeCommand(COMMANDS.verifyRepair, {

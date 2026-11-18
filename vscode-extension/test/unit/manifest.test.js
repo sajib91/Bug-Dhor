@@ -50,8 +50,47 @@ test('commands are registered with a category and match shared IDs', () => {
   }
 });
 
+test('finding navigation commands are contributed and keyboard accessible', () => {
+  const commands = new Map(
+    (manifest.contributes?.commands ?? []).map((entry) => [entry.command, entry])
+  );
+  assert.equal(commands.get(COMMANDS.nextFinding).title, 'Next Finding');
+  assert.equal(commands.get(COMMANDS.previousFinding).title, 'Previous Finding');
+
+  const keybindings = manifest.contributes?.keybindings ?? [];
+  const byCommand = new Map(keybindings.map((entry) => [entry.command, entry]));
+  assert.deepEqual(byCommand.get(COMMANDS.nextFinding), {
+    command: COMMANDS.nextFinding,
+    key: 'ctrl+alt+n',
+    mac: 'cmd+alt+n',
+    when: 'editorTextFocus'
+  });
+  assert.deepEqual(byCommand.get(COMMANDS.previousFinding), {
+    command: COMMANDS.previousFinding,
+    key: 'ctrl+shift+alt+n',
+    mac: 'cmd+shift+alt+n',
+    when: 'editorTextFocus'
+  });
+});
+
+test('severity-specific gutter icons exist as local SVG assets', () => {
+  for (const name of [
+    'gutter-critical.svg',
+    'gutter-high.svg',
+    'gutter-medium.svg',
+    'gutter-low.svg'
+  ]) {
+    const iconPath = path.join(extensionRoot, 'media', name);
+    assert.ok(fs.existsSync(iconPath), `${name} must exist`);
+    const svg = fs.readFileSync(iconPath, 'utf8');
+    assert.match(svg, /^<svg /);
+    const withoutNamespace = svg.replace('xmlns="http://www.w3.org/2000/svg"', '');
+    assert.ok(!/https?:\/\//.test(withoutNamespace), `${name} must not reference remote origins`);
+  }
+});
+
 test('command definitions are unique and match manifest titles and activation events', () => {
-  assert.equal(COMMAND_DEFINITIONS.length, 10, 'ten feature commands must be defined');
+  assert.equal(COMMAND_DEFINITIONS.length, 15, 'fifteen feature commands must be defined');
 
   const definitionIds = COMMAND_DEFINITIONS.map((definition) => definition.id);
   assert.equal(new Set(definitionIds).size, definitionIds.length, 'definition IDs must be unique');
@@ -132,6 +171,13 @@ test('configuration settings are declared', () => {
     'bugdhor.monitoring.excludeBinaryFiles',
     'bugdhor.monitoring.excludeGeneratedFiles',
     'bugdhor.monitoring.notifyOnFindings',
+    'bugdhor.repository.maxFiles',
+    'bugdhor.repository.maxFileBytes',
+    'bugdhor.repository.excludeGlobs',
+    'bugdhor.repository.includeUntrackedFiles',
+    'bugdhor.repository.gitTimeoutMs',
+    'bugdhor.repository.notifyOnWorkspaceOpen',
+    'bugdhor.repository.autoScanOnWorkspaceOpen',
     'bugdhor.feedback.notifyOnPatchApplied',
     'bugdhor.feedback.notifyOnResolution',
     'bugdhor.recommendations.runFunctionalTests',

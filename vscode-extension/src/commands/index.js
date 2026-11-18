@@ -3,6 +3,7 @@
 const { COMMAND_DEFINITIONS } = require('./definitions');
 const { CommandRegistry } = require('./registry');
 const { registerScanCommands } = require('./scanCommands');
+const { registerRepositoryCommands } = require('./repositoryCommands');
 const { registerAnalysisCommands } = require('./analysisCommands');
 const { registerRepairCommands } = require('./repairCommands');
 const { registerDashboardCommand } = require('./dashboardCommand');
@@ -14,6 +15,7 @@ const { registerUtilityCommands, UTILITY_COMMANDS } = require('./utilityCommands
  */
 const COMMAND_REGISTRARS = Object.freeze([
   registerScanCommands,
+  registerRepositoryCommands,
   registerAnalysisCommands,
   registerRepairCommands,
   registerDashboardCommand,
@@ -63,7 +65,9 @@ function assertCompleteRegistry(registry) {
  *   assistantRegistry?: ReturnType<import('../integrations/registry').createProviderRegistry>,
  *   assistantHooks?: import('../integrations/securityHooks').SecurityHooks,
  *   feedback?: import('../feedback/feedbackController').FeedbackController,
- *   getRecommendationSettings?: () => object
+ *   getRecommendationSettings?: () => object,
+ *   getRepositorySettings?: () => object,
+ *   gitRunner?: (cwd: string, args: string[], timeoutMs: number) => Promise<string>
  * }} dependencies
  * @returns {CommandRegistry} One disposable that owns every registration.
  */
@@ -76,7 +80,9 @@ function registerCommands({
   assistantRegistry,
   assistantHooks,
   feedback,
-  getRecommendationSettings
+  getRecommendationSettings,
+  getRepositorySettings,
+  gitRunner
 }) {
   if (!vscode) {
     throw new TypeError('registerCommands requires a vscode API object.');
@@ -108,7 +114,9 @@ function registerCommands({
     assistantRegistry,
     assistantHooks,
     feedback,
-    getSettings: getRecommendationSettings
+    getSettings: getRecommendationSettings,
+    getRepositorySettings: getRepositorySettings ?? (() => ({ backendUrl: 'http://127.0.0.1:8765' })),
+    gitRunner
   };
 
   try {

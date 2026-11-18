@@ -305,6 +305,8 @@ function createEmptyDashboardState(options = {}) {
     summary: {
       totalFindings: null,
       severity: { critical: null, high: null, medium: null, low: null },
+      categories: {},
+      statuses: {},
       lastScanAt: null,
       workspaceName: null
     },
@@ -312,6 +314,7 @@ function createEmptyDashboardState(options = {}) {
     cweDistribution: [],
     scanHistory: [],
     vulnerabilities: [],
+    findingReviews: {},
     sae: unavailableSaeState(),
     featureInteractions: unavailableInteractionState(),
     steering: unavailableSteeringState(),
@@ -530,6 +533,8 @@ function createDemoDashboardState(options = {}) {
     summary: {
       totalFindings: 18,
       severity: { critical: 2, high: 4, medium: 7, low: 5 },
+      categories: {},
+      statuses: {},
       lastScanAt: hoursAgo(2),
       workspaceName: 'demo-workspace'
     },
