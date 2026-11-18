@@ -32,7 +32,7 @@ No fabricated results, citations, or capability claims.
 | Dashboard and webviews | `vscode-extension/src/webviews/*`, `media/*` | **Implemented** | CSP/nonce-restricted webviews, allowlisted command execution, validated messages, honest empty/demo/live state handling. |
 | Diagnostics, hovers, quick fixes | `vscode-extension/src/diagnostics/*` | **Implemented** | Publishes only validated backend findings; repair quick fixes only when backend marks eligible. |
 | FastAPI app and middleware | `security-engine/src/bugdhor/api/app.py`, `middleware/*`, `dependencies.py` | **Implemented** | Request context, auth (optional token), request/body limits, CORS config, error/problem handling, logging integration. |
-| API routes/schemas | `security-engine/src/bugdhor/api/routes/*`, `schemas/*` | **Implemented** | Health, scan, detection, explanation, features, counterfactual, prevention, repair, verification, jobs endpoints with typed payloads/responses. |
+| API routes/schemas | `security-engine/src/bugdhor/api/routes/*`, `schemas/*` | **Implemented** | Health, scan, detection, explanation, features, counterfactual, prevention, repair, secure recommendations, verification, jobs endpoints with typed payloads/responses. |
 | Orchestrator and jobs | `security-engine/src/bugdhor/core/orchestrator.py`, `core/jobs.py`, `core/pipeline.py`, `core/settings.py` | **Implemented / partial integration** | Central pipeline execution, progress/cancellation hooks, persistence, caching/limits; stage availability varies by capability/config. |
 | Path safety and settings | `security-engine/src/bugdhor/core/paths.py`, `core/errors.py`, `config.py` | **Implemented** | Workspace containment/symlink-safe resolution, typed errors, env-backed settings and redaction. |
 
@@ -129,8 +129,22 @@ No fabricated results, citations, or capability claims.
 | Independent security verifier | `security-engine/src/bugdhor/verification/engine.py` | **Implemented (conditional)** | Before/after static/taint-oriented evidence comparison in isolated temp contexts. |
 | Functional verifier | `security-engine/src/bugdhor/verification/functional.py` | **Implemented (conditional)** | Consent-gated; requires isolated sandbox for untrusted project tests. |
 | Sandbox executor | `security-engine/src/bugdhor/sandbox/executor.py` | **Implemented (conditional)** | Enforces consent/safety constraints; backend availability (e.g. Docker) required. |
-| Verification API and extension command | `api/routes/verification.py`, `vscode-extension/src/commands/repairCommands.js` | **Partial / integrated path (currently unavailable stages)** | The standalone `verification_run` orchestrator path currently declares `verification` unavailable and returns an inconclusive placeholder. The independent verification engine is invoked inside `RepairWorkflow`; results depend on analyzers/consent/sandbox and workflow state. |
+| Verification API and extension command | `api/routes/verification.py`, `vscode-extension/src/commands/repairCommands.js` | **Implemented (conditional)** | `verification_run` is a registered integrated interface; individual responses depend on analyzers/consent/sandbox and must remain inconclusive when evidence is unavailable. The independent verification engine is also invoked inside repair and secure-recommendation workflows with mandatory gates. |
 | Universal proof of correctness/security | n/a | **Not available** | Verification is bounded by checks/profile/environment. |
+
+## 12A. Secure code recommendation and feedback loop
+
+| Element | Implementation | Status | Notes |
+|---|---|---|---|
+| Secure recommendation workflow | `security-engine/src/bugdhor/recommendation/*` | **Implemented** | 12 stages: findings, source context, CWE requirements, repository context, evidence, secure prompt, candidates, syntax, static analysis, functional tests, ranking, display. Mandatory gates reject every unverified candidate. |
+| Proposal-only recommendation API | `security-engine/src/bugdhor/api/routes/recommendation.py`, `schemas/recommendation.py`, `core/orchestrator.py` | **Implemented** | `POST /api/v1/recommendations/generate`; `requiresApproval` is always true; backend never applies code; `result.prompt.text` returned only to the source-supplying caller. |
+| Steering and provenance guards | `security-engine/src/bugdhor/recommendation/engine.py`, `vscode-extension/src/api/securityEngineService.js` | **Implemented** | HTTP steering pipeline is always `None`; no credential is serialized; D/E/F claims require genuine local pipelines; SAE/counterfactual evidence stays hypothesis-level. |
+| Provider-backed VS Code generation | `vscode-extension/src/recommendations/secureCodeGeneration.js`, `src/commands/repairCommands.js` | **Implemented (conditional)** | Requires a validated diagnostic and an available B/C provider; obtains the backend prompt, extracts target-file diffs, and submits them for backend verification. Hosted assistants never claim validated steering. |
+| Dashboard recommendation review and approval | `vscode-extension/src/webviews/dashboardPanel.js`, `dashboardModel.js`, `media/dashboard.js` | **Implemented** | Shows original/repaired code, changes, rationale, remaining risks, verification, and provenance; explicit approval with base-hash revalidation is required before any edit. |
+| Feedback lifecycle and bounded loop | `vscode-extension/src/feedback/*`, `src/monitoring/realtimeMonitor.js`, `src/diagnostics/diagnosticController.js` | **Implemented** | Hooks never synthesize findings; duplicate scans are deduped; one self-induced scan is suppressed and one bounded rescan scheduled; resolution requires patch + clean rescan + passing verification. |
+| Fully automatic or guaranteed-secure repair | n/a | **Not implemented / by design** | Explicit approval is mandatory; passing checks are bounded evidence, not a security proof. |
+
+See [secure recommendations and feedback](secure-recommendation-and-feedback.md) for the workflow contract, gate details, settings, and verification commands.
 
 ## 13. Experimental design
 
@@ -203,6 +217,8 @@ No fabricated results, citations, or capability claims.
 | `/api/v1/health`, scan, detection, explanation endpoints | FastAPI routes/orchestrator | VS Code extension, API clients | **Implemented** |
 | Feature/counterfactual/steering endpoints | Routes/orchestrator + conditional engines | Extension, API clients | **Implemented (conditional)** |
 | Repair/verification endpoints | Routes/orchestrator/workflow/verifiers | Extension, API clients | **Implemented (conditional)** |
+| Secure recommendation proposals | `api/routes/recommendation.py`, `recommendation/*`, provider-backed client workflow | Dashboard, API clients | **Implemented (conditional)** |
+| Feedback lifecycle and rescan control | Diagnostics hook, `feedback/*`, realtime monitor | Dashboard, notifications, diagnostics | **Implemented** |
 | Jobs/status/progress/result/cancel | `core/jobs.py`, `api/routes/jobs.py` | Clients/tools | **Implemented** |
 | Diagnostics/hover/quick-fix data | Validated backend scan results | VS Code diagnostics providers | **Implemented** |
 | Experiment manifests/exports/reports | `experiments/*`, `evaluation/*` | Researchers/tools | **Implemented (conditional)** |

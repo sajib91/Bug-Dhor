@@ -14,7 +14,8 @@ const { FindingCodeActionProvider } = require('./codeActionProvider');
  *
  * @param {{
  *   vscode: import('vscode'),
- *   logger: import('../logging/output').Logger
+ *   logger: import('../logging/output').Logger,
+ *   onFindingsPublished?: (event: object) => void
  * }} dependencies
  * @returns {{
  *   controller: DiagnosticController,
@@ -23,7 +24,7 @@ const { FindingCodeActionProvider } = require('./codeActionProvider');
  *   dispose: () => void
  * }}
  */
-function registerDiagnostics({ vscode, logger }) {
+function registerDiagnostics({ vscode, logger, onFindingsPublished }) {
   if (
     !vscode?.languages ||
     typeof vscode.languages.registerHoverProvider !== 'function' ||
@@ -32,7 +33,7 @@ function registerDiagnostics({ vscode, logger }) {
     throw new TypeError('registerDiagnostics requires the VS Code language provider APIs.');
   }
 
-  const controller = new DiagnosticController({ vscode, logger });
+  const controller = new DiagnosticController({ vscode, logger, onFindingsPublished });
   const hoverProvider = new FindingHoverProvider({ vscode, findings: controller });
   const codeActionProvider = new FindingCodeActionProvider({ vscode, findings: controller });
   const disposables = [controller];

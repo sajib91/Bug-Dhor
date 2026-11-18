@@ -17,6 +17,7 @@ const ENGINE_METHODS = Object.freeze([
   'analyzeSecurityFeatures',
   'counterfactualAnalysis',
   'generateSecureCode',
+  'generateRecommendation',
   'repairVulnerability',
   'verifyRepair'
 ]);
@@ -484,7 +485,13 @@ test('every engine-backed command invokes its declared service method', async ()
     activeTextEditor: createEditor(),
     workspaceFolders: [createWorkspaceFolder('/workspace')]
   });
-  const engineDefinitions = COMMAND_DEFINITIONS.filter((definition) => definition.serviceMethod);
+  // Generate Secure Code is a custom, provider-backed workflow: it obtains the
+  // backend prompt and then submits generated candidates through the
+  // recommendation endpoint. It is covered by secureCodeGeneration tests.
+  const engineDefinitions = COMMAND_DEFINITIONS.filter(
+    (definition) =>
+      definition.serviceMethod && definition.id !== COMMANDS.generateSecureCode
+  );
 
   for (const definition of engineDefinitions) {
     await harness.handlers.get(definition.id)();

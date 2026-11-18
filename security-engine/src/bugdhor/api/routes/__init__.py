@@ -12,6 +12,7 @@ from bugdhor.api.routes import (
     health,
     jobs,
     prevention,
+    recommendation,
     repair,
     scan,
     verification,
@@ -26,6 +27,7 @@ api_router.include_router(explanation.router)
 api_router.include_router(features.router)
 api_router.include_router(counterfactual.router)
 api_router.include_router(prevention.router)
+api_router.include_router(recommendation.router)
 api_router.include_router(repair.router)
 api_router.include_router(verification.router)
 api_router.include_router(jobs.router)

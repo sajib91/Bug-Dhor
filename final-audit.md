@@ -375,7 +375,7 @@ Paper-contribution coverage (detail in `research-compliance-report.md`):
 **What exists**
 - VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`, **45 files, 104,319 bytes**.
 - SHA-256: `6ee5a897fe886634a56f8d34aa9af6a26ff8d974f1956b657abf34d4e40875d3`.
-- Manifest: `name: bug-dhor`, `version: 0.1.0`, 12 commands, `engines.vscode: ^1.90.0`, no runtime npm dependencies.
+- Manifest: `name: bug-dhor`, `version: 0.1.0`, 13 commands, `engines.vscode: ^1.90.0`, no runtime npm dependencies.
 
 **Evidence**
 - Archive inspected: required `package.json`, `README.md`, six `media/*` assets, `src/**`; no secrets/tests/weights/datasets/nested VSIX.

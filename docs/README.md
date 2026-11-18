@@ -16,6 +16,7 @@
 - [SAE activation steering](steering.md) — disabled-by-default decoder-direction interventions, token targeting, adaptive interaction-aware policy, CWE-specific risk control, validation, and provenance.
 - [Explainable vulnerability analysis](explain.md) — evidence-separated JSON and human-readable explanations, source-to-sink paths, SAE associations, and counterfactual limitations.
 - [Repository-aware repair](repair.md) — bounded multi-file context with import relationships, AST/CFG/DFG summaries, tests, configuration, and security utility metadata.
+- [Secure recommendations and feedback](secure-recommendation-and-feedback.md) — proposal-only generation workflow, mandatory verification gates, provider-backed VS Code generation, dashboard approval, bounded rescanning, and finding lifecycle.
 - [User guide](user-guide.md) — installation, backend and model setup, scanning/explanation/SAE/counterfactual/generation/repair/verification tutorials, experiment configuration, troubleshooting, privacy, and limitations (implemented vs unavailable stated explicitly).
 - [Research methodology](research-methodology.md) — technical methodology for problem/objectives, SAE, feature identification, counterfactuals, interactions, steering, risk control, evidence fusion, repair, verification, experimental design, metrics, statistics, validity, and limitations.
 - [Implementation mapping](implementation-mapping.md) — maps each methodology area to repository modules and labels implemented, conditional, partial, planned, or unavailable.

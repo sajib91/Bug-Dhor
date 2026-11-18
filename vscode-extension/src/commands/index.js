@@ -60,11 +60,24 @@ function assertCompleteRegistry(registry) {
  *   logger: import('../logging/output').Logger,
  *   dashboard: import('../webviews/dashboardPanel').DashboardPanelController,
  *   diagnostics: import('../diagnostics/diagnosticController').DiagnosticController,
- *   assistantRegistry?: ReturnType<import('../integrations/registry').createProviderRegistry>
+ *   assistantRegistry?: ReturnType<import('../integrations/registry').createProviderRegistry>,
+ *   assistantHooks?: import('../integrations/securityHooks').SecurityHooks,
+ *   feedback?: import('../feedback/feedbackController').FeedbackController,
+ *   getRecommendationSettings?: () => object
  * }} dependencies
  * @returns {CommandRegistry} One disposable that owns every registration.
  */
-function registerCommands({ vscode, service, logger, dashboard, diagnostics, assistantRegistry }) {
+function registerCommands({
+  vscode,
+  service,
+  logger,
+  dashboard,
+  diagnostics,
+  assistantRegistry,
+  assistantHooks,
+  feedback,
+  getRecommendationSettings
+}) {
   if (!vscode) {
     throw new TypeError('registerCommands requires a vscode API object.');
   }
@@ -92,7 +105,10 @@ function registerCommands({ vscode, service, logger, dashboard, diagnostics, ass
     dashboard,
     diagnostics,
     registry,
-    assistantRegistry
+    assistantRegistry,
+    assistantHooks,
+    feedback,
+    getSettings: getRecommendationSettings
   };
 
   try {

@@ -122,7 +122,13 @@ test('configuration settings are declared', () => {
     'bugdhor.monitoring.maxFileBytes',
     'bugdhor.monitoring.maxChangedLines',
     'bugdhor.monitoring.excludeGlobs',
-    'bugdhor.monitoring.notifyOnFindings'
+    'bugdhor.monitoring.notifyOnFindings',
+    'bugdhor.feedback.notifyOnPatchApplied',
+    'bugdhor.feedback.notifyOnResolution',
+    'bugdhor.recommendations.runFunctionalTests',
+    'bugdhor.recommendations.allowSandboxedExecution',
+    'bugdhor.recommendations.testCommand',
+    'bugdhor.recommendations.testTimeoutSeconds'
   ]) {
     assert.ok(properties[key], `${key} must be declared`);
   }
@@ -138,6 +144,10 @@ test('configuration settings are declared', () => {
   assert.equal(properties['bugdhor.backend.requestTimeoutMs'].default, 30000);
   assert.equal(properties['bugdhor.backend.healthTimeoutMs'].default, 3000);
   assert.equal(properties['bugdhor.privacy.sendSourceText'].default, true);
+  assert.equal(properties['bugdhor.feedback.notifyOnPatchApplied'].default, true);
+  assert.equal(properties['bugdhor.feedback.notifyOnResolution'].default, true);
+  assert.equal(properties['bugdhor.recommendations.runFunctionalTests'].default, true);
+  assert.equal(properties['bugdhor.recommendations.allowSandboxedExecution'].default, false);
 });
 
 test('real-time monitoring is off by default and requires explicit source consent', () => {

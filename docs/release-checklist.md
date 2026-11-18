@@ -55,7 +55,7 @@ Manually inspect `vscode-extension/package.json` for the `publisher`,
 
 ## 3. Commands and activation
 
-The manifest currently contributes 12 commands and activates on
+The manifest currently contributes 13 commands and activates on
 `onStartupFinished`, the 12 `onCommand:` events, and
 `onView:bugdhor.sidebar`. There is no `*` activation event.
 

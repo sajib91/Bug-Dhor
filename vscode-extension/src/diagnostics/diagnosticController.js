@@ -38,10 +38,11 @@ class DiagnosticController {
    * @param {{
    *   vscode: import('vscode'),
    *   logger: import('../logging/output').Logger,
-   *   isWithinWorkspace?: (uri: import('vscode').Uri) => boolean
+   *   isWithinWorkspace?: (uri: import('vscode').Uri) => boolean,
+   *   onFindingsPublished?: (event: object) => void
    * }} dependencies
    */
-  constructor({ vscode, logger, isWithinWorkspace }) {
+  constructor({ vscode, logger, isWithinWorkspace, onFindingsPublished }) {
     if (!vscode) {
       throw new TypeError('DiagnosticController requires a vscode API object.');
     }
@@ -72,6 +73,8 @@ class DiagnosticController {
       typeof isWithinWorkspace === 'function'
         ? isWithinWorkspace
         : (uri) => defaultIsWithinWorkspace(vscode, uri);
+    this.onFindingsPublished =
+      typeof onFindingsPublished === 'function' ? onFindingsPublished : null;
 
     /**
      * @type {Map<string, {
@@ -97,6 +100,7 @@ class DiagnosticController {
    * @returns {{
    *   published: number,
    *   files: string[],
+   *   findings: object[],
    *   rejected: Array<{ index: number | null, code: string, reason: string }>
    * }}
    */
@@ -183,7 +187,34 @@ class DiagnosticController {
       );
     }
 
-    return { published: accepted.length, files: [...groups.keys()], rejected };
+    const publishedFindings = accepted.map((finding) => {
+      const copy = { ...finding };
+      delete copy.uri;
+      return copy;
+    });
+    if (this.onFindingsPublished) {
+      try {
+        this.onFindingsPublished({
+          findings: publishedFindings,
+          scopeUris: [...scopeKeys],
+          response: result
+        });
+      } catch (error) {
+        // Feedback bookkeeping must never prevent diagnostics publication.
+        this.logger.warn(
+          `Bug Dhor finding feedback failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+
+    return {
+      published: accepted.length,
+      files: [...groups.keys()],
+      findings: publishedFindings,
+      rejected
+    };
   }
 
   /**

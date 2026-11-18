@@ -303,6 +303,47 @@
           "scope": "machine-overridable",
           "description": "Show a non-blocking notification when a background scan publishes findings."
         },
+        "bugdhor.feedback.notifyOnPatchApplied": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "markdownDescription": "Notify when Bug Dhor records an explicitly applied patch. The finding remains open until a clean rescan and passing verification are recorded."
+        },
+        "bugdhor.feedback.notifyOnResolution": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "markdownDescription": "Notify when a finding is resolved after a clean rescan and passing verification."
+        },
+        "bugdhor.recommendations.runFunctionalTests": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "markdownDescription": "Require functional tests for secure recommendations. When disabled, no candidate can be recommended."
+        },
+        "bugdhor.recommendations.allowSandboxedExecution": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine-overridable",
+          "markdownDescription": "Explicitly allow sandboxed test execution for secure recommendations. Network, privileged, and destructive operations remain forbidden."
+        },
+        "bugdhor.recommendations.testCommand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine-overridable",
+          "markdownDescription": "Optional argv list for project functional tests. Empty means the backend uses repository detection only."
+        },
+        "bugdhor.recommendations.testTimeoutSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 1,
+          "maximum": 3600,
+          "scope": "machine-overridable",
+          "description": "Maximum time allowed for one functional-test run during recommendation verification."
+        },
         "bugdhor.assistant.provider": {
           "type": "string",
           "enum": [

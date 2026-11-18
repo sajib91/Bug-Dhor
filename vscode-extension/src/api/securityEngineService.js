@@ -39,6 +39,7 @@ const MAX_WORKSPACE_FOLDERS = 50;
  * @property {(request: object, context: EngineRequestContext) => Promise<object>} analyzeSecurityFeatures
  * @property {(request: object, context: EngineRequestContext) => Promise<object>} counterfactualAnalysis
  * @property {(request: object, context: EngineRequestContext) => Promise<object>} generateSecureCode
+ * @property {(request: object, context: EngineRequestContext) => Promise<object>} generateRecommendation
  * @property {(request: object, context: EngineRequestContext) => Promise<object>} repairVulnerability
  * @property {(request: object, context: EngineRequestContext) => Promise<object>} verifyRepair
  */
@@ -112,6 +113,11 @@ class UnavailableSecurityEngineService {
   /** @returns {Promise<never>} */
   async generateSecureCode() {
     throw new SecurityEngineUnavailableError('secure code generation');
+  }
+
+  /** @returns {Promise<never>} */
+  async generateRecommendation() {
+    throw new SecurityEngineUnavailableError('secure recommendation generation');
   }
 
   /** @returns {Promise<never>} */
@@ -303,6 +309,135 @@ function buildRepairFinding(request) {
     finding.ruleId = request.finding.ruleId;
   }
   return finding;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Record<string, unknown>}
+ */
+function buildRecommendationProvider(value) {
+  const source = isPlainObject(value) ? value : {};
+  /** @type {Record<string, unknown>} */
+  const provider = {};
+  if (typeof source.providerId === 'string' && source.providerId.length > 0) {
+    provider.providerId = source.providerId;
+  }
+  if (typeof source.modelId === 'string' && source.modelId.length > 0) {
+    provider.modelId = source.modelId;
+  }
+  if (Array.isArray(source.capabilities)) {
+    provider.capabilities = source.capabilities
+      .filter((entry) => typeof entry === 'string' && entry.length === 1)
+      .slice(0, 10);
+  }
+  if (typeof source.hosted === 'boolean') {
+    provider.hosted = source.hosted;
+  }
+  // This metadata is sent over the HTTP API. The API steering pipeline is
+  // always None, so no caller can claim validated steering through it. Direct
+  // engine callers with a real D/E/F pipeline are the only exception, and they
+  // do not travel through this serializer.
+  provider.steeringRequested = source.steeringRequested === true;
+  provider.steeringValidated = false;
+  return provider;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Array<Record<string, string>>}
+ */
+function buildSecurityEvidence(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.slice(0, 100).map((item, index) => {
+    if (!isPlainObject(item)) {
+      throw new SecurityEngineRequestError(
+        `Recommendation security evidence[${index}] must be an object.`,
+        'E_INVALID_REQUEST'
+      );
+    }
+    const claimKind = item.claimKind ?? item.claim_kind ?? 'unspecified';
+    const description = item.description ?? item.detail ?? item.message ?? '';
+    return {
+      type: typeof item.type === 'string' && item.type.length > 0 ? item.type : 'evidence',
+      claimKind: typeof claimKind === 'string' ? claimKind : 'unspecified',
+      description: typeof description === 'string' ? description : ''
+    };
+  });
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Record<string, unknown>}
+ */
+function buildExecutionConsent(value) {
+  const source = isPlainObject(value) ? value : {};
+  return {
+    granted: source.granted === true,
+    allowNetwork: source.allowNetwork === true,
+    allowPrivileged: source.allowPrivileged === true,
+    allowDestructive: source.allowDestructive === true,
+    source: typeof source.source === 'string' && source.source.length > 0 ? source.source : 'user'
+  };
+}
+
+/**
+ * Build the proposal-only secure recommendation request. Provider and evidence
+ * fields are normalized so no credential or unrelated setting is forwarded.
+ *
+ * @param {object} request
+ * @param {{ sendSourceText: boolean }} configuration
+ * @returns {Record<string, unknown>}
+ */
+function buildRecommendationBody(request, configuration) {
+  const body = buildFileRequestBody(request, configuration);
+  body.finding = buildRepairFinding(request);
+
+  if (request.candidates !== undefined && request.candidates !== null) {
+    if (!Array.isArray(request.candidates) || request.candidates.length > 8) {
+      throw new SecurityEngineRequestError(
+        'A recommendation accepts at most eight candidate patches.',
+        'E_TOO_MANY_CANDIDATES'
+      );
+    }
+    body.candidates = request.candidates.map((candidate, index) => {
+      if (typeof candidate !== 'string' || candidate.trim().length === 0) {
+        throw new SecurityEngineRequestError(
+          `Recommendation candidate ${index + 1} must be a non-empty unified diff.`,
+          'E_INVALID_CANDIDATE'
+        );
+      }
+      return candidate;
+    });
+  }
+
+  body.provider = buildRecommendationProvider(request.provider);
+  body.securityEvidence = buildSecurityEvidence(request.securityEvidence);
+  body.executionConsent = buildExecutionConsent(request.executionConsent);
+  if (typeof request.snapshotHash === 'string' && /^[a-f0-9]{64}$/.test(request.snapshotHash)) {
+    body.snapshotHash = request.snapshotHash;
+  }
+  if (typeof request.runFunctionalTests === 'boolean') {
+    body.runFunctionalTests = request.runFunctionalTests;
+  }
+  if (
+    typeof request.testTimeoutSeconds === 'number' &&
+    Number.isFinite(request.testTimeoutSeconds) &&
+    request.testTimeoutSeconds >= 1 &&
+    request.testTimeoutSeconds <= 3600
+  ) {
+    body.testTimeoutSeconds = request.testTimeoutSeconds;
+  }
+  if (Array.isArray(request.projectTestCommand)) {
+    const command = request.projectTestCommand.filter(
+      (entry) => typeof entry === 'string' && entry.length > 0
+    );
+    if (command.length > 0) {
+      body.projectTestCommand = command.slice(0, 50);
+    }
+  }
+  return body;
 }
 
 /**
@@ -548,15 +683,35 @@ class HttpSecurityEngineService {
   }
 
   /**
-   * Secure-code generation currently maps to the repair proposal endpoint. It
-   * requires a backend finding; the extension never invents one.
+   * Secure-code generation uses the recommendation workflow, not the generic
+   * repair endpoint. Callers may use this method to obtain the backend-built
+   * secure prompt without candidates; the extension command then submits
+   * provider-generated candidates through a second recommendation request.
    *
    * @param {object} request
    * @param {EngineRequestContext} context
    * @returns {Promise<object>}
    */
   async generateSecureCode(request, context = {}) {
-    return this.generateRepair(request, context, 'Secure code generation');
+    return this.generateRecommendation(request, context, 'Secure code generation');
+  }
+
+  /**
+   * Submit validated findings and candidate patches to the proposal-only
+   * secure recommendation workflow. The backend verifies and ranks candidates;
+   * the extension never applies a patch from this response automatically.
+   *
+   * @param {object} request
+   * @param {EngineRequestContext} context
+   * @param {string} [operationLabel]
+   * @returns {Promise<object>}
+   */
+  async generateRecommendation(request, context = {}, operationLabel = 'Secure recommendation') {
+    const { client, configuration } = this.createClient();
+    const body = buildRecommendationBody(request, configuration);
+    this.logger?.debug(`${operationLabel}: sending POST /api/v1/recommendations/generate.`);
+    const { data } = await client.post('/recommendations/generate', body, context?.token);
+    return validateAnalysisResponse(data, { operation: 'recommendation_generate' });
   }
 
   /**
@@ -665,6 +820,7 @@ module.exports = {
   HttpSecurityEngineService,
   buildFileRequestBody,
   buildRepairFinding,
+  buildRecommendationBody,
   findFindingId,
   createSecurityEngineService
 };

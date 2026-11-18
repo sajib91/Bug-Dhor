@@ -13,6 +13,7 @@ const { registerDiagnostics } = require('./diagnostics');
 const { RealtimeMonitor } = require('./monitoring/realtimeMonitor');
 const { onSettingsChanged, readSettings } = require('./config');
 const { createProviderRegistry, SecurityHooks } = require('./integrations');
+const { FeedbackController } = require('./feedback');
 
 /** @type {import('./logging/output').Logger | undefined} */
 let logger;
@@ -69,6 +70,36 @@ function getAssistantSettings() {
 }
 
 /**
+ * Map user-controlled feedback settings to the feedback controller.
+ *
+ * @returns {object}
+ */
+function getFeedbackSettings() {
+  const settings = readSettings();
+  return {
+    notifyOnPatchApplied: settings.feedbackNotifyOnPatchApplied,
+    notifyOnResolution: settings.feedbackNotifyOnResolution
+  };
+}
+
+/**
+ * Map user-controlled recommendation settings to the secure-code workflow.
+ * Sandboxed execution is opt-in and never grants network, privileged, or
+ * destructive permissions.
+ *
+ * @returns {object}
+ */
+function getRecommendationSettings() {
+  const settings = readSettings();
+  return {
+    runFunctionalTests: settings.recommendationRunFunctionalTests,
+    allowSandboxedExecution: settings.recommendationAllowSandboxedExecution,
+    testCommand: settings.recommendationTestCommand,
+    testTimeoutSeconds: settings.recommendationTestTimeoutSeconds
+  };
+}
+
+/**
  * Activate the Bug Dhor extension.
  *
  * This starts no Python process and performs no analysis. It connects to an
@@ -84,6 +115,11 @@ function activate(context) {
   const statusBar = createStatusBar();
   const configurationService = createConfigurationService({ vscode });
   const service = createSecurityEngineService({ configurationService, logger });
+  const feedback = new FeedbackController({
+    vscode,
+    logger,
+    getSettings: getFeedbackSettings
+  });
 
   /**
    * Check liveness without sending source. The result only controls status
@@ -119,16 +155,32 @@ function activate(context) {
     }
   }
 
-  const diagnostics = registerDiagnostics({ vscode, logger });
+  const diagnostics = registerDiagnostics({
+    vscode,
+    logger,
+    onFindingsPublished: (event) => {
+      const findings = Array.isArray(event?.findings) ? event.findings : [];
+      feedback.afterScan({
+        documentUri: findings[0]?.documentUri ?? event?.scopeUris?.[0],
+        findings,
+        scopeUris: event?.scopeUris ?? [],
+        response: event?.response
+      });
+    }
+  });
   const dashboard = new DashboardPanelController({
     vscode,
     extensionUri: context.extensionUri,
     logger,
+    feedback,
     getState: (dataMode) =>
       buildDashboardState({
         dataMode,
         settings: readSettings()
       })
+  });
+  const feedbackSubscription = feedback.subscribe((snapshot) => {
+    dashboard.updateLiveState({ feedback: snapshot });
   });
   // Assistant integrations are capability-scoped. Provider discovery is
   // asynchronous but never starts a model, sends source text, or claims
@@ -151,7 +203,10 @@ function activate(context) {
     logger,
     dashboard,
     diagnostics: diagnostics.controller,
-    assistantRegistry
+    assistantRegistry,
+    assistantHooks,
+    feedback,
+    getRecommendationSettings
   });
   const sidebarRegistration = registerSidebarView(context, logger);
 
@@ -161,7 +216,8 @@ function activate(context) {
     logger,
     diagnostics: diagnostics.controller,
     getSettings: getMonitoringSettings,
-    hooks: assistantHooks
+    hooks: assistantHooks,
+    feedback
   }).start();
 
   const settingsSubscription = onSettingsChanged((event) => {
@@ -197,7 +253,9 @@ function activate(context) {
     sidebarRegistration,
     settingsSubscription,
     commandRegistry,
-    monitor
+    monitor,
+    feedbackSubscription,
+    feedback
   );
 
   if (readSettings().autoStart) {
@@ -215,6 +273,7 @@ function activate(context) {
     configurationService,
     checkBackendHealth,
     monitor,
+    feedback,
     assistantRegistry,
     assistantHooks
   };

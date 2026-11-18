@@ -259,6 +259,7 @@ function createHarness(options = {}) {
     vscode: fake.vscode,
     extensionUri: createUri('/extension'),
     logger,
+    feedback: options.feedback,
     getState(dataMode) {
       stateCalls.push(dataMode);
       return {
@@ -300,6 +301,38 @@ function repairRequest() {
     workspaceFolder: '/workspace',
     languageId: 'javascript',
     finding: { findingId: 'finding-1' }
+  };
+}
+
+function recommendationResponse() {
+  return {
+    result: {
+      analysisAvailable: true,
+      findingId: 'finding-1',
+      cwe: 'CWE-89',
+      state: 'recommended',
+      verified: true,
+      requiresApproval: true,
+      originalCode: 'const value = 1;\n',
+      repairedCode: 'const value = 2;\n',
+      selected: {
+        candidateId: 'selected',
+        patch: REPAIR_PATCH,
+        verification: { verdict: 'passed' },
+        functional: { passRate: 1 }
+      },
+      candidates: [],
+      prompt: { promptHash: 'prompt-hash', steeringApplied: false },
+      stages: [],
+      explanation: {
+        summary: 'Uses a parameterized query.',
+        changes: ['Replaced string interpolation with a bound parameter.'],
+        why: ['Untrusted input no longer changes the SQL syntax.'],
+        remainingRisks: ['Database permissions still need review.'],
+        functionalAssurance: 'Unit tests passed.'
+      },
+      metadata: { recommendationId: 'recommendation-1', modelId: 'test-model' }
+    }
   };
 }
 
@@ -355,6 +388,86 @@ test('repair acceptance rejects stale document content', async () => {
 
   assert.equal(harness.appliedEdits.length, 0);
   assert.equal(harness.controller.repairRecords.get('repair-1').status, 'stale');
+});
+
+test('recommendation result records original and repaired code without applying a patch', async () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+
+  await harness.controller.recordRecommendationResult(
+    recommendationResponse(),
+    repairRequest()
+  );
+
+  const state = panel.postedMessages.at(-1).state;
+  assert.equal(state.recommendations.length, 1);
+  assert.equal((state.repairs ?? []).length, 0);
+  const [recommendation] = state.recommendations;
+  assert.equal(recommendation.originalCode, 'const value = 1;\n');
+  assert.equal(recommendation.repairedCode, 'const value = 2;\n');
+  assert.equal(recommendation.state, 'recommended');
+  assert.equal(recommendation.verificationStatus, 'passed');
+  assert.equal(recommendation.requiresApproval, true);
+  assert.deepEqual(recommendation.explanation.changes, [
+    'Replaced string interpolation with a bound parameter.'
+  ]);
+  assert.deepEqual(recommendation.explanation.why, [
+    'Untrusted input no longer changes the SQL syntax.'
+  ]);
+  assert.deepEqual(recommendation.explanation.remainingRisks, [
+    'Database permissions still need review.'
+  ]);
+  assert.equal(harness.appliedEdits.length, 0);
+  assert.equal(harness.document.getText(), 'const value = 1;\n');
+});
+
+test('an approved recommendation application records applied-patch feedback only after the edit', async () => {
+  const recorded = [];
+  const feedback = {
+    recordAppliedPatch(entry) {
+      recorded.push(entry);
+    }
+  };
+  const harness = createHarness({ approval: 'Apply Patch', feedback });
+  await harness.controller.recordRecommendationResult(
+    recommendationResponse(),
+    repairRequest()
+  );
+
+  await harness.controller.acceptRepair({
+    repairId: 'recommendation-1',
+    candidateId: 'selected'
+  });
+
+  assert.equal(harness.appliedEdits.length, 1);
+  assert.equal(harness.document.getText(), 'const value = 2;\n');
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].findingId, 'finding-1');
+  assert.equal(recorded[0].source, 'dashboard.explicit-approval');
+  assert.match(recorded[0].patchHash, /^[a-f0-9]{64}$/);
+  assert.match(recorded[0].appliedHash, /^[a-f0-9]{64}$/);
+});
+
+test('a stale recommendation snapshot cannot record applied-patch feedback', async () => {
+  const recorded = [];
+  const harness = createHarness({
+    approval: 'Apply Patch',
+    feedback: {
+      recordAppliedPatch(entry) {
+        recorded.push(entry);
+      }
+    }
+  });
+  await harness.controller.recordRecommendationResult(
+    recommendationResponse(),
+    repairRequest()
+  );
+  harness.setDocumentText('const value = 9;\n');
+
+  await harness.controller.acceptRepair({ repairId: 'recommendation-1' });
+
+  assert.equal(harness.appliedEdits.length, 0);
+  assert.equal(recorded.length, 0);
 });
 
 test('repair rejection does not modify the source', async () => {

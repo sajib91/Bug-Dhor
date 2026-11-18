@@ -19,7 +19,8 @@ const CAPABILITY_KEYS = Object.freeze([
   'counterfactual_analyze',
   'prevention_steer',
   'repair_generate',
-  'verification_run'
+  'verification_run',
+  'recommendation_generate'
 ]);
 
 class SecurityResultValidationError extends Error {
@@ -511,6 +512,76 @@ function validateOperationResult(result, operation) {
       }
       requireObject(result.metadata, 'response.result.metadata');
       return;
+    case 'recommendation_generate': {
+      requireBoolean(result.analysisAvailable, 'response.result.analysisAvailable');
+      requireString(result.findingId, 'response.result.findingId');
+      if (result.cwe !== null && result.cwe !== undefined) {
+        requireString(result.cwe, 'response.result.cwe');
+      }
+      requireString(result.state, 'response.result.state');
+      for (const field of ['originalCode', 'repairedCode']) {
+        if (result[field] !== null && result[field] !== undefined) {
+          requireString(result[field], `response.result.${field}`, { allowEmpty: true });
+        }
+      }
+      requireObjectOrNull(result.selected, 'response.result.selected');
+      requireArray(result.candidates, 'response.result.candidates');
+      const prompt = requireObject(result.prompt, 'response.result.prompt');
+      requireString(prompt.promptHash, 'response.result.prompt.promptHash');
+      requireBoolean(prompt.steeringApplied, 'response.result.prompt.steeringApplied');
+      if (prompt.text !== undefined && prompt.text !== null) {
+        requireString(prompt.text, 'response.result.prompt.text', { allowEmpty: true });
+      }
+      requireArray(result.stages, 'response.result.stages');
+      const explanation = requireObject(result.explanation, 'response.result.explanation');
+      requireString(explanation.summary, 'response.result.explanation.summary', {
+        allowEmpty: true
+      });
+      requireStringArray(explanation.changes, 'response.result.explanation.changes');
+      requireStringArray(explanation.why, 'response.result.explanation.why');
+      requireStringArray(explanation.remainingRisks, 'response.result.explanation.remainingRisks');
+      requireString(explanation.functionalAssurance, 'response.result.explanation.functionalAssurance', {
+        allowEmpty: true
+      });
+      if (explanation.securityGuarantee !== undefined && explanation.securityGuarantee !== 'none') {
+        throw new SecurityResultValidationError(
+          'The backend response is invalid: a recommendation cannot guarantee security.',
+          'response.result.explanation.securityGuarantee'
+        );
+      }
+      if (result.requiresApproval !== true) {
+        throw new SecurityResultValidationError(
+          'The backend response is invalid: a recommendation must require approval.',
+          'response.result.requiresApproval'
+        );
+      }
+      requireBoolean(result.verified, 'response.result.verified');
+      const metadata = requireObject(result.metadata, 'response.result.metadata');
+      if (metadata.appliedByEngine !== undefined && metadata.appliedByEngine !== false) {
+        throw new SecurityResultValidationError(
+          'The backend response is invalid: recommendations must not be applied by the engine.',
+          'response.result.metadata.appliedByEngine'
+        );
+      }
+      if (metadata.securityGuarantee !== undefined && metadata.securityGuarantee !== 'none') {
+        throw new SecurityResultValidationError(
+          'The backend response is invalid: recommendations cannot guarantee security.',
+          'response.result.metadata.securityGuarantee'
+        );
+      }
+      if (
+        result.verified === true &&
+        (result.selected === null ||
+          typeof result.repairedCode !== 'string' ||
+          result.repairedCode.length === 0)
+      ) {
+        throw new SecurityResultValidationError(
+          'The backend response is invalid: a verified recommendation must include repaired code.',
+          'response.result.repairedCode'
+        );
+      }
+      return;
+    }
     case 'verification_run':
       requireBoolean(result.analysisAvailable, 'response.result.analysisAvailable');
       if (!['passed', 'failed', 'inconclusive', 'not_run'].includes(result.verdict)) {

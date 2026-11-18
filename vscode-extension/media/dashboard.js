@@ -268,6 +268,23 @@
     }
   }
 
+  function normalizeFeedback(raw) {
+    const source = isRecord(raw) ? raw : {};
+    const stats = isRecord(source.stats) ? source.stats : {};
+    return {
+      findings: arrayOfRecords(source.findings),
+      patchHistory: arrayOfRecords(source.patchHistory),
+      stats: {
+        scans: numberOrNull(stats.scans),
+        suppressed: numberOrNull(stats.suppressed),
+        followUpRescans: numberOrNull(stats.followUpRescans),
+        patches: numberOrNull(stats.patches),
+        verifications: numberOrNull(stats.verifications),
+        resolutions: numberOrNull(stats.resolutions)
+      }
+    };
+  }
+
   function normalizeState(raw) {
     const source = isRecord(raw) ? raw : {};
     const summary = isRecord(source.summary) ? source.summary : {};
@@ -307,6 +324,9 @@
       explanations: arrayOfRecords(source.explanations),
       repairs: arrayOfRecords(source.repairs),
       repairHistory: arrayOfRecords(source.repairHistory),
+      recommendations: arrayOfRecords(source.recommendations),
+      recommendationHistory: arrayOfRecords(source.recommendationHistory),
+      feedback: normalizeFeedback(source.feedback),
       verification: isRecord(source.verification) ? source.verification : {},
       reports: arrayOfRecords(source.reports),
       settings: isRecord(source.settings) ? source.settings : {}
@@ -1695,7 +1715,6 @@
             'by the dashboard.'
         )
       );
-      return section;
     }
 
     for (const repair of state.repairs) {
@@ -1835,7 +1854,233 @@
       section.appendChild(history);
     }
 
+    renderRecommendationCards(section);
+    renderFeedbackLifecycle(section);
     return section;
+  }
+
+  function renderRecommendationCards(section) {
+    section.appendChild(
+      callout(
+        'Secure recommendations are proposals only',
+        'Each recommendation shows the exact original source, the verified candidate source, ' +
+          'what changed, why it changed, and remaining risks. A recommendation never guarantees ' +
+          'perfect security and is never applied without explicit approval.',
+        'info'
+      )
+    );
+
+    if (state.recommendations.length === 0) {
+      section.appendChild(
+        emptyState(
+          '—',
+          'No secure recommendations',
+          'Generate Secure Code produces a recommendation only after mandatory syntax, static, ' +
+            'security, and functional verification. No candidate is invented by the dashboard.'
+        )
+      );
+      return;
+    }
+
+    for (const recommendation of state.recommendations) {
+      const header = el('div', 'card__header');
+      const copy = el('div');
+      copy.appendChild(
+        el('h3', 'card__title', textOrDash(recommendation.title ?? recommendation.id))
+      );
+      if (
+        typeof recommendation.explanation?.summary === 'string' &&
+        recommendation.explanation.summary.length > 0
+      ) {
+        copy.appendChild(el('p', 'card__description', recommendation.explanation.summary));
+      }
+      header.appendChild(copy);
+      header.appendChild(statusBadge(recommendation.status ?? recommendation.state));
+
+      const body = el('div', 'card__body');
+      body.appendChild(
+        definitionList(
+          [
+            ['Finding', recommendation.findingId],
+            ['CWE', recommendation.cwe],
+            ['Workflow state', recommendation.state],
+            ['Verification', recommendation.verificationStatus],
+            ['Requires approval', recommendation.requiresApproval === true ? 'Yes' : 'No'],
+            ['Base snapshot', recommendation.baseSnapshotId],
+            ['Generator', recommendation.generator]
+          ],
+          'No recommendation metadata was provided.'
+        )
+      );
+
+      const explanation = isRecord(recommendation.explanation) ? recommendation.explanation : {};
+      for (const [title, key] of [
+        ['What changed', 'changes'],
+        ['Why it changed', 'why'],
+        ['Remaining risks', 'remainingRisks']
+      ]) {
+        const values = Array.isArray(explanation[key]) ? explanation[key] : [];
+        if (values.length === 0) {
+          continue;
+        }
+        body.appendChild(el('h4', 'subheading', title));
+        body.appendChild(renderStringList(values, 'policy-list'));
+      }
+      if (
+        typeof explanation.functionalAssurance === 'string' &&
+        explanation.functionalAssurance.length > 0
+      ) {
+        body.appendChild(el('h4', 'subheading', 'Functional assurance'));
+        body.appendChild(el('p', 'text-muted', explanation.functionalAssurance));
+      }
+
+      if (typeof recommendation.originalCode === 'string') {
+        body.appendChild(el('h4', 'subheading', 'Original code'));
+        body.appendChild(el('pre', 'repair-diff', recommendation.originalCode));
+      }
+      if (typeof recommendation.repairedCode === 'string') {
+        body.appendChild(el('h4', 'subheading', 'Recommended code'));
+        body.appendChild(el('pre', 'repair-diff', recommendation.repairedCode));
+      } else {
+        body.appendChild(
+          callout(
+            'No recommended code',
+            'No candidate passed every mandatory gate. The explanation above is the only ' +
+              'available result; there is no patch to review or apply.',
+            'warning'
+          )
+        );
+      }
+
+      const controls = el('div', 'button-row');
+      if (recommendation.repairedCode) {
+        const preview = el('button', 'button button--ghost', 'View inline diff');
+        preview.type = 'button';
+        preview.addEventListener('click', () =>
+          sendMessage({
+            type: 'viewRepairDiff',
+            repairId: recommendation.id,
+            candidateId: recommendation.candidates?.[0]?.candidateId
+          })
+        );
+        controls.appendChild(preview);
+        if (recommendation.status === 'proposed' && recommendation.requiresApproval === true) {
+          const accept = el('button', 'button button--primary', 'Accept patch');
+          accept.type = 'button';
+          accept.addEventListener('click', () =>
+            sendMessage({
+              type: 'acceptRepair',
+              repairId: recommendation.id,
+              candidateId: recommendation.candidates?.[0]?.candidateId
+            })
+          );
+          controls.appendChild(accept);
+          const reject = el('button', 'button button--ghost', 'Reject patch');
+          reject.type = 'button';
+          reject.addEventListener('click', () =>
+            sendMessage({ type: 'rejectRepair', repairId: recommendation.id })
+          );
+          controls.appendChild(reject);
+        }
+        if (recommendation.status === 'accepted') {
+          const restore = el('button', 'button button--ghost', 'Restore original code');
+          restore.type = 'button';
+          restore.addEventListener('click', () =>
+            sendMessage({ type: 'restoreRepair', repairId: recommendation.id })
+          );
+          controls.appendChild(restore);
+        }
+      }
+      if (controls.childElementCount > 0) {
+        body.appendChild(controls);
+      }
+
+      const article = el('article', 'card');
+      article.appendChild(header);
+      article.appendChild(body);
+      section.appendChild(article);
+    }
+
+    if (state.recommendationHistory.length > 0) {
+      const history = el('details', 'technical-details');
+      history.appendChild(el('summary', 'technical-details__summary', 'Recommendation history'));
+      history.appendChild(
+        renderEvidenceRecords(state.recommendationHistory, 'No recommendation history recorded.')
+      );
+      section.appendChild(history);
+    }
+  }
+
+  function renderFeedbackLifecycle(section) {
+    const feedback = isRecord(state.feedback) ? state.feedback : {};
+    const findings = arrayOfRecords(feedback.findings);
+    const stats = isRecord(feedback.stats) ? feedback.stats : {};
+    const statsCard = el('details', 'technical-details');
+    statsCard.appendChild(el('summary', 'technical-details__summary', 'Feedback loop activity'));
+    statsCard.appendChild(
+      definitionList(
+        [
+          ['Validated scans recorded', stats.scans],
+          ['Self-induced scans suppressed', stats.suppressed],
+          ['Bounded follow-up rescans', stats.followUpRescans],
+          ['Approved patches recorded', stats.patches],
+          ['Verifications recorded', stats.verifications],
+          ['Findings resolved', stats.resolutions]
+        ],
+        'No feedback activity has been recorded.'
+      )
+    );
+    section.appendChild(statsCard);
+
+    section.appendChild(
+      callout(
+        'Resolution requires three independent signals',
+        'A finding is resolved only after an explicitly applied Bug Dhor patch, a clean rescan, ' +
+          'and passing verification. Hook events, editor changes, or a passing verification alone ' +
+          'never resolve a finding.',
+        'info'
+      )
+    );
+
+    if (findings.length === 0) {
+      section.appendChild(
+        emptyState(
+          '—',
+          'No tracked finding lifecycle',
+          'The feedback controller records only findings accepted from validated backend scans.'
+        )
+      );
+      return;
+    }
+
+    for (const finding of findings) {
+      const lifecycle = el('article', 'card');
+      const header = el('div', 'card__header');
+      header.appendChild(
+        el('h3', 'card__title', textOrDash(finding.findingId ?? finding.id, 'Unidentified finding'))
+      );
+      header.appendChild(statusBadge(finding.state));
+      lifecycle.appendChild(header);
+      lifecycle.appendChild(
+        el(
+          'div',
+          'card__body',
+          definitionList(
+            [
+              ['State', finding.state],
+              ['Document', finding.documentUri],
+              ['CWE', finding.cwe],
+              ['Patched', finding.patchedAt ? 'Yes' : 'No'],
+              ['Clean rescan', finding.rescanCleanAt ? 'Yes' : 'No'],
+              ['Verification', finding.lastVerification?.verdict],
+              ['Resolved', finding.resolvedAt ?? 'No']
+            ],
+            'No lifecycle metadata was provided.'
+          )
+        )
+      );
+      section.appendChild(lifecycle);
+    }
   }
 
   function renderVerificationSection() {

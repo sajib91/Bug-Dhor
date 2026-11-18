@@ -269,6 +269,22 @@ function notRunVerificationState() {
   };
 }
 
+/** @returns {object} */
+function emptyFeedbackState() {
+  return {
+    findings: [],
+    patchHistory: [],
+    stats: {
+      scans: 0,
+      suppressed: 0,
+      followUpRescans: 0,
+      patches: 0,
+      verifications: 0,
+      resolutions: 0
+    }
+  };
+}
+
 /**
  * @param {{
  *   settings?: Partial<typeof DEFAULT_SETTINGS>,
@@ -300,6 +316,9 @@ function createEmptyDashboardState(options = {}) {
     steering: unavailableSteeringState(),
     explanations: [],
     repairs: [],
+    recommendations: [],
+    recommendationHistory: [],
+    feedback: emptyFeedbackState(),
     verification: notRunVerificationState(),
     reports: [],
     settings: normalizeSettings(options.settings)
@@ -595,5 +614,6 @@ module.exports = {
   normalizeEngine,
   createEmptyDashboardState,
   createDemoDashboardState,
+  emptyFeedbackState,
   buildDashboardState
 };

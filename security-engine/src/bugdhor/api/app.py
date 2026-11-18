@@ -60,6 +60,10 @@ OPENAPI_TAGS = [
         "description": "Explicit opt-in activation steering and paired evaluation.",
     },
     {
+        "name": "recommendations",
+        "description": "Verified secure-code recommendations; proposals only, never applied.",
+    },
+    {
         "name": "repair",
         "description": "Repair proposals for explicit user review; no automatic writes.",
     },

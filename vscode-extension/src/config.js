@@ -39,6 +39,12 @@ const { DEFAULT_SETTINGS: DEFAULT_MONITORING_SETTINGS } = require('./monitoring/
  * @property {string} assistantExtensionManifestPath
  * @property {boolean} assistantSaeEnabled
  * @property {boolean} assistantCounterfactualEnabled
+ * @property {boolean} feedbackNotifyOnPatchApplied
+ * @property {boolean} feedbackNotifyOnResolution
+ * @property {boolean} recommendationRunFunctionalTests
+ * @property {boolean} recommendationAllowSandboxedExecution
+ * @property {string[]} recommendationTestCommand
+ * @property {number} recommendationTestTimeoutSeconds
  */
 
 /** @returns {vscode.WorkspaceConfiguration} */
@@ -107,7 +113,19 @@ function readSettings() {
     assistantLocalModelPath: configuration.get('assistant.localHuggingFace.modelPath', ''),
     assistantExtensionManifestPath: configuration.get('assistant.extensionApi.manifestPath', ''),
     assistantSaeEnabled: configuration.get('assistant.sae.enabled', false),
-    assistantCounterfactualEnabled: configuration.get('assistant.counterfactual.enabled', false)
+    assistantCounterfactualEnabled: configuration.get('assistant.counterfactual.enabled', false),
+    feedbackNotifyOnPatchApplied: configuration.get('feedback.notifyOnPatchApplied', true),
+    feedbackNotifyOnResolution: configuration.get('feedback.notifyOnResolution', true),
+    recommendationRunFunctionalTests: configuration.get('recommendations.runFunctionalTests', true),
+    recommendationAllowSandboxedExecution: configuration.get(
+      'recommendations.allowSandboxedExecution',
+      false
+    ),
+    recommendationTestCommand: configuration.get('recommendations.testCommand', []),
+    recommendationTestTimeoutSeconds: configuration.get(
+      'recommendations.testTimeoutSeconds',
+      120
+    )
   };
 }
 

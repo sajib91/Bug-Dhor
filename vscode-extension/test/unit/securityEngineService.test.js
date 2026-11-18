@@ -21,6 +21,7 @@ const ENGINE_METHODS = Object.freeze([
   'analyzeSecurityFeatures',
   'counterfactualAnalysis',
   'generateSecureCode',
+  'generateRecommendation',
   'repairVulnerability',
   'verifyRepair'
 ]);
@@ -47,7 +48,8 @@ function healthPayload(overrides = {}) {
       counterfactual_analyze: false,
       prevention_steer: false,
       repair_generate: false,
-      verification_run: false
+      verification_run: false,
+      recommendation_generate: false
     },
     sandboxBackend: 'docker',
     ...overrides
@@ -146,6 +148,46 @@ function repairPayload(overrides = {}) {
       riskNotes: [],
       requiresApproval: true,
       metadata: {}
+    },
+    ...overrides
+  };
+}
+
+function recommendationPayload(overrides = {}) {
+  return {
+    operation: 'recommendation_generate',
+    status: 'completed',
+    apiVersion: 'v1',
+    requestId: 'req-recommendation',
+    stages: [stage()],
+    warnings: [],
+    result: {
+      analysisAvailable: true,
+      findingId: 'finding-1',
+      cwe: 'CWE-89',
+      state: 'recommended',
+      originalCode: 'source',
+      repairedCode: 'safe source',
+      selected: { candidateId: 'candidate-1', patch: 'patch' },
+      candidates: [],
+      prompt: {
+        promptHash: SHA,
+        steeringApplied: false,
+        steeringReason: 'not_requested',
+        text: 'secure prompt'
+      },
+      stages: [],
+      explanation: {
+        summary: 'parameterized query',
+        changes: [],
+        why: [],
+        remainingRisks: [],
+        functionalAssurance: 'tests passed',
+        securityGuarantee: 'none'
+      },
+      requiresApproval: true,
+      verified: true,
+      metadata: { appliedByEngine: false, securityGuarantee: 'none' }
     },
     ...overrides
   };
@@ -474,6 +516,60 @@ test('repair generation maps a finding and validated proposal', async () => {
   });
   assert.equal(client.calls[0].body.sourceText, request.sourceText);
   assert.equal(result.result.requiresApproval, true);
+});
+
+test('recommendation generation sends only validated, non-secret request fields', async () => {
+  const { service, client } = createService(recommendationPayload());
+  const request = editorRequest({
+    finding: {
+      findingId: 'finding-1',
+      documentUri: FILE_URI,
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 1, character: 10 }
+      },
+      cwe: 'CWE-89',
+      ruleId: 'sql-injection'
+    },
+    candidates: ['--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-a\n+b\n'],
+    provider: {
+      providerId: 'hosted-assistant',
+      modelId: 'model-1',
+      capabilities: ['B', 'C', 'D', 'E', 'F'],
+      hosted: true,
+      steeringRequested: true,
+      steeringValidated: true,
+      apiKey: 'never-forward-me'
+    },
+    securityEvidence: [{ type: 'scan', claimKind: 'observation', description: 'finding' }],
+    executionConsent: { granted: true, allowNetwork: true },
+    snapshotHash: SHA,
+    runFunctionalTests: true,
+    projectTestCommand: ['pytest', '-q'],
+    testTimeoutSeconds: 45
+  });
+
+  const result = await service.generateRecommendation(request, {});
+
+  assert.equal(client.calls.length, 1);
+  const [call] = client.calls;
+  assert.equal(call.path, '/recommendations/generate');
+  assert.equal(call.body.finding.findingId, 'finding-1');
+  assert.equal(call.body.provider.steeringRequested, true);
+  assert.equal(
+    call.body.provider.steeringValidated,
+    false,
+    'hosted provider cannot claim validated local steering'
+  );
+  assert.equal('apiKey' in call.body.provider, false);
+  assert.equal(call.body.executionConsent.allowNetwork, true);
+  assert.equal(call.body.snapshotHash, SHA);
+  assert.equal(call.body.runFunctionalTests, true);
+  assert.deepEqual(call.body.projectTestCommand, ['pytest', '-q']);
+  assert.equal(call.body.testTimeoutSeconds, 45);
+  assert.equal(call.body.candidates.length, 1);
+  assert.equal(result.operation, 'recommendation_generate');
+  assert.equal(result.result.prompt.text, 'secure prompt');
 });
 
 test('verification requires an explicit repair target', async () => {

@@ -18,6 +18,7 @@ EXPECTED_CAPABILITIES = {
     "counterfactual_analyze",
     "prevention_steer",
     "repair_generate",
+    "recommendation_generate",
     "verification_run",
 }
 
@@ -53,6 +54,7 @@ def test_health_reports_service_and_capabilities(api) -> None:
     assert body["capabilities"]["detection_analyze"] is True
     assert body["capabilities"]["explanation_analyze"] is True
     assert body["capabilities"]["repair_generate"] is True
+    assert body["capabilities"]["recommendation_generate"] is True
     assert body["capabilities"]["verification_run"] is True
     assert body["capabilities"]["features_extract"] is False
     assert body["capabilities"]["counterfactual_analyze"] is False
@@ -79,6 +81,7 @@ def test_health_reflects_integrated_and_stage_capabilities(tmp_path: Path) -> No
     assert capabilities["features_extract"] is False
     assert capabilities["verification_run"] is True
     assert capabilities["repair_generate"] is True
+    assert capabilities["recommendation_generate"] is True
 
 
 def test_health_never_contains_configured_secret(tmp_path: Path) -> None:

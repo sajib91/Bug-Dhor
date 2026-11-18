@@ -35,6 +35,10 @@ from bugdhor.api.schemas import (
     PreventionRequest,
     PreventionResponse,
     PreventionResult,
+    RecommendationProviderModel,
+    RecommendationRequest,
+    RecommendationResponse,
+    RecommendationResult,
     RepairRequest,
     RepairResponse,
     RepairResult,
@@ -79,6 +83,7 @@ from bugdhor.core.pipeline import (
     combine_stage_results,
 )
 from bugdhor.core.settings import Settings
+from bugdhor.recommendation.engine import SecureRecommendationEngine
 from bugdhor.repair.context import RepositoryContextBuilder
 from bugdhor.repair.workflow import RepairWorkflow
 from bugdhor.sandbox.executor import ExecutionConsent
@@ -125,6 +130,10 @@ DEFAULT_STAGE_DEFINITIONS: dict[str, tuple[str, str]] = {
         "E_REPAIR_UNAVAILABLE",
         "No repository-aware repair generator is implemented.",
     ),
+    "recommendation": (
+        "E_RECOMMENDATION_UNAVAILABLE",
+        "No secure code recommendation workflow is implemented.",
+    ),
     "verification": (
         "E_VERIFICATION_UNAVAILABLE",
         "No independent verification implementation or adequate sandbox is available.",
@@ -142,6 +151,7 @@ OPERATION_STAGES: dict[str, tuple[str, ...]] = {
     "counterfactual_analyze": ("counterfactual",),
     "prevention_steer": ("steering_plan", "steering_evaluation"),
     "repair_generate": ("repair",),
+    "recommendation_generate": ("recommendation",),
     "verification_run": ("verification",),
 }
 
@@ -222,6 +232,17 @@ class Orchestrator:
             (),
             {"name": "repair", "available": True, "run": lambda self, ctx: StageResult(stage="repair", status=StageStatus.OK)},
         )()
+        self.stages["recommendation"] = type(
+            "_RecommendationStage",
+            (),
+            {
+                "name": "recommendation",
+                "available": True,
+                "run": lambda self, ctx: StageResult(
+                    stage="recommendation", status=StageStatus.OK
+                ),
+            },
+        )()
         self._analysis_cache: dict[str, dict[str, Any]] = {}
         self._analysis_cache_dir = Path(getattr(self.settings, "data_dir", Path(".bugdhor-data"))) / "cache" / "analysis"
         try:
@@ -280,6 +301,7 @@ class Orchestrator:
         caps["detection_analyze"] = True
         caps["explanation_analyze"] = True
         caps["repair_generate"] = True
+        caps["recommendation_generate"] = True
         caps["verification_run"] = getattr(self.stages.get("verification"), "available", False)
         return caps
 
@@ -836,6 +858,127 @@ class Orchestrator:
             self._persist_result(job_store, "repair_generate", request_id, resp)
             return resp
         return self._run_with_job("repair_generate", request_id, job_store, job_id, run)
+
+    def recommendation_generate(
+        self,
+        request: RecommendationRequest,
+        request_id: str,
+        job_store: JobStore | None = None,
+        job_id: str | None = None,
+    ) -> RecommendationResponse:
+        """Generate, verify, rank, and explain a proposal-only secure recommendation.
+
+        The backend never applies code. Generation provenance is recorded from
+        non-secret provider metadata; steering is never claimed for a provider
+        that has not supplied real D/E/F access and a real steering pipeline.
+        """
+        def run(
+            progress: ProgressCallback, token: CancellationToken | None
+        ) -> RecommendationResponse:
+            snapshot = self._inspect(request)
+            if token:
+                token.raise_if_cancelled()
+            if request.finding.document_uri and request.finding.document_uri != snapshot.uri:
+                raise ValidationAppError("The finding location does not match the inspected file.")
+            repository_context = RepositoryContextBuilder(self.settings).build(
+                request.workspace_root, request.file_path
+            )
+            consent_model = getattr(request, "execution_consent", None)
+            consent = ExecutionConsent(
+                granted=bool(getattr(consent_model, "granted", False)),
+                allow_network=bool(getattr(consent_model, "allow_network", False)),
+                allow_privileged=bool(getattr(consent_model, "allow_privileged", False)),
+                allow_destructive=bool(getattr(consent_model, "allow_destructive", False)),
+                source=str(getattr(consent_model, "source", "user")),
+            )
+            provider_model: RecommendationProviderModel = request.provider
+            provider = {
+                "providerId": provider_model.provider_id or "",
+                "modelId": provider_model.model_id or "",
+                "capabilities": list(provider_model.capabilities),
+                "hosted": provider_model.hosted,
+            }
+            steering = {
+                "requested": provider_model.steering_requested,
+                "validated": provider_model.steering_validated,
+                # The HTTP contract carries no activation pipeline; only genuine
+                # local callers can supply one, so API-driven steering stays off.
+                "pipeline": None,
+                "capabilities": list(provider_model.capabilities),
+            }
+            progress("recommendation", "running", "Running secure recommendation workflow", None)
+            engine = SecureRecommendationEngine(sandbox_backend=self.settings.sandbox_backend)
+            result = engine.recommend(
+                workspace_root=request.workspace_root,
+                file_path=request.file_path,
+                finding=request.finding.model_dump(mode="json"),
+                source_text=snapshot.text,
+                candidates=list(request.candidates),
+                repository_context=repository_context,
+                security_evidence=list(request.security_evidence),
+                provider=provider,
+                steering=steering,
+                execution_consent=consent,
+                language_id=request.language_id or snapshot.language_id,
+                test_timeout_seconds=float(request.test_timeout_seconds),
+                project_test_command=request.project_test_command,
+                functional_tests_enabled=bool(request.run_functional_tests),
+            )
+            result_dict = result.to_dict()
+            # The prompt text is returned to the caller that supplied the source
+            # snapshot so a configured generation provider can be driven from
+            # the backend-built prompt. Stage data intentionally keeps only
+            # prompt metadata; no credentials or hidden reasoning are exposed.
+            prompt_payload = dict(result_dict["prompt"])
+            prompt_payload["text"] = result.prompt.text
+            reports = [self._snapshot_report(snapshot)]
+            for record in result.stages:
+                status_map = {
+                    "completed": StageStatus.OK,
+                    "skipped": StageStatus.SKIPPED,
+                    "unavailable": StageStatus.UNAVAILABLE,
+                    "failed": StageStatus.PARTIAL,
+                }
+                reason = "E_RECOMMENDATION_STAGE_FAILED" if record.status == "failed" else None
+                reports.append(
+                    StageReport(
+                        stage=f"recommendation_{record.stage}",
+                        status=status_map.get(record.status, StageStatus.UNAVAILABLE),
+                        reason_code=reason,
+                        detail=record.detail or None,
+                        data={"stageStatus": record.status, **dict(record.data)},
+                    )
+                )
+            warnings: list[str] = []
+            if not result.verified:
+                warnings.append(
+                    "No candidate passed all mandatory verification gates; "
+                    "no patch is recommended."
+                )
+            resp = RecommendationResponse(
+                **self._base_fields_from_reports(
+                    "recommendation_generate", request_id, reports, warnings
+                ),
+                result=RecommendationResult(
+                    analysis_available=result.state in {"recommended", "rejected"},
+                    finding_id=result.finding_id,
+                    cwe=result.cwe,
+                    state=result.state,
+                    original_code=result.original_source,
+                    repaired_code=result_dict["repairedCode"],
+                    selected=result_dict["selected"],
+                    candidates=result_dict["candidates"],
+                    prompt=prompt_payload,
+                    stages=result_dict["stages"],
+                    explanation=result_dict["explanation"],
+                    requires_approval=True,
+                    verified=result.verified,
+                    metadata=result_dict["metadata"],
+                ),
+            )
+            self._persist_result(job_store, "recommendation_generate", request_id, resp)
+            return resp
+        return self._run_with_job("recommendation_generate", request_id, job_store, job_id, run)
 
     def verification_run(self, request: VerificationRequest, request_id: str, job_store: JobStore | None = None, job_id: str | None = None) -> VerificationResponse:
         def run(progress: ProgressCallback, token: CancellationToken | None) -> VerificationResponse:

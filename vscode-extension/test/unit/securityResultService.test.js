@@ -33,7 +33,8 @@ function healthPayload(overrides = {}) {
       counterfactual_analyze: false,
       prevention_steer: false,
       repair_generate: false,
-      verification_run: false
+      verification_run: false,
+      recommendation_generate: false
     },
     sandboxBackend: 'none',
     ...overrides
@@ -272,6 +273,95 @@ test('repair analysis requires an approval gate', () => {
         { operation: 'repair_generate' }
       ),
     /must require approval/
+  );
+});
+
+test('recommendation validation enforces proposal-only and no-guarantee contracts', () => {
+  function payload(overrides = {}) {
+    return {
+      operation: 'recommendation_generate',
+      status: 'completed',
+      apiVersion: 'v1',
+      requestId: 'req-recommendation',
+      stages: [stage()],
+      warnings: [],
+      result: {
+        analysisAvailable: true,
+        findingId: 'finding-1',
+        cwe: 'CWE-89',
+        state: 'recommended',
+        originalCode: 'vulnerable source',
+        repairedCode: 'safe source',
+        selected: { candidateId: 'candidate-1', patch: 'patch' },
+        candidates: [],
+        prompt: {
+          promptHash: SHA,
+          steeringApplied: false,
+          steeringReason: 'not_requested',
+          text: 'secure prompt'
+        },
+        stages: [],
+        explanation: {
+          summary: 'parameterized query',
+          changes: ['bound parameter'],
+          why: ['untrusted input is data'],
+          remainingRisks: ['review permissions'],
+          functionalAssurance: 'tests passed',
+          securityGuarantee: 'none'
+        },
+        requiresApproval: true,
+        verified: true,
+        metadata: { appliedByEngine: false, securityGuarantee: 'none' },
+        ...overrides
+      }
+    };
+  }
+
+  const validated = validateAnalysisResponse(payload(), {
+    operation: 'recommendation_generate'
+  });
+  assert.equal(validated.result.prompt.text, 'secure prompt');
+  assert.equal(validated.result.requiresApproval, true);
+
+  assert.throws(
+    () => validateAnalysisResponse(payload({ requiresApproval: false }), {
+      operation: 'recommendation_generate'
+    }),
+    /must require approval/
+  );
+  assert.throws(
+    () =>
+      validateAnalysisResponse(
+        {
+          ...payload(),
+          result: {
+            ...payload().result,
+            metadata: { appliedByEngine: true, securityGuarantee: 'none' }
+          }
+        },
+        { operation: 'recommendation_generate' }
+      ),
+    /must not be applied by the engine/
+  );
+  assert.throws(
+    () =>
+      validateAnalysisResponse(
+        {
+          ...payload(),
+          result: {
+            ...payload().result,
+            explanation: { ...payload().result.explanation, securityGuarantee: 'absolute' }
+          }
+        },
+        { operation: 'recommendation_generate' }
+      ),
+    /cannot guarantee security/
+  );
+  assert.throws(
+    () => validateAnalysisResponse(payload({ repairedCode: null }), {
+      operation: 'recommendation_generate'
+    }),
+    /verified recommendation must include repaired code/
   );
 });
 

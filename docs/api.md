@@ -1,9 +1,11 @@
 # Bug Dhor HTTP API
 
 **Status:** Versioned FastAPI transport implemented and tested. File inspection and
-workspace discovery are real. Detection, explanation, SAE features, counterfactuals,
-steering, repair, and verification are declared but **not implemented**; their
-stages return `unavailable` and their result payloads contain no fabricated data.
+workspace discovery are real. A proposal-only secure recommendation endpoint is
+implemented with mandatory verification gates; it never applies code. Detection,
+explanation, SAE features, counterfactuals, steering, repair, and verification
+operations are declared; where a stage is not implemented or unconfigured it
+returns `unavailable` and its result payload contains no fabricated data.
 
 - Base URL: `http://127.0.0.1:8765`
 - API prefix: `/api/v1`
@@ -145,12 +147,15 @@ stage into an empty successful result, a zero risk score, or a pass verdict.
 | POST | `/api/v1/counterfactual/analyze` | common context, `findingId`, one or more `interventions` | No effects or validity estimate |
 | POST | `/api/v1/prevention/steer` | common context, `featureIndices`, `targetMetric`, `explicitOptIn=true` | No steering plan or evaluation |
 | POST | `/api/v1/repair/generate` | common context plus `finding` | No patch |
+| POST | `/api/v1/recommendations/generate` | common context plus `finding` | Proposal only; verified candidate when all mandatory gates pass |
 | POST | `/api/v1/verification/run` | common context plus `repairId` or `patch` | `verdict: "not_run"` |
 
 ### Health
 
 `GET /api/v1/health` returns `200` when the process is alive. Capability flags are
 derived from the registered operation stages, not from optimistic configuration.
+`recommendation_generate: true` means the proposal workflow is registered; it
+does not promise that a given candidate will pass verification.
 
 ```json
 {
@@ -161,15 +166,16 @@ derived from the registered operation stages, not from optimistic configuration.
   "timestamp": "2026-11-12T00:00:00Z",
   "uptimeSeconds": 12.4,
   "capabilities": {
-    "scan_file": false,
-    "scan_workspace": false,
-    "detection_analyze": false,
-    "explanation_analyze": false,
+    "scan_file": true,
+    "scan_workspace": true,
+    "detection_analyze": true,
+    "explanation_analyze": true,
     "features_extract": false,
     "counterfactual_analyze": false,
     "prevention_steer": false,
-    "repair_generate": false,
-    "verification_run": false
+    "repair_generate": true,
+    "recommendation_generate": true,
+    "verification_run": true
   },
   "sandboxBackend": "docker"
 }
@@ -218,6 +224,48 @@ constraints:
 - execution verification requires `profile: "sandbox"`;
 - intervention feature indices are non-negative;
 - ranges are ordered and selections must fit the inspected file.
+
+### Secure recommendations
+
+`POST /api/v1/recommendations/generate` runs the 12-stage secure recommendation
+workflow and returns a **proposal only**. The endpoint never writes to the
+workspace, and `requiresApproval` is always `true`.
+
+The request extends the common file context with:
+
+| Field | Required | Description |
+|---|---|---|
+| `finding` | yes | Validated finding (`findingId`, `cwe`, `ruleId`, ordered `range`); a mismatched `documentUri` is rejected |
+| `candidates` | no | Up to eight unified diffs; an empty list returns the secure prompt without generating candidates |
+| `provider` | no | Non-secret provenance only: `providerId`, `modelId`, `capabilities`, `hosted`, `steeringRequested`, `steeringValidated` |
+| `securityEvidence` | no | Up to 100 claim-kinded observations/explanations supplied by validated analysis |
+| `snapshotHash` | no | SHA-256 of the source snapshot used to create candidates |
+| `executionConsent` | no | Explicit, non-network, non-privileged, non-destructive consent metadata |
+| `runFunctionalTests` | no | Defaults to `true`; disabling it prevents recommendation rather than bypassing the gate |
+| `projectTestCommand` | no | Optional argv list for functional tests |
+| `testTimeoutSeconds` | no | 1–3600 seconds; defaults to 120 |
+
+The result carries `findingId`, `cwe`, `state`, `originalCode`, `repairedCode`,
+`selected`, `candidates`, `prompt`, `stages`, `explanation`, `requiresApproval`,
+`verified`, and `metadata`. `result.prompt.text` is the backend-built,
+injection-hardened prompt; stage reports keep only prompt metadata. Metadata
+records `appliedByEngine: false`, `securityGuarantee: "none"`, and steering
+provenance. No credential is accepted or echoed back.
+
+For HTTP requests, `metadata.steering.pipeline` is always `null` and steering is
+never marked applied. Genuine activation steering exists only for validated
+local D/E/F callers with a real pipeline; SAE/counterfactual claims remain
+hypotheses.
+
+A candidate is recommended only after syntax, patch-scope, independent security
+verification, functional tests, regression checks, CWE requirements, and
+ranking all pass. If any gate is missing or fails, `state` is `rejected`,
+`verified` is `false`, `repairedCode` is `null`, and a warning states that no
+candidate passed the mandatory gates. An empty findings list or unavailable
+stage is never a clean result.
+
+See [secure recommendations and feedback](secure-recommendation-and-feedback.md)
+for the full workflow, verification gates, and extension approval flow.
 
 ## Errors
 
@@ -310,14 +358,16 @@ Downstream implementations must follow these rules:
   no result. Results must then carry empty findings, features, effects, claims,
   or checks; verification must report `not_run`, and a steering plan must be
   `null`. An empty findings list is not a clean scan result.
-- **Approval.** Repair candidates always carry `requiresApproval: true`; the
-  backend does not apply patches.
+- **Approval.** Repair candidates and secure recommendations always carry
+  `requiresApproval: true`; the backend does not apply patches.
 - **Unknown fields.** Payload schemas reject unknown fields so a client cannot
   silently depend on undocumented data.
 
 ## Related documentation
 
 - [Architecture and target contract](architecture.md)
+- [Repository-aware repair](repair.md)
+- [Secure recommendations and feedback](secure-recommendation-and-feedback.md)
 - [Shared JSON Schemas](../shared/schemas/README.md)
 - [Research integrity contract](research-alignment.md)
 - [Engine limitations](../security-engine/LIMITATIONS.md)

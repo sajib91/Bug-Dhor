@@ -226,10 +226,11 @@ class RealtimeMonitor {
    *   diagnostics: import('../diagnostics/diagnosticController').DiagnosticController,
    *   logger: import('../logging/output').Logger,
    *   getSettings?: () => object,
-   *   hooks?: import('../integrations/securityHooks').SecurityHooks
+   *   hooks?: import('../integrations/securityHooks').SecurityHooks,
+   *   feedback?: import('../feedback/feedbackController').FeedbackController
    * }} dependencies
    */
-  constructor({ vscode, service, diagnostics, logger, getSettings, hooks } = {}) {
+  constructor({ vscode, service, diagnostics, logger, getSettings, hooks, feedback } = {}) {
     if (!vscode?.workspace || !service || !diagnostics || !logger) {
       throw new TypeError('RealtimeMonitor requires vscode, service, diagnostics, and logger.');
     }
@@ -238,6 +239,7 @@ class RealtimeMonitor {
     this.diagnostics = diagnostics;
     this.logger = logger;
     this.hooks = hooks ?? null;
+    this.feedback = feedback ?? null;
     this.getSettings = typeof getSettings === 'function' ? getSettings : () => ({});
     this.settings = normalizeSettings(this.getSettings());
 
@@ -258,6 +260,7 @@ class RealtimeMonitor {
       skipped: 0,
       failed: 0,
       duplicates: 0,
+      suppressed: 0,
       notifications: 0,
       /** @type {Array<object>} */
       analyses: []
@@ -364,7 +367,7 @@ class RealtimeMonitor {
   /**
    * @param {any} document
    * @param {string} uri
-   * @param {'change' | 'save'} reason
+   * @param {'change' | 'save' | 'rescan'} reason
    * @param {{ immediate?: boolean }} [options]
    */
   schedule(document, uri, reason, options = {}) {
@@ -396,7 +399,7 @@ class RealtimeMonitor {
    *   document: any,
    *   uri: string,
    *   generation: number,
-   *   reason: 'change' | 'save'
+   *   reason: 'change' | 'save' | 'rescan'
    * }} task
    */
   async runAnalysis({ document, uri, generation, reason }) {
@@ -461,6 +464,30 @@ class RealtimeMonitor {
     }
 
     const textHash = hashText(text);
+
+    // Only patches explicitly applied by this extension are recorded by the
+    // feedback controller. Suppress the immediate self-induced scan once, then
+    // schedule exactly one bounded rescan instead of looping on the same edit.
+    const suppression = this.feedback?.beforeScan?.({
+      documentUri: uri,
+      hash: textHash,
+      documentVersion: document.version
+    });
+    if (suppression?.suppress) {
+      this.stats.suppressed += 1;
+      this.recordAnalysis({
+        uri,
+        version: document.version,
+        reason,
+        status: 'suppressed',
+        detail: suppression.reason ?? 'own-patch'
+      });
+      if (suppression.followUp) {
+        this.schedule(document, uri, 'rescan');
+      }
+      return;
+    }
+
     if (this.analyzedHashes.get(uri) === textHash) {
       this.stats.skipped += 1;
       this.recordAnalysis({
@@ -492,7 +519,7 @@ class RealtimeMonitor {
       languageId: document.languageId,
       ranges: changeState?.ranges ?? [],
       settings: {
-        analysisScope: reason === 'save' ? 'file' : this.settings.analysisScope,
+        analysisScope: reason === 'save' || reason === 'rescan' ? 'file' : this.settings.analysisScope,
         maxChangedLines: this.settings.maxChangedLines
       },
       reason
@@ -542,10 +569,22 @@ class RealtimeMonitor {
         return;
       }
 
-      this.diagnostics.publishScanResult(response, { scopeUris: [uri] });
+      const publication = this.diagnostics.publishScanResult(response, { scopeUris: [uri] });
+      const findings = Array.isArray(publication?.findings)
+        ? publication.findings
+        : Array.isArray(response?.findings)
+          ? response.findings
+          : [];
+      this.feedback?.afterScan?.({
+        documentUri: uri,
+        findings,
+        scopeUris: [uri],
+        snapshotHash: textHash,
+        response
+      });
       this.stats.completed += 1;
 
-      const findings = Array.isArray(response?.findings) ? response.findings : [];
+      const published = publication?.published ?? findings.length;
       this.recordAnalysis({
         uri,
         version: document.version,
@@ -553,12 +592,12 @@ class RealtimeMonitor {
         status: 'completed',
         kind: plan.kind,
         changedLines: plan.changedLines,
-        published: findings.length,
+        published,
         provenance
       });
 
-      if (findings.length > 0 && this.settings.notifyOnFindings) {
-        this.notify(document, findings.length);
+      if (published > 0 && this.settings.notifyOnFindings) {
+        this.notify(document, published);
       }
     } catch (error) {
       if (isCancellation(error) || generation !== this.generations.get(uri) || this.disposed) {
@@ -634,6 +673,24 @@ class RealtimeMonitor {
     });
   }
 
+  /**
+   * Cancel a pending or in-flight analysis for one document. Findings already
+   * published are intentionally left untouched; cancellation is not evidence
+   * that a vulnerability was resolved.
+   *
+   * @param {string} uri
+   * @param {string} [cause]
+   */
+  cancelAnalysis(uri, cause = 'user cancellation') {
+    const hadPending = this.timers.has(uri);
+    const hadInFlight = this.inFlight.has(uri);
+    this.cancelPending(uri, cause);
+    this.cancelInFlight(uri, cause);
+    if (hadPending || hadInFlight) {
+      this.recordAnalysis({ uri, reason: 'cancellation', status: 'cancelled', detail: cause });
+    }
+  }
+
   /** @param {string} uri @param {string} cause */
   cancelPending(uri, cause) {
     const pending = this.timers.get(uri);
@@ -688,6 +745,7 @@ class RealtimeMonitor {
       skipped: this.stats.skipped,
       failed: this.stats.failed,
       duplicates: this.stats.duplicates,
+      suppressed: this.stats.suppressed,
       notifications: this.stats.notifications,
       pending: this.timers.size,
       inFlight: this.inFlight.size,

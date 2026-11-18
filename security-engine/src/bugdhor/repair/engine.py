@@ -460,6 +460,11 @@ def _security_score(patch: str, context: RepositoryContext) -> float:
     return score
 
 
+# Public aliases used by the recommendation workflow. The underscore-prefixed
+# implementations remain for existing callers; these names are the stable API.
+apply_patch = _apply_patch
+validate_patch_tree = _validate_tree
+
 __all__ = [
     "CandidatePatch",
     "RepairConstraints",
@@ -468,6 +473,8 @@ __all__ = [
     "RepairPrompt",
     "RepairPromptBuilder",
     "RepairProposal",
+    "apply_patch",
     "normalize_patch",
     "patch_paths",
+    "validate_patch_tree",
 ]

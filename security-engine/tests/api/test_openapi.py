@@ -9,8 +9,12 @@ REQUIRED_OPERATIONS = {
     ("post", "/api/v1/features/extract"),
     ("post", "/api/v1/counterfactual/analyze"),
     ("post", "/api/v1/prevention/steer"),
+    ("post", "/api/v1/recommendations/generate"),
     ("post", "/api/v1/repair/generate"),
     ("post", "/api/v1/verification/run"),
+    ("get", "/api/v1/jobs/{job_id}"),
+    ("get", "/api/v1/jobs/{job_id}/result"),
+    ("post", "/api/v1/jobs/{job_id}/cancel"),
 }
 
 

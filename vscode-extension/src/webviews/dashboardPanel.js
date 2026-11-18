@@ -35,10 +35,11 @@ class DashboardPanelController {
    *   vscode: import('vscode'),
    *   extensionUri: import('vscode').Uri,
    *   logger: import('../logging/output').Logger,
-   *   getState?: (dataMode: 'empty' | 'demo') => object
+   *   getState?: (dataMode: 'empty' | 'demo') => object,
+   *   feedback?: import('../feedback/feedbackController').FeedbackController
    * }} options
    */
-  constructor({ vscode, extensionUri, logger, getState }) {
+  constructor({ vscode, extensionUri, logger, getState, feedback }) {
     if (!vscode) {
       throw new TypeError('DashboardPanelController requires a vscode API object.');
     }
@@ -57,6 +58,8 @@ class DashboardPanelController {
     this.liveData = {};
     this.repairRecords = new Map();
     this.repairHistory = [];
+    this.feedback = feedback ?? null;
+    this.recommendationHistory = [];
     /** @type {import('vscode').WebviewPanel | undefined} */
     this.panel = undefined;
     /** @type {object | undefined} */
@@ -325,6 +328,117 @@ class DashboardPanelController {
       this.updateRepairState(record);
     }
 
+    /**
+     * Capture a secure recommendation proposal. The baseline is the exact
+     * source returned by the backend, not the current editor buffer, so a later
+     * approval must revalidate the document before any patch can be applied.
+     *
+     * @param {Record<string, any>} response
+     * @param {Record<string, any>} request
+     */
+    async recordRecommendationResult(response, request) {
+      const result = response?.result;
+      if (
+        !result ||
+        result.analysisAvailable !== true ||
+        result.requiresApproval !== true ||
+        typeof result.originalCode !== 'string'
+      ) {
+        this.updateRecommendationState({
+          id: `recommendation-${Date.now()}`,
+          kind: 'recommendation',
+          title: 'Secure recommendation unavailable',
+          status: 'unavailable',
+          verificationStatus: 'not-run',
+          state: result?.state ?? 'unavailable',
+          requiresApproval: true,
+          explanation: result?.explanation ?? {
+            summary: 'The backend did not produce a reviewable secure recommendation.',
+            changes: [],
+            why: [],
+            remainingRisks: []
+          }
+        });
+        return;
+      }
+
+      const uri = this.vscode.Uri.parse(request.documentUri);
+      const document = await this.vscode.workspace.openTextDocument(uri);
+      const originalCode = result.originalCode;
+      const repairedCode =
+        typeof result.repairedCode === 'string' && result.repairedCode.length > 0
+          ? result.repairedCode
+          : null;
+      const id = result.metadata?.recommendationId ?? `recommendation-${Date.now()}`;
+      const selected = result.selected && typeof result.selected === 'object' ? result.selected : null;
+      const candidates = (Array.isArray(result.candidates) ? result.candidates : [])
+        .filter((item) => item && typeof item === 'object')
+        .map((candidate) => ({
+          candidateId: candidate.candidateId ?? 'candidate',
+          patch: typeof candidate.patch === 'string' ? candidate.patch : '',
+          verification: candidate.verification ?? null,
+          functional: candidate.functional ?? null,
+          accepted: candidate.accepted === true,
+          rejectionReason: candidate.rejectionReason ?? null
+        }));
+      if (selected && !candidates.some((item) => item.candidateId === selected.candidateId)) {
+        candidates.unshift({
+          candidateId: selected.candidateId ?? 'selected',
+          patch: typeof selected.patch === 'string' ? selected.patch : '',
+          verification: selected.verification ?? null,
+          functional: selected.functional ?? null,
+          accepted: selected.accepted === true,
+          rejectionReason: selected.rejectionReason ?? null
+        });
+      }
+
+      const record = {
+        id,
+        kind: 'recommendation',
+        uri: request.documentUri,
+        filePath: request.filePath,
+        targetPatchPath: path
+          .relative(request.workspaceFolder, request.filePath)
+          .split(path.sep)
+          .join('/'),
+        languageId: request.languageId,
+        baseVersion: document.version,
+        baseHash: hashText(originalCode),
+        originalText: originalCode,
+        repairedText: repairedCode,
+        originalCode,
+        repairedCode,
+        patch: selected?.patch ?? '',
+        candidates,
+        status: result.verified === true && repairedCode ? 'proposed' : 'unavailable',
+        verificationStatus:
+          result.verified === true
+            ? 'passed'
+            : result.state === 'rejected'
+              ? 'failed'
+              : 'not-run',
+        state: result.state,
+        requiresApproval: result.requiresApproval,
+        explanation: result.explanation ?? null,
+        verification: selected?.verification ?? null,
+        functional: selected?.functional ?? null,
+        stages: Array.isArray(result.stages) ? result.stages : [],
+        prompt: result.prompt ?? null,
+        metadata: result.metadata ?? {},
+        findingId: request.finding?.findingId ?? result.findingId ?? null,
+        cwe: result.cwe ?? null
+      };
+      this.repairRecords.set(id, record);
+      this.recommendationHistory.unshift({
+        id,
+        status: record.status,
+        verificationStatus: record.verificationStatus,
+        state: record.state,
+        timestamp: new Date().toISOString()
+      });
+      this.updateRepairState(record);
+    }
+
     async viewRepairDiff(message) {
       const record = this.repairRecords.get(message?.repairId);
       if (!record) {
@@ -334,7 +448,8 @@ class DashboardPanelController {
       const candidate = record.candidates.find(
         (item) => item.candidateId === message.candidateId
       ) ?? record.candidates[0];
-      if (!candidate || typeof candidate.patch !== 'string') {
+      const hasFullText = typeof record.repairedText === 'string' && record.repairedText.length > 0;
+      if (!hasFullText && (!candidate || typeof candidate.patch !== 'string' || !candidate.patch)) {
         this.postNotice('warning', 'The selected repair candidate has no patch.');
         return;
       }
@@ -342,7 +457,9 @@ class DashboardPanelController {
         const document = await this.vscode.workspace.openTextDocument(
           this.vscode.Uri.parse(record.uri)
         );
-        const patchedText = applyUnifiedPatch(document.getText(), candidate.patch);
+        const patchedText = hasFullText
+          ? record.repairedText
+          : applyUnifiedPatch(document.getText(), candidate.patch);
         const preview = await this.vscode.workspace.openTextDocument({
           content: patchedText,
           language: record.languageId
@@ -370,7 +487,8 @@ class DashboardPanelController {
       const candidate = record.candidates.find(
         (item) => item.candidateId === message.candidateId
       ) ?? record.candidates[0];
-      if (!candidate || typeof candidate.patch !== 'string') {
+      const hasFullText = typeof record.repairedText === 'string' && record.repairedText.length > 0;
+      if (!hasFullText && (!candidate || typeof candidate.patch !== 'string' || !candidate.patch)) {
         this.postNotice('warning', 'The selected repair candidate has no patch.');
         return;
       }
@@ -396,17 +514,23 @@ class DashboardPanelController {
         this.updateRepairStatus(record.id, 'stale');
         return;
       }
-      const files = patchFiles(candidate.patch);
-      if (files.length !== 1 || files[0] !== record.targetPatchPath) {
-        this.postNotice('warning', 'Only single-file repair patches can be applied safely.');
-        return;
-      }
       let patchedText;
-      try {
-        patchedText = applyUnifiedPatch(document.getText(), candidate.patch);
-      } catch (error) {
-        this.postNotice('error', `Repair patch could not be applied: ${error.message}`);
-        return;
+      if (hasFullText) {
+        // Secure recommendations carry the verified full-file result. The base
+        // hash check above still guarantees the document matches that result.
+        patchedText = record.repairedText;
+      } else {
+        const files = patchFiles(candidate.patch);
+        if (files.length !== 1 || files[0] !== record.targetPatchPath) {
+          this.postNotice('warning', 'Only single-file repair patches can be applied safely.');
+          return;
+        }
+        try {
+          patchedText = applyUnifiedPatch(document.getText(), candidate.patch);
+        } catch (error) {
+          this.postNotice('error', `Repair patch could not be applied: ${error.message}`);
+          return;
+        }
       }
       const edit = new this.vscode.WorkspaceEdit();
       const end = document.positionAt(document.getText().length);
@@ -419,7 +543,16 @@ class DashboardPanelController {
       record.appliedVersion = document.version + 1;
       record.appliedText = patchedText;
       record.status = 'accepted';
-      record.selectedCandidateId = candidate.candidateId;
+      record.selectedCandidateId = candidate?.candidateId ?? 'selected';
+      // Only this explicit, approved application path is recorded as an
+      // extension-authored patch. Editor events are never treated as evidence.
+      this.feedback?.recordAppliedPatch?.({
+        documentUri: record.uri,
+        findingId: record.findingId,
+        patchHash: hashText(candidate?.patch ?? patchedText),
+        appliedHash: record.appliedHash,
+        source: 'dashboard.explicit-approval'
+      });
       this.updateRepairState(record);
       this.postNotice(
         'info',
@@ -471,6 +604,10 @@ class DashboardPanelController {
     }
 
     updateRepairState(record) {
+      if (record.kind === 'recommendation') {
+        this.updateRecommendationState(record);
+        return;
+      }
       const visible = {
         id: record.id,
         title: `Repair proposal ${record.id}`,
@@ -490,6 +627,65 @@ class DashboardPanelController {
         repairHistory: this.repairHistory
       });
     }
+
+    updateRecommendationState(record) {
+      const explanation = record.explanation ?? {};
+      const visible = {
+        id: record.id,
+        kind: 'recommendation',
+        title: `Secure recommendation ${record.id}`,
+        findingId: record.findingId,
+        cwe: record.cwe,
+        state: record.state,
+        status: record.status,
+        verificationStatus: record.verificationStatus,
+        requiresApproval: record.requiresApproval,
+        baseSnapshotId: record.baseHash,
+        originalCode: record.originalCode,
+        repairedCode: record.repairedCode,
+        generator: record.metadata?.modelId ?? record.prompt?.modelId ?? 'Bug Dhor backend',
+        patch: record.patch,
+        candidates: record.candidates,
+        explanation: {
+          summary: explanation.summary ?? '',
+          changes: Array.isArray(explanation.changes) ? explanation.changes : [],
+          why: Array.isArray(explanation.why) ? explanation.why : [],
+          remainingRisks: Array.isArray(explanation.remainingRisks) ? explanation.remainingRisks : [],
+          functionalAssurance: explanation.functionalAssurance ?? ''
+        },
+        verification: record.verification,
+        functional: record.functional,
+        filePath: record.filePath,
+        stages: record.stages,
+        prompt: record.prompt
+          ? {
+              promptHash: record.prompt.promptHash,
+              steeringApplied: record.prompt.steeringApplied,
+              steeringReason: record.prompt.steeringReason,
+              providerId: record.prompt.providerId,
+              modelId: record.prompt.modelId
+            }
+          : null
+      };
+      const recommendationHistory = this.recommendationHistory.map((entry) =>
+        entry.id === record.id
+          ? {
+              ...entry,
+              status: record.status,
+              verificationStatus: record.verificationStatus,
+              state: record.state
+            }
+          : entry
+      );
+      this.updateLiveState({
+        recommendations: [
+          visible,
+          ...(this.liveData.recommendations ?? []).filter((item) => item.id !== record.id)
+        ],
+        recommendationHistory
+      });
+    }
+
   buildCurrentState() {
     const base = this.getState(this.dataMode);
     if (this.dataMode !== 'empty' || Object.keys(this.liveData).length === 0) {
@@ -549,6 +745,7 @@ class DashboardPanelController {
     this.liveData = {};
     this.repairRecords.clear();
     this.repairHistory = [];
+    this.recommendationHistory = [];
     this.disposeListeners();
     this.logger.debug('Closed the Bug Dhor security dashboard.');
   }
@@ -572,6 +769,7 @@ class DashboardPanelController {
     this.liveData = {};
     this.repairRecords.clear();
     this.repairHistory = [];
+    this.recommendationHistory = [];
     this.disposeListeners();
     if (panel) {
       panel.dispose();

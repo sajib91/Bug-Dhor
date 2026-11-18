@@ -39,6 +39,12 @@ from bugdhor.api.schemas.prevention import (
     PreventionResponse,
     PreventionResult,
 )
+from bugdhor.api.schemas.recommendation import (
+    RecommendationProviderModel,
+    RecommendationRequest,
+    RecommendationResponse,
+    RecommendationResult,
+)
 from bugdhor.api.schemas.repair import (
     RepairFindingContext,
     RepairRequest,
@@ -87,6 +93,10 @@ __all__ = [
     "PreventionResult",
     "ProblemDetail",
     "Range",
+    "RecommendationProviderModel",
+    "RecommendationRequest",
+    "RecommendationResponse",
+    "RecommendationResult",
     "RepairFindingContext",
     "RepairInfo",
     "RepairRequest",

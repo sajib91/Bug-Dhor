@@ -140,10 +140,17 @@ def test_orchestrator_capabilities_require_every_operation_stage() -> None:
 
     capabilities = orchestrator.capabilities()
 
+    # Integrated local analysis, repair, recommendation, and verification are
+    # implemented and reported honestly; research/model stages remain unavailable.
     assert capabilities["scan_file"] is True
     assert capabilities["scan_workspace"] is True
     assert capabilities["detection_analyze"] is True
-    assert capabilities["explanation_analyze"] is False
+    assert capabilities["explanation_analyze"] is True
+    assert capabilities["repair_generate"] is True
+    assert capabilities["recommendation_generate"] is True
+    assert capabilities["features_extract"] is False
+    assert capabilities["counterfactual_analyze"] is False
+    assert capabilities["prevention_steer"] is False
     assert capabilities["verification_run"] is True
 
 

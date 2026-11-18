@@ -12,7 +12,7 @@
 Bug Dhor is a local-first research-oriented system for explainable software vulnerability analysis and related security research workflows. The repository contains:
 
 - **VS Code extension (`vscode-extension/`)**: a JavaScript extension that provides Bug Dhor commands, an Activity Bar/sidebar launcher, a Security Dashboard webview, and native diagnostics/hover/code actions derived from validated backend scan results.
-- **Security engine (`security-engine/`)**: a Python/FastAPI backend exposing a versioned `/api/v1` HTTP API for health checks, file/workspace scanning, detection/explanation requests, feature/counterfactual/steering/repair/verification operations, and job status/progress/result/cancellation.
+- **Security engine (`security-engine/`)**: a Python/FastAPI backend exposing a versioned `/api/v1` HTTP API for health checks, file/workspace scanning, detection/explanation requests, feature/counterfactual/steering/repair/verification operations, proposal-only secure recommendations, and job status/progress/result/cancellation.
 - **Shared contracts/schemas and research modules**: typed schemas, program analysis, detection/explanation, repair/verification/sandbox, SAE/counterfactual/steering libraries, and experimental/evaluation/statistical frameworks.
 
 The system is designed to report honest analysis states (`ok`, `partial`, `unavailable`, `failed`, etc.) and explicit limitations rather than fabricating results.
@@ -307,20 +307,51 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 
 ## 12. Secure code generation tutorial
 
-"Secure code generation" in Bug Dhor is exposed as a research/engine-backed command/operation where available (e.g. steering/prevention or generation-oriented workflows). It is **not** guaranteed to be available in a default environment.
+Bug Dhor has two distinct generation paths. Do not conflate them:
 
-### 12.1 Current usage model
+1. **Provider-backed secure recommendation** — implemented as a proposal-only workflow with mandatory verification.
+2. **Steering/prevention research path** — available only for genuine local D/E/F access with configured model, SAE, and evaluators. The HTTP API always reports steering as not applied.
 
-- **VS Code:** **Bug Dhor: Generate Secure Code** sends an engine-backed request based on editor context.
-- **API:** `POST /api/v1/prevention/steer` accepts a schema-valid steering/prevention request.
+### 12.1 Provider-backed secure recommendation (VS Code)
 
-**Important current status:** the orchestrator's `prevention_steer` path declares the steering plan/evaluation stages as unavailable in the default integrated pipeline. The standalone steering libraries (`bugdhor.steering.*`) and adaptive policy/risk-control components exist and can be used programmatically when a compatible model, SAE, and evaluators are configured, but the end-to-end API flow must not be assumed operational. Check the returned stage statuses/reasons.
+**Bug Dhor: Generate Secure Code** works when the active saved editor contains a
+finding published by a validated backend scan and a configured generation
+provider exposes capabilities B and C. The editor-monitor provider exposes only
+A and is rejected before any generation request.
 
-### 12.2 Prerequisites and limitations
+The command:
 
-- Requires a configured model/runtime, compatible SAE artifacts/policies, and any evaluation harness/capabilities required by the selected method.
-- Steering/generation modifies model behavior under intervention; it does **not** guarantee secure or functionally correct code.
-- Treat outputs as untrusted proposals subject to review and independent verification.
+1. asks `POST /api/v1/recommendations/generate` for the backend-built secure prompt;
+2. sends that prompt to the configured provider;
+3. extracts only valid unified diffs for the target file;
+4. submits at most three candidates back to the backend for syntax, static, functional, CWE, and ranking verification; and
+5. shows the accepted result in the dashboard as an unapplied proposal.
+
+No source is changed by generation. If there is no validated finding, no
+available B/C provider, no usable prompt, no applicable diff, or no candidate
+that passes every mandatory gate, no patch is recommended.
+
+### 12.2 API usage
+
+Use `POST /api/v1/recommendations/generate` directly for a backend-built prompt
+or to submit candidate diffs for verification. The response always has
+`requiresApproval: true`; a rejected result has `verified: false` and
+`repairedCode: null`. See [api.md](api.md#secure-recommendations) for the request
+and result fields.
+
+### 12.3 Steering/prevention limitations
+
+The orchestrator's `prevention_steer` path declares the steering plan/evaluation
+stages as unavailable in the default integrated pipeline. The standalone
+steering libraries (`bugdhor.steering.*`) and adaptive policy/risk-control
+components exist and can be used programmatically when a compatible model, SAE,
+and evaluators are configured, but the end-to-end API flow must not be assumed
+operational. Check the returned stage statuses/reasons.
+
+Steering does **not** guarantee secure or functionally correct code.
+SAE/counterfactual evidence is hypothesis-level, and API-driven steering is
+never applied. Treat all generated output as an untrusted proposal subject to
+review and independent verification.
 
 ## 13. Automated repair tutorial
 
@@ -355,12 +386,34 @@ Counterfactual modules support reproducible intervention experiments (single/pai
 - **VS Code:** **Bug Dhor: Verify Repair** (workspace/editor context as required by command/backend contract).
 - **API:** `POST /api/v1/verification/run` with schema-compliant target/profile/consent fields.
 
-**Important current status:** in the default integrated orchestrator, `verification_run` still declares the standalone `verification` stage unavailable (`E_VERIFICATION_UNAVAILABLE`) and returns an inconclusive placeholder rather than claiming a verdict. The independent verification engine also runs inside the integrated repair workflow (`RepairWorkflow`), where results depend on analyzers/consent/sandbox and workflow state. Do not interpret an unavailable/inconclusive result as verification success.
+**Important current status:** health reports `verification_run` as a registered integrated interface, but an individual response still depends on analyzers, profile, consent, and sandbox availability. An unavailable or inconclusive result is not verification success. Independent verification also runs inside the repair and secure-recommendation workflows, where mandatory gates reject candidates that lack passing evidence.
 
 ### 14.3 Prerequisites
 
 - Available analyzers/evidence sources for security checks as applicable.
 - For functional execution: explicit consent, non-destructive/non-privileged request, and an available/configured sandbox backend (e.g. Docker). If unavailable, results must be reported as not run/unavailable/inconclusive as appropriate.
+
+### 14.4 Continuous feedback loop
+
+The VS Code extension maintains a bounded feedback loop after a patch is
+explicitly applied:
+
+- Diagnostics publish only validated backend findings. Hook events record
+  metadata only and never create, resolve, or attribute findings.
+- The feedback controller deduplicates a hook/monitor pair reporting the same
+  scan, then tracks each finding through `patched`, `rescan_clean`,
+  `verification_passed`, and `resolved` states.
+- One immediate self-induced scan for an applied document hash is suppressed,
+  and exactly one bounded follow-up rescan is scheduled. Analysis for a document
+  can also be cancelled explicitly.
+- A finding is resolved only after an explicitly applied Bug Dhor patch, a clean
+  rescan, and passing verification. A later recurrence reopens it as
+  `regressed`.
+
+Notifications are controlled by `bugdhor.feedback.notifyOnPatchApplied` and
+`bugdhor.feedback.notifyOnResolution` (both default to `true`). Functional-test
+controls are described in
+[secure recommendations and feedback](secure-recommendation-and-feedback.md#6-bounded-continuous-feedback-loop).
 
 ## 15. Experiment configuration
 
@@ -441,6 +494,6 @@ No benchmark results are included in this guide; any future results must be trac
 - `docs/development-setup.md`, `docs/models.md`, `docs/program-analysis.md`
 - `docs/sae.md`, `docs/sae-feature-analysis.md`, `docs/sae-feature-interpretation.md`
 - `docs/counterfactual.md`, `docs/pairwise-counterfactual.md`, `docs/higher-order-counterfactual.md`, `docs/steering.md`
-- `docs/explain.md`, `docs/repair.md`, `docs/research-alignment.md`
+- `docs/explain.md`, `docs/repair.md`, `docs/secure-recommendation-and-feedback.md`, `docs/research-alignment.md`
 - `docs/SECURITY_AUDIT_AND_PERFORMANCE_REPORT.md`, `research/evaluation/README.md`
 - `security-engine/tests/integration/INTEGRATION_TEST_REPORT.md`

@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 
 const { RealtimeMonitor } = require('../../src/monitoring/realtimeMonitor');
 
@@ -39,7 +40,7 @@ function createDocument(options = {}) {
   };
 }
 
-function createHarness(settings = {}) {
+function createHarness(settings = {}, options = {}) {
   const listeners = { change: [], save: [], close: [] };
   const calls = [];
   const published = [];
@@ -124,6 +125,7 @@ function createHarness(settings = {}) {
     service,
     diagnostics,
     logger,
+    feedback: options.feedback,
     getSettings: () => ({
       enabled: true,
       allowAutomaticSourceSharing: true,
@@ -372,6 +374,58 @@ test('skips unsupported languages, excluded paths, and oversized documents', asy
     await delay(180);
     assert.equal(harness.calls.length, 0);
     assert.ok(harness.monitor.getStats().skipped >= 1);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('suppresses one self-induced scan and schedules exactly one bounded rescan', async () => {
+  const text = 'value = 2\n';
+  const hash = crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+  const beforeCalls = [];
+  let consumed = false;
+  const feedback = {
+    beforeScan(input) {
+      beforeCalls.push(input);
+      if (input.hash === hash && !consumed) {
+        consumed = true;
+        return { suppress: true, followUp: true, reason: 'bugdhor-applied-patch' };
+      }
+      return { suppress: false, followUp: false };
+    },
+    afterScan() {}
+  };
+  const harness = createHarness({}, { feedback });
+  harness.monitor.start();
+  try {
+    harness.change(createDocument({ version: 2, text }), [edit(0)]);
+    await waitUntil(() => harness.calls.length === 1);
+    await delay(160);
+
+    assert.equal(harness.calls.length, 1, 'only the bounded rescan may reach the backend');
+    assert.equal(beforeCalls.length, 2, 'the original scan and the rescan both consult feedback');
+    assert.equal(harness.monitor.getStats().suppressed, 1);
+    const statuses = harness.monitor.getStats().analyses.map((entry) => entry.status);
+    assert.ok(statuses.includes('suppressed'));
+    assert.equal(harness.calls[0].request.documentVersion, 2);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('cancelAnalysis cancels pending and in-flight work without publishing findings', async () => {
+  const harness = createHarness();
+  harness.monitor.start();
+  const document = createDocument({ version: 1 });
+  try {
+    harness.change(document, [edit(0)]);
+    harness.monitor.cancelAnalysis(document.uri.toString(), 'user cancellation');
+    await delay(180);
+
+    assert.equal(harness.calls.length, 0);
+    assert.equal(harness.published.length, 0);
+    assert.equal(harness.monitor.getStats().pending, 0);
+    assert.ok(harness.monitor.getStats().cancelled >= 1);
   } finally {
     harness.monitor.dispose();
   }

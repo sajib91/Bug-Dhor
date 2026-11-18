@@ -74,6 +74,30 @@ test('dashboard client renders explainability evidence sections and source navig
   assert.match(source, /Unavailable information/);
 });
 
+test('dashboard client renders secure recommendations and feedback lifecycle state', () => {
+  for (const label of [
+    'Secure recommendations are proposals only',
+    'No secure recommendations',
+    'What changed',
+    'Why it changed',
+    'Remaining risks',
+    'Original code',
+    'Recommended code',
+    'Feedback loop activity',
+    'Resolution requires three independent signals',
+    'Findings resolved'
+  ]) {
+    assert.ok(source.includes(label), `${label} must be rendered`);
+  }
+  assert.ok(source.includes('function renderRecommendationCards'));
+  assert.ok(source.includes('function renderFeedbackLifecycle'));
+  assert.ok(source.includes('function normalizeFeedback'));
+  assert.ok(source.includes("recommendations: arrayOfRecords(source.recommendations)"));
+  assert.ok(source.includes("feedback: normalizeFeedback(source.feedback)"));
+  assert.ok(source.includes('A recommendation never guarantees'));
+  assert.ok(source.includes('perfect security and is never applied without explicit approval.'));
+});
+
 test('dashboard client validates commands before posting them', () => {
   assert.ok(source.includes('safeCommandPattern'));
   assert.ok(source.includes('/^bugdhor\\.[A-Za-z][A-Za-z0-9]*$/'));

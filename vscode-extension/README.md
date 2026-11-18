@@ -4,9 +4,9 @@ JavaScript VS Code client for the Bug Dhor security framework.
 
 ## Status
 
-**Extension shell with a live local-backend transport and diagnostics pipeline.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **Bug Dhor Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Every analysis command is connected to a `SecurityEngineService` backed by the versioned FastAPI engine. Health checks, file scans, selection detection requests, and workspace scans reach the real backend; detection, SAE features, counterfactuals, steering, repair generation, and verification remain unimplemented and return explicit `unavailable` stages. The extension does **not** start the Python backend.
+**Extension shell with a live local-backend transport, diagnostics pipeline, and proposal-only secure recommendations.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **Bug Dhor Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Health checks, file scans, selection detection requests, workspace scans, and secure recommendations reach the real backend through a `SecurityEngineService`; analysis stages that are unconfigured report explicit `unavailable` states. **Bug Dhor: Generate Secure Code** is a custom provider-backed workflow that uses the backend-built prompt and returns an unapplied, verified proposal. The extension does **not** start the Python backend and never applies code without explicit user approval.
 
-No analysis results, probabilities, or causal claims are produced by this extension. The dashboard starts empty. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Commands show cancellable progress while they contact the backend and report transport or validation errors; they never show a placeholder success message. Diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results. An empty findings list with `analysisAvailable: false` is reported as unavailable analysis, never as a clean scan.
+No analysis results, probabilities, or causal claims are produced by this extension. The dashboard starts empty. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, recommendations, feedback lifecycle, verification checks, and reports empty. Commands show cancellable progress while they contact the backend and report transport or validation errors; they never show a placeholder success message. Diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results. An empty findings list with `analysisAvailable: false` is reported as unavailable analysis, never as a clean scan.
 
 ## Manifest contributions
 
@@ -22,7 +22,7 @@ No analysis results, probabilities, or causal claims are produced by this extens
 | Command | `bugdhor.explainVulnerability` | Explain the vulnerability in context |
 | Command | `bugdhor.analyzeSecurityFeatures` | Analyze security-relevant features |
 | Command | `bugdhor.counterfactualAnalysis` | Compare a selected code region with counterfactual variants |
-| Command | `bugdhor.generateSecureCode` | Generate secure code from editor context |
+| Command | `bugdhor.generateSecureCode` | Generate a verified secure-code proposal from a validated finding using a configured B/C provider |
 | Command | `bugdhor.repairVulnerability` | Generate a repair proposal |
 | Command | `bugdhor.verifyRepair` | Verify a repair at workspace scope |
 | Command | `bugdhor.openSecurityDashboard` | Open or reveal the Bug Dhor Security Dashboard panel |
@@ -36,10 +36,10 @@ All commands use the `Bug Dhor` category. The extension activates on startup, on
 - `scanWorkspace` requires at least one local file-system workspace folder. `verifyRepair` requires an active saved editor because the backend verification contract extends the file context.
 - Validation failures are logged as warnings and shown as error messages with a **Show Logs** action.
 - Engine calls run under `window.withProgress` with a cancellable notification. Cancellation is logged and produces no error dialog.
-- Every engine-backed command calls its declared `SecurityEngineService` method. Transport failures, timeouts, problem details, and schema mismatches are reported instead of inventing a result.
+- Every engine-backed command calls its declared `SecurityEngineService` method. `generateSecureCode` is the deliberate exception: it first asks the backend for a secure prompt, invokes a configured provider with capabilities B and C, and submits candidate diffs back to the backend for verification. Transport failures, timeouts, problem details, and schema mismatches are reported instead of inventing a result.
 - Successful scan results are validated and published as diagnostics; failed or cancelled scans never alter the Problems panel.
 - `bugdhor.repairVulnerability` accepts an optional finding context from a diagnostic Quick Fix while retaining its no-argument Command Palette and dashboard behavior. A finding for another file is rejected before the engine call.
-- A single `CommandRegistry` owns all 12 registrations and is disposed with the extension.
+- A single `CommandRegistry` owns all 13 registrations and is disposed with the extension.
 
 ## Backend transport and privacy
 
@@ -51,6 +51,22 @@ All commands use the `Bug Dhor` category. The extension activates on startup, on
 - Health checks send no source code.
 - Every response is validated before use. The backend's `partial`/`unavailable` statuses and `analysisAvailable: false` are preserved; they are never converted into a clean scan.
 - Background monitoring is off by default and sends no source text unless `bugdhor.monitoring.allowAutomaticSourceSharing` AND `bugdhor.privacy.sendSourceText` are both enabled.
+- Secure recommendations call `POST /api/v1/recommendations/generate` twice when generating: once with no candidates for the prompt and once with extracted candidates for verification. No provider credential is sent in the request body; environment-backed API keys remain in the extension host.
+
+### Secure recommendation and feedback settings
+
+| Setting | Default | Effect |
+|---|---|---|
+| `bugdhor.feedback.notifyOnPatchApplied` | `true` | Notify when an explicitly applied patch is recorded. |
+| `bugdhor.feedback.notifyOnResolution` | `true` | Notify when a finding reaches `resolved`. |
+| `bugdhor.recommendations.runFunctionalTests` | `true` | Request functional tests; disabling them prevents recommendation rather than bypassing the gate. |
+| `bugdhor.recommendations.allowSandboxedExecution` | `false` | Permit sandboxed test execution; network, privileged, and destructive operations stay forbidden. |
+| `bugdhor.recommendations.testCommand` | `[]` | Optional argv list for the project's functional tests. |
+| `bugdhor.recommendations.testTimeoutSeconds` | `120` | Per-run functional-test timeout (1–3600 seconds). |
+
+Hosted assistants expose A/B/C only and never claim validated steering. Only
+validated local D/E/F access with a real pipeline can support steering, and API
+requests always report the steering pipeline as `None`.
 
 The publisher is set to the explicit placeholder `your-publisher-id`. Replace it with the real Marketplace publisher ID before publishing; no publisher identity is claimed by this repository.
 
@@ -62,9 +78,11 @@ The dashboard has 11 sections: Overview, Security Scan, Vulnerabilities, SAE Fea
 
 - **Empty by default.** Counts are `null` and lists are empty until a real scan result is supplied. The dashboard never estimates missing values.
 - **Explicit demo preview.** The **Load demo preview** button requests a separately labeled data mode with 18 illustrative findings, matching severity and CWE totals, and scan history. It does not simulate SAE activations, feature interactions, steering, explanations, repairs, verification checks, or reports.
-- **Backend-ready state.** The panel controller calls an injected `getState(dataMode)` function. `live` currently falls back to the empty state because no backend exists; this is deliberate.
+- **Backend-ready state.** The panel controller calls an injected `getState(dataMode)` function and merges validated live results into the empty baseline. Unavailable backend data is never fabricated.
+- **Secure recommendations.** Verified proposals show the exact original and repaired source, what changed, why, remaining risks, verification and functional results, and prompt provenance. Recommendations are proposals only: every display states that no perfect security is guaranteed and that explicit approval is required. The dashboard itself never applies a patch.
+- **Feedback lifecycle.** The same section shows tracked finding states and bounded-loop counters (validated scans, suppressed self-induced scans, follow-up rescans, approved patches, verifications, and resolutions). Resolution requires an applied patch, a clean rescan, and passing verification.
 - **Counterfactual evidence view.** When a live state supplies measured `baselineRisk`, `singleFeatureEffects`, `pairwiseEffects`, `higherOrderEffects`, `activationChanges`, `cweResults`, and `metadata`, Feature Interactions renders native local SVG charts, uncertainty, evidence categories, provenance, and a selector for supplied code examples. Missing values are labeled **Unavailable evidence**; the UI never derives effects, probabilities, or vulnerability-status changes.
-- **Restricted execution.** Dashboard action buttons can execute only the nine engine-backed commands in the controller's allowlist, with no arguments. The dashboard cannot execute arbitrary VS Code commands, write files, apply patches, or start a backend.
+- **Restricted execution.** Dashboard action buttons can execute only the engine-backed commands in the controller's allowlist, with no arguments. The webview cannot execute arbitrary VS Code commands, write files, or start a backend. Patch buttons only post a message; the extension host applies a file change solely after an explicit approval, base-hash revalidation, target-path validation, and a successful `WorkspaceEdit`.
 - **Validation.** Inbound messages are checked for shape and value. Unknown or malformed messages are logged and ignored. Engine command failures produce an error notice, never a success notice.
 - **Webview security.** The shell uses a per-render nonce, a restrictive CSP (`default-src 'none'`, no network or inline execution), local resource roots, escaped embedded JSON, and DOM text APIs for dynamic content. The sidebar launcher has its own nonce CSP and can only post `openDashboard`.
 - **Accessibility and theming.** Navigation uses an accessible vertical tablist with keyboard support, tables have captions and scoped headers, status changes use a live region, and styling uses VS Code theme tokens with reduced-motion and forced-colors handling.
@@ -144,7 +162,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit suite (257 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
+The unit suite (288 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), secure recommendation request mapping and provider B/C gating, candidate extraction, feedback deduplication/resolution/lifecycle, one-shot suppression and bounded rescan, dashboard recommendation review and explicit approval, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
 
 ## Extension Development Host
 
@@ -196,6 +214,10 @@ The extension has no runtime npm dependency: `ajv` is used only by the unit test
 | `src/diagnostics/hoverProvider.js` | Hover explanations built only from backend finding fields |
 | `src/diagnostics/codeActionProvider.js` | Repair Quick Fixes for backend-eligible findings |
 | `src/diagnostics/index.js` | Diagnostic provider registration and disposal |
+| `src/recommendations/secureCodeGeneration.js` | Prompt retrieval, provider B/C validation, candidate extraction, and backend verification |
+| `src/feedback/` | Finding lifecycle, applied-patch provenance, and bounded feedback controller |
+| `src/integrations/` | Provider registry, capabilities A–F, hooks, and official manifest validation |
+| `src/monitoring/realtimeMonitor.js` | Debounced change analysis, suppression, bounded rescan, and cancellation |
 | `src/security/paths.js` | Workspace containment checks for backend-supplied paths |
 | `src/logging/output.js` | Log output channel and level filtering |
 | `src/views/statusBar.js` | Status bar item and visibility setting |
@@ -213,4 +235,6 @@ The extension has no runtime npm dependency: `ajv` is used only by the unit test
 | `media/` | Icons, dashboard CSS/JS, and sidebar launcher CSS/JS |
 | `test/` | Unit and Extension Host integration tests |
 
-See `docs/architecture.md` in the repository for the full design.
+See `docs/architecture.md` for the full design and
+`docs/secure-recommendation-and-feedback.md` for the proposal-only recommendation
+workflow, verification gates, and feedback lifecycle.
