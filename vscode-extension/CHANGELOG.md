@@ -37,10 +37,10 @@ Marketplace-facing changelog for `sajib91.bug-dhor`.
 - Repairs are proposals. No patch is applied without explicit user approval, and static
   reverification is not a security guarantee.
 - No Marketplace screenshots are bundled yet.
-- No repository license has been selected, so packaging intentionally leaves the `vsce`
-  missing-license warning visible.
-- Publication remains blocked by the open Phase 04 release gates and publisher-identity
-  verification.
+- The repository MIT license is now present and is staged into the VSIX by the clean packaging
+  script. No license warning is suppressed.
+- Publication remains blocked by the open Phase 04 release gates, publisher-identity verification,
+  and owner-side Marketplace Trusted Publishing configuration.
 
 See `../reports/PHASE_06_MARKETPLACE_READINESS.md` and `../reports/PHASE_07_PUBLISHING_SETUP.md`
 for the evidence and release gates.

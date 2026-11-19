@@ -20,6 +20,7 @@ test('identity fields match the approved extension identity', () => {
   assert.ok(manifest.description.length > 0);
   assert.equal(manifest.publisher, 'sajib91');
   assert.equal(manifest.version, '0.1.0');
+  assert.equal(manifest.license, 'MIT');
 });
 
 test('marketplace metadata points at the public repository', () => {
@@ -49,8 +50,9 @@ test('marketplace documentation uses HTTPS images and ships a versioned changelo
 test('vsce dev dependency supports OIDC trusted publishing', () => {
   const version = manifest.devDependencies['@vscode/vsce'];
   assert.match(version, /^\^?\d+\.\d+\.\d+$/);
-  const [major, minor] = version.replace(/^\^/, '').split('.').map(Number);
-  assert.ok(major > 4 || (major === 4 && minor >= 0), `@vscode/vsce ${version} is too old`);
+  const [major, minor, patch] = version.replace(/^\^/, '').split('.').map(Number);
+  const oidcCapable = major > 4 || (major === 4 && (minor > 0 || (minor === 0 && patch >= 2)));
+  assert.ok(oidcCapable, `@vscode/vsce ${version} does not support OIDC publishing`);
 });
 
 test('packaging scripts stage runtime dependencies without workspace traversal', () => {
@@ -271,7 +273,10 @@ test('configuration settings are declared', () => {
   assert.equal(properties['bugdhor.localEngine.pythonPath'].default, 'python');
   assert.equal(properties['bugdhor.localEngine.requestTimeoutMs'].default, 15000);
   assert.ok(properties['bugdhor.localEngine.requestTimeoutMs'].minimum >= 1000);
-  assert.equal(properties['bugdhor.localEngine.sessionPath'].default, '.bugdhor/phase6-session.json');
+  assert.equal(
+    properties['bugdhor.localEngine.sessionPath'].default,
+    '.bugdhor/phase6-session.json'
+  );
 });
 
 test('real-time monitoring is off by default and requires explicit source consent', () => {

@@ -8,6 +8,10 @@
 
 > **Statement on audit status:** This is an internal source review and automated-check report, not a third-party penetration test, certification, or formal security audit. No security certification, compliance attestation, CVE-free guarantee, or externally validated result is claimed. Tool limitations are recorded in §7.3. Nothing was published, committed, or pushed.
 
+> **Post-Phase-09 update:** A root MIT `LICENSE` now exists; the earlier “no license” statement is
+> stale. The security findings and the NO-GO decision below are unchanged and were rechecked at
+> current HEAD during Phase 09.
+
 ---
 
 ## 1. Executive summary
@@ -16,14 +20,14 @@ The implementation has a strong security baseline: loopback-by-default transport
 
 However, the audit found **2 CRITICAL**, **4 HIGH**, **6 MEDIUM**, **4 LOW**, and **3 INFORMATIONAL** findings. The release blockers are:
 
-| ID | Severity | Blocker |
-|---|---|---|
-| SEC-01 | **CRITICAL** | Absolute `filePath` causes real workspace files to be overwritten during repair functional verification, before consent is checked. |
-| SEC-02 | **CRITICAL** | Absolute `filePath` causes real workspace files to be overwritten during recommendation candidate validation, before patch containment is checked. |
-| SEC-03 | **HIGH** | No workspace-trust gate; security-sensitive settings are `machine-overridable`, allowing an untrusted workspace to enable background source egress to a remote HTTP endpoint. |
-| SEC-04 | **HIGH** | Backend API authentication is optional by design, and non-loopback binding is allowed without requiring a token or TLS. |
-| SEC-05 | **HIGH** | Full response payloads containing source code and prompts are persisted to disk with default permissions. |
-| SEC-06 | **HIGH** | Workspace snapshots for functional verification dereference symlinks, copying files outside the allowlisted root. |
+| ID     | Severity     | Blocker                                                                                                                                                                       |
+| ------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SEC-01 | **CRITICAL** | Absolute `filePath` causes real workspace files to be overwritten during repair functional verification, before consent is checked.                                           |
+| SEC-02 | **CRITICAL** | Absolute `filePath` causes real workspace files to be overwritten during recommendation candidate validation, before patch containment is checked.                            |
+| SEC-03 | **HIGH**     | No workspace-trust gate; security-sensitive settings are `machine-overridable`, allowing an untrusted workspace to enable background source egress to a remote HTTP endpoint. |
+| SEC-04 | **HIGH**     | Backend API authentication is optional by design, and non-loopback binding is allowed without requiring a token or TLS.                                                       |
+| SEC-05 | **HIGH**     | Full response payloads containing source code and prompts are persisted to disk with default permissions.                                                                     |
+| SEC-06 | **HIGH**     | Workspace snapshots for functional verification dereference symlinks, copying files outside the allowlisted root.                                                             |
 
 All four HIGH backend/extension issues compound the same core problem: source content and execution behavior can cross the user's intended trust boundary without an explicit host-level decision.
 
@@ -191,94 +195,107 @@ bugdhor.localEngine.allowSourceWrite             default false
 ## 4. Non-blocking findings
 
 ### SEC-07 — MEDIUM — Direct file inspection is not limited to source files
+
 **Area:** Repository scanning boundaries
 `security-engine/src/bugdhor/core/paths.py:218-278` calls `resolve_file()` but not `is_source_file()`, unlike explicit workspace inspection (`:371-372`). Any regular UTF-8 file inside the root, including config or credential-bearing files, can be inspected via `scan_file`. Remediation: apply the source extension allowlist and add secret-file deny rules.
 
 ### SEC-08 — MEDIUM — HTTP response size cap is character-based and post-buffering
+
 **Area:** HTTP request/response validation / file size limits
 `vscode-extension/src/api/apiClient.js:12-13`, `:352-398` call `response.text()` and then compare `responseText.length` to `maxResponseBytes`. The body is fully buffered first and the counter measures JavaScript string units, not bytes. Remediation: stream with a byte counter and abort at the limit; add JSON depth/array-length caps.
 
 ### SEC-09 — MEDIUM — Error, stderr, and exception text can leak context
+
 **Area:** Sensitive logs / malformed input
 Backend exception text is embedded in warnings and stage details (`security-engine/src/bugdhor/core/orchestrator.py:546`, `:775-784`, `:852-856`); tool stderr is appended to warnings (`security-engine/src/bugdhor/static/semgrep.py:172-174`, `bandit.py:164-165`); sandbox command tuples include `-e KEY=value` entries (`security-engine/src/bugdhor/sandbox/executor.py:175-176`, `:193-201`). The extension incorporates backend `detail`/`title` into user-facing errors (`vscode-extension/src/api/apiClient.js:147-188`) without a length cap or control-character sanitization. Remediation: central redaction, reason codes instead of raw stderr, capped details.
 
 ### SEC-10 — MEDIUM — Execution verification is silently skipped in the static verification engine
+
 **Area:** Verification claims / capability honesty
 `security-engine/src/bugdhor/verification/engine.py:257-271` returns `status="skipped"` when `run_execution=True` or `profile="sandbox"`. This is **honest** but can be misread as execution verification by callers. Remediation: reject those inputs as unsupported or expose an explicit `executionExecuted: false` field. Do not report execution verification from this path.
 
 ### SEC-11 — MEDIUM — Semgrep may fetch remote rules
+
 **Area:** Analyzer supply chain
 `security-engine/src/bugdhor/static/semgrep.py:32-39`, `:91-92` default to `--config=auto`. Metrics and version checks are disabled, but rules are not pinned or offline-enforced. Remediation: pin reviewed local rule paths for offline deployments.
 
 ### SEC-12 — MEDIUM — Dependency/SCA gaps
+
 **Area:** Dependency vulnerabilities
 Python dependencies use broad ranges with no hash-pinned lockfile (`security-engine/pyproject.toml:10-26`, `:31-50`); the capability report correctly states automated SCA is not shipped (`security-engine/src/bugdhor/core/capability_report.py:103-111`). `npm audit` reports 3 moderate **development-only** advisories (`@vscode/vsce`, `glob`, `minimatch`); production audits report 0. Remediation: add a Python lockfile, CI SCA, and SBOM; evaluate the semver-major `@vscode/vsce@4.1.1` upgrade.
 
 ### SEC-13 — LOW — Credential handling residuals
+
 **Area:** API key handling
 Extension `registry.js:100-103` accepts a programmatic `config.apiKey` even though no settings path populates it (`vscode-extension/src/integrations/registry.js:93-103`). Backend tokens are static with no rotation or entropy policy (`security-engine/src/bugdhor/api/middleware/auth.py:14-45`). No credential values were found in `package.json` or workspace settings; only variable names are stored (`vscode-extension/package.json:660-664`). Remediation: forbid programmatic key injection; use `SecretStorage`; add rotation guidance.
 
 ### SEC-14 — LOW — Lexical-only path containment in the extension
+
 **Area:** Path traversal / symlink handling
 `vscode-extension/src/security/paths.js:5-28` is explicitly lexical; repository inventory does skip symlinks (`src/repository/repositoryInventory.js:506-515`, `:597-608`), but other file-open and dashboard location checks do not resolve realpaths. The Phase 6 session path may be absolute (`src/phase6/localEngine.js:160-165`). Remediation: add realpath checks at file-operation boundaries; reject absolute session paths.
 
 ### SEC-15 — LOW — Full-file replacement is a wider repair trust surface
+
 **Area:** Repair patch validation
 `vscode-extension/src/webviews/dashboardPanel.js:659-690` can use backend-provided `repairedText` instead of a unified diff. It is still gated by modal approval and base-hash checks, but has no explicit size cap or full diff preview. Remediation: prefer unified diffs; enforce maximum replacement size; revalidate immediately before apply.
 
 ### SEC-16 — LOW — Verification is requested but not awaited into repair state
+
 **Area:** Patch application and rollback
 `vscode-extension/src/webviews/dashboardPanel.js:730-756` requests a fresh verification run without recording its verdict. No false success is claimed, but states remain ambiguous. Remediation: distinguish `applied`, `verification requested`, `verified passed`, `verified failed`, and `inconclusive`.
 
 ### SEC-17 — INFORMATIONAL — Webview CSP and XSS controls are adequate
+
 `vscode-extension/src/webviews/csp.js:10-12`, `:24-45` uses a 16-byte per-render nonce with `default-src 'none'`, `connect-src 'none'`, and no inline/script/frame/worker/form allowances. `src/webviews/html.js:9-16`, `:28-35` escapes attributes and serialized state; `media/dashboard.js` uses DOM text nodes and no dynamic `innerHTML`, `eval`, `fetch`, or WebSocket. Backend returns typed JSON/problem responses with no HTML rendering.
 
 ### SEC-18 — INFORMATIONAL — Capability honesty is preserved
+
 Backend explicitly reports unavailable stages without invented findings (`security-engine/src/bugdhor/api/app.py:80-90`; `core/orchestrator.py:118-143`), labels scores `heuristic_index` (`:590-597`), declares SCA manual-only (`core/capability_report.py:103-111`), and skips execution verification honestly (`verification/engine.py:257-271`). Extension forces `steeringValidated = false` over HTTP (`src/api/securityEngineService.js:338-344`) and requires repair approval (`src/api/securityResultService.js:586-601`). Integration tests reject fabricated SAE/model-internal claims (`test/integration/index.js:466-469`, `:486-501`). No SAE or model-internal capability is asserted as validated.
 
 ### SEC-19 — INFORMATIONAL — Packaging hygiene is adequate
+
 The extension has one runtime dependency (`ajv ^8.20.0`); the VSIX stages only the five-package production closure and excludes dev/test/model/secret artifacts (`.vscodeignore:18-45`, `:56-79`; `scripts/stageRuntimeDeps.js:38-56`; `scripts/packageVsix.js:30-49`). No API keys, `.env`, Python backend files, or parent-directory paths are present in the archive.
 
 ---
 
 ## 5. Coverage matrix — all 19 required areas
 
-| # | Area | Classification | Status / key evidence |
-|---:|---|---|---|
-| 1 | Source-code transmission | **HIGH** | Ordinary scans are user-invoked and opt-in; workspace scans metadata-only; monitoring requires 2 flags — but no trust gate and no loopback check in monitoring (SEC-03). |
-| 2 | API key handling | **LOW** | Env-only tokens and variable-name-only settings; programmatic `config.apiKey` residual (SEC-13). |
-| 3 | Localhost API security | **HIGH** | Loopback default and CORS controls; optional auth, unrestricted host override, no TLS (SEC-03, SEC-04). |
-| 4 | Backend endpoint validation | **LOW** | Strict URL shape parsing; path/query/fragment/credentials rejected (`configurationService.js:42-92`); API prefix enforced (`apiClient.js:283-288`). Policy gap in SEC-03. |
-| 5 | HTTP request/response validation | **MEDIUM** | Strong typed contracts; response cap is character-based and post-buffering (SEC-08). |
-| 6 | Path traversal protection | **CRITICAL / LOW** | Backend absolute-path writes (SEC-01, SEC-02); extension lexical checks and absolute session path (SEC-14). |
-| 7 | Symlink handling | **HIGH / LOW** | Backend snapshot dereferences symlinks (SEC-06); extension repository inventory skips them correctly, other boundaries lexical (SEC-14). |
-| 8 | Repository scanning boundaries | **MEDIUM** | Allowlisted roots, gitignore, counts/size limits, symlink skip; auto-scan is workspace-overridable (SEC-03, SEC-07). |
-| 9 | File size limits | **MEDIUM** | Backend 2 MiB request / 1 MiB file / 50k files and streaming limit tests pass; extension response cap inaccurate (SEC-08). |
-| 10 | Malicious or malformed source input | **MEDIUM** | Binary/NUL/UTF-8 checks, tree-sitter data-only parsing, bounded diagnostics; error text leakage (SEC-09). |
-| 11 | Webview Content Security Policy | **INFORMATIONAL** | Strict nonce CSP; no network/frame/worker/form sources (SEC-17). |
-| 12 | HTML injection and XSS | **INFORMATIONAL** | Escaped attributes/state, DOM-only rendering, no dangerous sinks (SEC-17). |
-| 13 | Command execution and shell injection | **LOW** | `execFile`/fixed argv, `shell=False`, Docker argv hardening; workspace-overridable local-engine settings (SEC-03, SEC-14). |
-| 14 | Repair patch validation | **CRITICAL / LOW** | Backend write-before-validate (SEC-01, SEC-02); extension patch path/hunk/context validation and approval (SEC-15). |
-| 15 | Patch application and rollback | **CRITICAL / LOW** | Real writes despite proposal-only contract (SEC-01, SEC-02); extension modal approval, stale and applied-hash checks (SEC-16). |
-| 16 | Functional test execution isolation | **CRITICAL / HIGH** | Writes before consent and symlink snapshot (SEC-01, SEC-06); consent defaults off, Docker hardened, integration tests isolated. |
-| 17 | Sensitive information in logs | **HIGH / MEDIUM** | Full payload persistence (SEC-05); error/stderr leakage (SEC-09); API client logs no bodies or tokens. |
-| 18 | Dependency vulnerabilities | **MEDIUM / INFORMATIONAL** | Python SCA/lockfile gap and 3 dev-only npm advisories (SEC-12); production audits clean. |
-| 19 | Untrusted workspace behavior | **HIGH** | No trust gate; machine-overridable high-risk settings (SEC-03). |
+|   # | Area                                  | Classification             | Status / key evidence                                                                                                                                                     |
+| --: | ------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|   1 | Source-code transmission              | **HIGH**                   | Ordinary scans are user-invoked and opt-in; workspace scans metadata-only; monitoring requires 2 flags — but no trust gate and no loopback check in monitoring (SEC-03).  |
+|   2 | API key handling                      | **LOW**                    | Env-only tokens and variable-name-only settings; programmatic `config.apiKey` residual (SEC-13).                                                                          |
+|   3 | Localhost API security                | **HIGH**                   | Loopback default and CORS controls; optional auth, unrestricted host override, no TLS (SEC-03, SEC-04).                                                                   |
+|   4 | Backend endpoint validation           | **LOW**                    | Strict URL shape parsing; path/query/fragment/credentials rejected (`configurationService.js:42-92`); API prefix enforced (`apiClient.js:283-288`). Policy gap in SEC-03. |
+|   5 | HTTP request/response validation      | **MEDIUM**                 | Strong typed contracts; response cap is character-based and post-buffering (SEC-08).                                                                                      |
+|   6 | Path traversal protection             | **CRITICAL / LOW**         | Backend absolute-path writes (SEC-01, SEC-02); extension lexical checks and absolute session path (SEC-14).                                                               |
+|   7 | Symlink handling                      | **HIGH / LOW**             | Backend snapshot dereferences symlinks (SEC-06); extension repository inventory skips them correctly, other boundaries lexical (SEC-14).                                  |
+|   8 | Repository scanning boundaries        | **MEDIUM**                 | Allowlisted roots, gitignore, counts/size limits, symlink skip; auto-scan is workspace-overridable (SEC-03, SEC-07).                                                      |
+|   9 | File size limits                      | **MEDIUM**                 | Backend 2 MiB request / 1 MiB file / 50k files and streaming limit tests pass; extension response cap inaccurate (SEC-08).                                                |
+|  10 | Malicious or malformed source input   | **MEDIUM**                 | Binary/NUL/UTF-8 checks, tree-sitter data-only parsing, bounded diagnostics; error text leakage (SEC-09).                                                                 |
+|  11 | Webview Content Security Policy       | **INFORMATIONAL**          | Strict nonce CSP; no network/frame/worker/form sources (SEC-17).                                                                                                          |
+|  12 | HTML injection and XSS                | **INFORMATIONAL**          | Escaped attributes/state, DOM-only rendering, no dangerous sinks (SEC-17).                                                                                                |
+|  13 | Command execution and shell injection | **LOW**                    | `execFile`/fixed argv, `shell=False`, Docker argv hardening; workspace-overridable local-engine settings (SEC-03, SEC-14).                                                |
+|  14 | Repair patch validation               | **CRITICAL / LOW**         | Backend write-before-validate (SEC-01, SEC-02); extension patch path/hunk/context validation and approval (SEC-15).                                                       |
+|  15 | Patch application and rollback        | **CRITICAL / LOW**         | Real writes despite proposal-only contract (SEC-01, SEC-02); extension modal approval, stale and applied-hash checks (SEC-16).                                            |
+|  16 | Functional test execution isolation   | **CRITICAL / HIGH**        | Writes before consent and symlink snapshot (SEC-01, SEC-06); consent defaults off, Docker hardened, integration tests isolated.                                           |
+|  17 | Sensitive information in logs         | **HIGH / MEDIUM**          | Full payload persistence (SEC-05); error/stderr leakage (SEC-09); API client logs no bodies or tokens.                                                                    |
+|  18 | Dependency vulnerabilities            | **MEDIUM / INFORMATIONAL** | Python SCA/lockfile gap and 3 dev-only npm advisories (SEC-12); production audits clean.                                                                                  |
+|  19 | Untrusted workspace behavior          | **HIGH**                   | No trust gate; machine-overridable high-risk settings (SEC-03).                                                                                                           |
 
 ---
 
 ## 6. Special requirements verification
 
-| Requirement | Result | Evidence |
-|---|---|---|
-| Never silently upload user source code | **Pass with caveat** | Explicit scans require user invocation; `sourceText` gated by `sendSourceText` (`workspaceService.js:123-164`, `securityEngineService.js:220-270`); workspace scans metadata-only (`:553-654`); monitoring requires 2 consent flags (`realtimeMonitor.js:686-690`). Caveat: untrusted-workspace override (SEC-03). |
-| Preserve explicit privacy settings | **Pass** | Defaults preserved: `sendSourceText=true`, `monitoring.enabled=false`, `allowAutomaticSourceSharing=false`. No settings were changed during this audit. Caveat: scope allows workspace override (SEC-03). |
-| No credentials in `package.json` or workspace settings | **Pass** | Only environment-variable names are stored (`package.json:660-664`); backend token is env-driven (`core/settings.py:53-56`). §2 of the extension audit found no key values. |
-| Avoid shell execution for user-controlled input | **Pass** | `execFile` with fixed argv (`gitChangedFiles.js:49-56`, `:114-122`; `localEngine.js:67-80`); backend `shell=False` (`static/execution.py:114-123`) and argv-based Docker (`sandbox/executor.py:155-178`). |
-| Treat model-generated patches as untrusted | **Pass** | Patch path/hunk/context validation (`patchApplication.js:7-100`), single-file target enforcement (`dashboardPanel.js:692-698`), backend containment check (`repair/engine.py:382-396`). Caveat: SEC-01/SEC-02 write before validation. |
-| Require review before modifying source | **Pass (extension) / Fail (backend)** | Extension modal approval + hash checks (`dashboardPanel.js:664-782`); backend writes before consent (SEC-01/SEC-02). |
-| No unverified repair claims | **Pass** | Verification verdict enum enforced, repair proposals must require approval (`securityResultService.js:586-601`, `:676-687`), verification does not resolve findings (`test/integration/index.js:526-565`). Caveat: SEC-10 semantics. |
-| No unvalidated SAE/model-internal claims | **Pass** | Steering validation forced false over HTTP (`securityEngineService.js:338-344`); integration tests reject fabricated claims; capability report marks SCA manual-only. |
+| Requirement                                            | Result                                | Evidence                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Never silently upload user source code                 | **Pass with caveat**                  | Explicit scans require user invocation; `sourceText` gated by `sendSourceText` (`workspaceService.js:123-164`, `securityEngineService.js:220-270`); workspace scans metadata-only (`:553-654`); monitoring requires 2 consent flags (`realtimeMonitor.js:686-690`). Caveat: untrusted-workspace override (SEC-03). |
+| Preserve explicit privacy settings                     | **Pass**                              | Defaults preserved: `sendSourceText=true`, `monitoring.enabled=false`, `allowAutomaticSourceSharing=false`. No settings were changed during this audit. Caveat: scope allows workspace override (SEC-03).                                                                                                          |
+| No credentials in `package.json` or workspace settings | **Pass**                              | Only environment-variable names are stored (`package.json:660-664`); backend token is env-driven (`core/settings.py:53-56`). §2 of the extension audit found no key values.                                                                                                                                        |
+| Avoid shell execution for user-controlled input        | **Pass**                              | `execFile` with fixed argv (`gitChangedFiles.js:49-56`, `:114-122`; `localEngine.js:67-80`); backend `shell=False` (`static/execution.py:114-123`) and argv-based Docker (`sandbox/executor.py:155-178`).                                                                                                          |
+| Treat model-generated patches as untrusted             | **Pass**                              | Patch path/hunk/context validation (`patchApplication.js:7-100`), single-file target enforcement (`dashboardPanel.js:692-698`), backend containment check (`repair/engine.py:382-396`). Caveat: SEC-01/SEC-02 write before validation.                                                                             |
+| Require review before modifying source                 | **Pass (extension) / Fail (backend)** | Extension modal approval + hash checks (`dashboardPanel.js:664-782`); backend writes before consent (SEC-01/SEC-02).                                                                                                                                                                                               |
+| No unverified repair claims                            | **Pass**                              | Verification verdict enum enforced, repair proposals must require approval (`securityResultService.js:586-601`, `:676-687`), verification does not resolve findings (`test/integration/index.js:526-565`). Caveat: SEC-10 semantics.                                                                               |
+| No unvalidated SAE/model-internal claims               | **Pass**                              | Steering validation forced false over HTTP (`securityEngineService.js:338-344`); integration tests reject fabricated claims; capability report marks SCA manual-only.                                                                                                                                              |
 
 ---
 
@@ -286,19 +303,19 @@ The extension has one runtime dependency (`ajv ^8.20.0`); the VSIX stages only t
 
 ### 7.1 Commands and results
 
-| Command | Result |
-|---|---|
-| `npm ci` (root and extension) | Pass — `added 408 packages, and audited 410 packages in 5s`; 3 moderate dev advisories reported. |
-| `npm test` (extension) | Pass — `tests 403 / pass 403 / fail 0`, duration ~2.9 s. |
-| `npm run lint` (extension) | Pass — no findings. |
-| `npm audit` (root) | 3 moderate, 0 high, 0 critical: `@vscode/vsce`, `glob` (`GHSA-3g3m-2fjr-6pw4`), `minimatch` (`GHSA-g3hv-75wg-m249`); fix requires semver-major `@vscode/vsce@4.1.1`. |
-| `npm audit --omit=dev` (root and extension) | `{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}`. |
-| `PYTHONPATH=src:security-engine/src .venv/bin/python -m pytest -q` | `1090 passed in 11.30s`. |
-| `.venv/bin/python -m bandit -q -r src security-engine/src tests security-engine/tests` | Exit 1 — 66,195 LOC; Undefined 0, **Low 3487, Medium 6, High 0**. |
-| `.venv/bin/python -m pip check` | `No broken requirements found.` |
-| `.venv/bin/python -m compileall -q src security-engine/src` | Exit 0. |
-| `.venv/bin/python -m ruff check src security-engine tests` | Exit 1 — 493 findings (predominantly `I001` import-ordering style); not treated as security findings. |
-| `unzip -t bug-dhor-0.1.0.vsix` | `No errors detected`. |
+| Command                                                                                | Result                                                                                                                                                               |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm ci` (root and extension)                                                          | Pass — `added 408 packages, and audited 410 packages in 5s`; 3 moderate dev advisories reported.                                                                     |
+| `npm test` (extension)                                                                 | Pass — `tests 403 / pass 403 / fail 0`, duration ~2.9 s.                                                                                                             |
+| `npm run lint` (extension)                                                             | Pass — no findings.                                                                                                                                                  |
+| `npm audit` (root)                                                                     | 3 moderate, 0 high, 0 critical: `@vscode/vsce`, `glob` (`GHSA-3g3m-2fjr-6pw4`), `minimatch` (`GHSA-g3hv-75wg-m249`); fix requires semver-major `@vscode/vsce@4.1.1`. |
+| `npm audit --omit=dev` (root and extension)                                            | `{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}`.                                                                                                   |
+| `PYTHONPATH=src:security-engine/src .venv/bin/python -m pytest -q`                     | `1090 passed in 11.30s`.                                                                                                                                             |
+| `.venv/bin/python -m bandit -q -r src security-engine/src tests security-engine/tests` | Exit 1 — 66,195 LOC; Undefined 0, **Low 3487, Medium 6, High 0**.                                                                                                    |
+| `.venv/bin/python -m pip check`                                                        | `No broken requirements found.`                                                                                                                                      |
+| `.venv/bin/python -m compileall -q src security-engine/src`                            | Exit 0.                                                                                                                                                              |
+| `.venv/bin/python -m ruff check src security-engine tests`                             | Exit 1 — 493 findings (predominantly `I001` import-ordering style); not treated as security findings.                                                                |
+| `unzip -t bug-dhor-0.1.0.vsix`                                                         | `No errors detected`.                                                                                                                                                |
 
 A bare `.venv/bin/python -m pytest -q` fails with 28 collection errors (`ModuleNotFoundError: No module named 'bugdhor_ast'`) because the source paths are not on `PYTHONPATH`; the correct invocation above passes.
 

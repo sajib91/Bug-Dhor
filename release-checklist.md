@@ -7,34 +7,36 @@
 
 > **Current decision: DO NOT RELEASE as a finished research system.** A private/preview VSIX may be distributed for evaluation, but the project is not research-complete. See §6.
 
+> **Phase 09 identity update:** the tables and test counts below are historical. The current publisher is `sajib91`, the repository URL is present in the extension manifest, and the repository has an MIT [`LICENSE`](LICENSE) with `"license": "MIT"` in `vscode-extension/package.json`. The current manual OIDC workflow and validation evidence are documented in [`reports/PHASE_09_OIDC_PUBLISHING_SETUP.md`](reports/PHASE_09_OIDC_PUBLISHING_SETUP.md). Phase 04 security gates remain NO-GO.
+
 ---
 
 ## 1. Release identity
 
-| Item | Value | Status |
-|---|---|---|
-| Product | Bug Dhor Security Framework | — |
-| Extension name | `bug-dhor` | ✅ |
-| Version | `0.1.0` | ✅ |
-| Publisher | `your-publisher-id` | ❌ placeholder |
-| Repository URL | absent from `package.json` | ❌ missing |
-| License | absent from `package.json` | ❌ missing |
-| VS Code engine | `^1.90.0` | ✅ |
-| Backend | FastAPI `/api/v1`, `0.1.0` | ✅ |
-| Python | 3.11–3.14 (3.11.14 verified) | ✅ |
-| Node | 22.13+/24 (Node 25.9.0 used locally) | ✅ |
+| Item           | Value                                | Status         |
+| -------------- | ------------------------------------ | -------------- |
+| Product        | Bug Dhor Security Framework          | —              |
+| Extension name | `bug-dhor`                           | ✅             |
+| Version        | `0.1.0`                              | ✅             |
+| Publisher      | `your-publisher-id`                  | ❌ placeholder |
+| Repository URL | absent from `package.json`           | ❌ missing     |
+| License        | absent from `package.json`           | ❌ missing     |
+| VS Code engine | `^1.90.0`                            | ✅             |
+| Backend        | FastAPI `/api/v1`, `0.1.0`           | ✅             |
+| Python         | 3.11–3.14 (3.11.14 verified)         | ✅             |
+| Node           | 22.13+/24 (Node 25.9.0 used locally) | ✅             |
 
 ---
 
 ## 2. Build artifacts
 
-| Artifact | Path | Status |
-|---|---|---|
-| VSIX | `vscode-extension/bug-dhor-0.1.0.vsix` | ✅ built |
-| VSIX size | 104,319 bytes, 45 files | ✅ |
-| VSIX SHA-256 | `6ee5a897fe886634a56f8d34aa9af6a26ff8d974f1956b657abf34d4e40875d3` | ✅ recorded |
-| Backend package | `security-engine/` (editable install) | ✅ |
-| Datasets / weights | none committed | ✅ (by design) |
+| Artifact           | Path                                                               | Status         |
+| ------------------ | ------------------------------------------------------------------ | -------------- |
+| VSIX               | `vscode-extension/bug-dhor-0.1.0.vsix`                             | ✅ built       |
+| VSIX size          | 104,319 bytes, 45 files                                            | ✅             |
+| VSIX SHA-256       | `6ee5a897fe886634a56f8d34aa9af6a26ff8d974f1956b657abf34d4e40875d3` | ✅ recorded    |
+| Backend package    | `security-engine/` (editable install)                              | ✅             |
+| Datasets / weights | none committed                                                     | ✅ (by design) |
 
 Rebuild:
 
@@ -55,23 +57,28 @@ Expected package contents: `package.json`, `README.md`, six `media/*` assets, `s
 ## 3. Automated test gates
 
 ### 3.1 Extension
+
 ```bash
 cd vscode-extension
 npm test
 npm run format:check
 ```
+
 - [x] Unit tests: **295 passed, 0 failed**
 - [ ] `format:check` — **FAILS** on a pre-existing repository-wide baseline (57 files would be reformatted); no unrelated reformatting was applied in this integration pass
 - [ ] Failures fixed or formatter config reconciled
 
 ### 3.2 Backend
+
 ```bash
 cd security-engine
 ../.venv/bin/python -m pytest -q
 ```
+
 - [x] Suite green — **638 passed, 0 failed**
 
 ### 3.3 Not covered by automated tests
+
 - [ ] `experiments/` — **no tests**
 - [ ] `evaluation/` — **no tests**
 - [ ] Real LLM / SAE checkpoint run — **not performed**
@@ -100,6 +107,7 @@ cd security-engine
 - [ ] Backend stopped after testing (no orphan process)
 
 **Known runtime gaps (must be documented in release notes):**
+
 - `features/extract`, `counterfactual/analyze`, `prevention/steer` return empty/`plan=None` results.
 - `repair/generate` returns `patch=null` / `INCONCLUSIVE` without a configured LLM.
 - Detection probe on four injected vulnerability classes reported only CWE-502.
@@ -170,12 +178,12 @@ Per `final-audit.md` and `research-compliance-report.md`:
 
 ## 9. Sign-off
 
-| Role | Name | Decision | Date |
-|---|---|---|---|
-| Engineering | — | ☐ approved ☐ rejected | — |
-| Security | — | ☐ approved ☐ rejected | — |
-| Research | — | ☐ approved ☐ rejected | — |
-| Release owner | — | ☐ approved ☐ rejected | — |
+| Role          | Name | Decision              | Date |
+| ------------- | ---- | --------------------- | ---- |
+| Engineering   | —    | ☐ approved ☐ rejected | —    |
+| Security      | —    | ☐ approved ☐ rejected | —    |
+| Research      | —    | ☐ approved ☐ rejected | —    |
+| Release owner | —    | ☐ approved ☐ rejected | —    |
 
 **Release channels:**
 

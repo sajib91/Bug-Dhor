@@ -13,6 +13,12 @@
 > no Personal Access Token (PAT) was created or stored, and nothing was committed, pushed, or
 > published.
 
+> **Post-Phase-09 note:** The workflow was subsequently simplified to a required boolean
+> `confirm_publish` input (`false` by default) with no GitHub Environment. A root MIT `LICENSE`
+> now exists and the manifest declares `"license": "MIT"`. Values describing the old `YES`/`NO`
+> choice input or `marketplace-release` environment below are superseded by
+> [`PHASE_09_OIDC_PUBLISHING_SETUP.md`](PHASE_09_OIDC_PUBLISHING_SETUP.md).
+
 ---
 
 ## 1. Objective and outcome
@@ -22,8 +28,8 @@ Publishing with GitHub Actions OIDC, without introducing long-lived publishing c
 
 **Outcome:** The repository now contains a manual-only publishing workflow, a compatible `@vscode/vsce`
 version, a verified lockfile, duplicate-version guards, and owner-facing setup instructions. Actual
-publication remains blocked by Phase 04 security gates, the missing license, publisher ownership
-verification, Marketplace policy setup, and GitHub environment approval configuration.
+publication remains blocked by Phase 04 security gates, publisher ownership verification, and
+Marketplace Trusted Publishing policy setup. The repository MIT license is now present.
 
 ## 2. Publisher identity verification
 

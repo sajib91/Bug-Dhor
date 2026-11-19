@@ -11,5 +11,5 @@ for the VS Code extension is [`vscode-extension/CHANGELOG.md`](vscode-extension/
   audited in `reports/PHASE_01_PACKAGING_AUDIT.md`, `reports/PHASE_04_SECURITY_AUDIT.md`,
   `reports/PHASE_05_PLATFORM_COMPATIBILITY.md`, `reports/PHASE_06_MARKETPLACE_READINESS.md`, and
   `reports/PHASE_07_PUBLISHING_SETUP.md`.
-- **Not published.** Publication remains blocked by open Phase 04 findings, the missing license,
-  and publisher-identity verification.
+- **Not published.** The repository MIT license is present, but publication remains blocked by open
+  Phase 04 findings, publisher-identity verification, and owner-side Trusted Publishing setup.

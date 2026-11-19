@@ -295,9 +295,9 @@ Outputs:
 - Python wheel: `security-engine/dist/bugdhor_engine-0.1.0-py3-none-any.whl`
 - VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`
 
-The VSIX is built by `scripts/packageVsix.js` from a clean staging copy containing only extension sources, media, `CHANGELOG.md`, and the declared production dependency closure. This workspace-aware staging avoids `--no-dependencies` and includes `ajv` with its runtime dependencies. A current build contains 236 entries, 472.35 KB as reported by `vsce`, and 483,685 bytes on disk. An existing `LICENSE`, `LICENSE.md`, or `LICENSE.txt` is staged automatically if added later. Today `vsce` still reports `WARNING LICENSE, LICENSE.md, or LICENSE.txt not found`; no license warning is suppressed and no bypass flag is used.
+The VSIX is built by `scripts/packageVsix.js` from a clean staging copy containing only extension sources, media, `CHANGELOG.md`, the repository MIT license, and the declared production dependency closure. This workspace-aware staging avoids `--no-dependencies` and includes `ajv` with its runtime dependencies. A current build is expected to contain roughly 236 entries; record the exact file count, size, and checksum after every rebuild. No license warning is suppressed and no bypass flag is used.
 
-The development dependency is `@vscode/vsce` 4.1.1, which requires Node.js 22 or newer and supports `publish --oidc`. The manual-only release workflow is documented in [`PHASE_07_PUBLISHING_SETUP.md`](../reports/PHASE_07_PUBLISHING_SETUP.md). Do not publish until the Phase 04 gates, license, and publisher-identity decisions are resolved.
+The development dependency is `@vscode/vsce` 4.1.1, which requires Node.js 22 or newer and supports `publish --oidc`. The manual-only release workflow is documented in [`PHASE_07_PUBLISHING_SETUP.md`](../reports/PHASE_07_PUBLISHING_SETUP.md) and the current setup in [`PHASE_09_OIDC_PUBLISHING_SETUP.md`](../reports/PHASE_09_OIDC_PUBLISHING_SETUP.md). Do not publish until the Phase 04 gates and publisher-identity decisions are resolved and the Marketplace Trusted Publishing policy is configured.
 
 ## 11. Verification record
 
@@ -363,5 +363,5 @@ The `minimatch` advisories affect the `@vscode/vsce` development dependency. The
 - Native Semgrep on Windows was not exercised.
 - The development VSIX stages `ajv` and its runtime dependency closure, but it does not bundle the Python backend, model artifacts, analyzers, or sandbox.
 - The extension icon is a valid 128×128 PNG and the publisher ID is `sajib91`; no Marketplace screenshots are bundled and the publisher account still requires owner verification.
-- The repository has public GitHub URLs but no license, so it is not publishable. Phase 04 also records a NO-GO publication decision.
+- The repository has public GitHub URLs and an MIT license, but Phase 04 still records a NO-GO publication decision and the Marketplace publisher identity is unverified.
 - No model weights, SAE artifacts, datasets, benchmarks, or research results are included.

@@ -12,6 +12,7 @@
   "bugs": {
     "url": "https://github.com/sajib91/Bug-Dhor/issues"
   },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
   },

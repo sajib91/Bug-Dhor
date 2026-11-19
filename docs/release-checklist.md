@@ -2,9 +2,10 @@
 
 This checklist covers packaging the Bug Dhor VS Code extension as a VSIX. It
 does **not** publish to the Marketplace. The manifest uses the approved
-publisher `sajib91`, extension ID `bug-dhor`, version `0.1.0`, and public GitHub
-repository URLs, but no license has been selected, so every build remains a
-release candidate until the release gates are resolved.
+publisher `sajib91`, extension ID `bug-dhor`, version `0.1.0`, public GitHub
+repository URLs, and the repository MIT license. Every build remains a release
+candidate until the Phase 04 security gates, publisher verification, and
+owner-side Trusted Publishing setup are resolved.
 
 The extension is a client only. It connects to an already-running Python
 backend and never starts one. Python backend installation is documented
@@ -97,8 +98,8 @@ updating the CSP and the webview unit tests.
 The ignore file excludes development tests, editor state, lockfiles,
 placeholders, secrets, local data, logs, datasets, and model weights, while
 keeping `package.json`, `README.md`, `CHANGELOG.md`, `media/**`, and `src/**`.
-It also allows an existing `LICENSE`, `LICENSE.md`, or `LICENSE.txt` to be
-staged if the repository owner adds one; no license is invented.
+It also copies the repository `LICENSE` (MIT) into the staging copy; no license
+is invented or suppressed.
 
 Build a candidate archive and inspect it:
 
@@ -118,10 +119,10 @@ Confirm the archive does **not** contain:
 - local databases, logs, or cache directories
 
 The staged production dependency closure (`ajv` and its runtime dependencies)
-**is** expected under `node_modules/`. The current build has 236 entries and
-483,685 bytes, including the lowercase `changelog.md` and `readme.md` entries
-that `vsce` writes into the archive. A candidate VSIX must never include another
-VSIX.
+**is** expected under `node_modules/`. The current build has 237 entries and
+484,799 bytes, including the lowercase `changelog.md` and `readme.md` entries
+that `vsce` writes into the archive and the repository MIT license. A candidate
+VSIX must never include another VSIX.
 
 Run `npm --workspace vscode-extension run package:list` for a verbose staged
 tree. The `packageVsix.js` wrapper stages the copy outside the npm workspace, so
@@ -216,9 +217,8 @@ This calls `scripts/packageVsix.js`, which copies only extension sources, media,
 and the declared production dependency closure into a temporary directory and
 runs `vsce` there. Do not run `vsce` directly from `vscode-extension/`: npm
 workspace hoisting can make it traverse the repository root. The staged archive
-includes `ajv` and its runtime dependencies. The missing-license warning is left
-visible; no `--skip-license`, `--no-dependencies`, or equivalent bypass flag is
-used.
+includes `ajv` and its runtime dependencies plus the repository MIT license.
+No `--skip-license`, `--no-dependencies`, or equivalent bypass flag is used.
 
 The default output is `vscode-extension/bug-dhor-<version>.vsix`. Confirm the
 file exists, is non-zero, and contains the expected files from section 5.
@@ -274,8 +274,9 @@ from a previous build.
   those security gates. See [`PHASE_04_SECURITY_AUDIT.md`](../reports/PHASE_04_SECURITY_AUDIT.md).
 - Publisher identity is declared as `sajib91` but has not been verified against
   the Marketplace account intended for publication.
-- No `LICENSE` file is present. Packaging leaves the `vsce` missing-license
-  warning visible; publication stays blocked until a license decision is made.
+- The MIT `LICENSE` file and manifest `license` field are present. Publication
+  is still blocked by the Phase 04 security findings, publisher verification,
+  and Trusted Publishing setup.
 - Runtime dependencies are staged from the declared production closure rather
   than bundled into a single file. A bundling step is still recommended for
   extension startup performance.
@@ -316,13 +317,84 @@ from a previous build.
 | Optional remote backend                              | Set `bugdhor.backend.url` + token + TLS                               | Documented; not tested                             |
 | Extension Host integration                           | `npm --workspace vscode-extension run test:integration`               | Pass                                               |
 | Installed VSIX smoke test                            | `npm --workspace vscode-extension run test:integration:vsix`          | Pass                                               |
-| VSIX builds cleanly                                  | `npm --workspace vscode-extension run package:vsix`                   | Pass (236 entries, 483,685 bytes)                  |
+| VSIX builds cleanly                                  | `npm --workspace vscode-extension run package:vsix`                   | Pass (237 entries, 484,799 bytes)                  |
 | Clean VS Code install                                | Temporary `--extensions-dir` install                                  | Pass (listed `sajib91.bug-dhor@0.1.0`)             |
 | Interactive activation/UI checks                     | Launch the installed extension and run a command                      | Verify per machine                                 |
 | Marketplace documentation                            | `vscode-extension/README.md` and `CHANGELOG.md`                       | Pass                                               |
-| Marketplace license field                            | `LICENSE`, `LICENSE.md`, or `LICENSE.txt`                             | **Blocked**                                        |
+| Marketplace license field                            | MIT `LICENSE` + manifest `license`                                    | Pass                                               |
 | Publisher identity                                   | Marketplace account ownership                                         | **Blocked**                                        |
 | Phase 04 security gates                              | [`PHASE_04_SECURITY_AUDIT.md`](../reports/PHASE_04_SECURITY_AUDIT.md) | **Fail** (NO-GO)                                   |
 | Three-OS CI evidence                                 | [`extension-tests.yml`](../.github/workflows/extension-tests.yml)     | **Blocked** (no run yet)                           |
 | OIDC Trusted Publishing policy                       | Marketplace publisher settings                                        | **Blocked** (owner setup required)                 |
 | Final release decision                               | All gates above                                                       | **NO-GO — do not publish**                         |
+
+## 11. OIDC Trusted Publishing workflow
+
+The release workflow is `.github/workflows/publish-extension.yml`. It runs only
+on `workflow_dispatch`; there is no push, pull-request, release, or scheduled
+trigger. Its sole input is the required boolean `confirm_publish`, which
+defaults to `false`.
+
+### 11.1 Marketplace Trusted Publishing policy
+
+The repository owner must configure the Marketplace policy manually:
+
+| Field            | Exact value             |
+| ---------------- | ----------------------- |
+| Repository owner | `sajib91`               |
+| Repository       | `Bug-Dhor`              |
+| Workflow         | `publish-extension.yml` |
+| Environment      | empty / not configured  |
+
+Use the publisher ID `sajib91` in the Marketplace publisher management page.
+The GitHub Actions OIDC identity must match those exact values. Do not create a
+PAT or other long-lived publishing secret, and do not configure a GitHub
+Environment unless the Marketplace policy uses the same exact name.
+
+### 11.2 Validation without publishing
+
+1. Open **Actions → Publish extension (OIDC Trusted Publishing) → Run workflow**
+   in `sajib91/Bug-Dhor`.
+2. Select the branch to validate.
+3. Leave `confirm_publish` unchecked (`false`).
+4. Start the workflow.
+
+The `validate-release` job still performs dependency installation, lint, unit
+tests, clean VSIX packaging, archive inspection, and artifact upload. The
+`publish` job is skipped. The validation job has only `contents: read`; it never
+receives `id-token: write`.
+
+### 11.3 Authorizing an actual release
+
+Do not do this while the Phase 04 NO-GO decision is in force. When the owner has
+cleared the release gates and explicitly authorized publication, dispatch the
+same workflow with `confirm_publish` checked (`true`). The publish job then
+receives `contents: read` and `id-token: write`, downloads the exact VSIX
+validated by the first job, verifies its SHA-256, and runs
+`npx @vscode/vsce publish --oidc` with that artifact. No version is incremented
+and no bypass flag is used.
+
+### 11.4 Verifying a Marketplace release
+
+After a confirmed run succeeds, verify all of the following:
+
+- The GitHub Actions `publish` job completed with exit code 0.
+- The Marketplace listing at
+  `https://marketplace.visualstudio.com/items?itemName=sajib91.bug-dhor` shows
+  the expected version.
+- `npx @vscode/vsce show sajib91.bug-dhor --json` reports version `0.1.0` (or
+  the intentionally released version).
+- VS Code **Extensions → Install from VSIX…** or the Marketplace install flow
+  reports extension ID `sajib91.bug-dhor`.
+
+A green workflow run alone is not proof of publication: the Marketplace listing
+must confirm it.
+
+### 11.5 User installation
+
+Install the Marketplace item `sajib91.bug-dhor`, or a locally built
+`vscode-extension/bug-dhor-0.1.0.vsix`. Then install and start the Python
+backend separately as documented in
+[the user guide](user-guide.md#5-installation-instructions) and the
+[Marketplace README](../vscode-extension/README.md). The VSIX must not contain
+a Python virtual environment, model weights, or backend development files.

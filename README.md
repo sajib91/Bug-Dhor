@@ -23,15 +23,15 @@ See [docs/research-alignment.md](docs/research-alignment.md) for the binding cla
 
 ## Monorepo map
 
-| Path | Purpose |
-|------|---------|
-| `vscode-extension/` | JavaScript VS Code extension, webviews, backend HTTP client, patch approval |
-| `security-engine/` | Python/FastAPI engine: ingestion, parsing, analyzers, model/SAE, detection, counterfactuals, steering, repair, verification |
-| `shared/` | JSON Schemas, generated contract artifacts, and contract fixtures |
-| `research/` | Experiment configs, evaluation protocols, dataset cards, and research records |
-| `benchmarks/` | Benchmark harness, task definitions, configs, and non-committed results |
-| `docs/` | Architecture, research alignment, ADRs |
-| `scripts/` | Development and validation tooling |
+| Path                | Purpose                                                                                                                     |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `vscode-extension/` | JavaScript VS Code extension, webviews, backend HTTP client, patch approval                                                 |
+| `security-engine/`  | Python/FastAPI engine: ingestion, parsing, analyzers, model/SAE, detection, counterfactuals, steering, repair, verification |
+| `shared/`           | JSON Schemas, generated contract artifacts, and contract fixtures                                                           |
+| `research/`         | Experiment configs, evaluation protocols, dataset cards, and research records                                               |
+| `benchmarks/`       | Benchmark harness, task definitions, configs, and non-committed results                                                     |
+| `docs/`             | Architecture, research alignment, ADRs                                                                                      |
+| `scripts/`          | Development and validation tooling                                                                                          |
 
 Core research modules under `security-engine/src/bugdhor/`:
 
@@ -104,4 +104,5 @@ Datasets, model weights, SAE artifacts, experiment outputs, and benchmark result
 
 ## License
 
-No license has been selected yet. Do not redistribute this repository until a license is added.
+This repository is licensed under the [MIT License](LICENSE). Version `0.1.0` has not been
+published to the Visual Studio Marketplace.

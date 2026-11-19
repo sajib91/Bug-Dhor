@@ -8,9 +8,10 @@ diagnostics, hover explanations, and proposal-only repair workflows. It does **n
 the backend, and it does not fabricate findings, model activations, risk probabilities, or security
 guarantees.
 
-> **Release status:** Version `0.1.0` is prepared as a release candidate. Publication is blocked by
-> open security findings, the missing license, and publisher-identity verification. The Marketplace
-> identifier is intended to be `sajib91.bug-dhor`; do not assume the listing is live yet.
+> **Release status:** Version `0.1.0` is prepared as a release candidate. The repository MIT
+> license is present, but publication remains blocked by open Phase 04 security findings,
+> Marketplace publisher verification, and owner-side Trusted Publishing configuration. The intended
+> identifier is `sajib91.bug-dhor`; do not assume the listing is live yet.
 
 ## Project overview
 
@@ -66,12 +67,12 @@ the Python engine and any model, SAE, analyzer, or sandbox artifacts are not.
 
 Language support is capability-specific and deliberately narrow:
 
-| Capability | Evidence-backed scope |
-|---|---|
-| Backend parsing / AST / CFG / DFG / taint | Python and JavaScript are exercised by the backend suites and the Extension Host smoke tests. TypeScript has parsing support only in the engine. |
-| Java | Detected and covered by the opt-in local Phase 6 deterministic repair strategy (`PreparedStatement`). The default backend has no installed Java parser and must not be described as analyzing Java. |
-| Background monitoring | Python and JavaScript by default (`bugdhor.monitoring.languages`). |
-| Repository inventory | Files are discovered by extension and Git metadata; unsupported languages are reported as gaps, not analyzed. |
+| Capability                                | Evidence-backed scope                                                                                                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend parsing / AST / CFG / DFG / taint | Python and JavaScript are exercised by the backend suites and the Extension Host smoke tests. TypeScript has parsing support only in the engine.                                                    |
+| Java                                      | Detected and covered by the opt-in local Phase 6 deterministic repair strategy (`PreparedStatement`). The default backend has no installed Java parser and must not be described as analyzing Java. |
+| Background monitoring                     | Python and JavaScript by default (`bugdhor.monitoring.languages`).                                                                                                                                  |
+| Repository inventory                      | Files are discovered by extension and Git metadata; unsupported languages are reported as gaps, not analyzed.                                                                                       |
 
 No language support is claimed for SAE feature extraction, counterfactual effects, or activation
 steering. Those stages remain unavailable in the default integrated path without compatible
@@ -161,18 +162,18 @@ configure the extension with an HTTPS origin.
 
 Open **Settings** and search for `Bug Dhor`. Key settings are:
 
-| Setting | Default | Purpose |
-|---|---|---|
-| `bugdhor.backend.url` | `http://127.0.0.1:8765` | HTTP(S) origin of the running backend. The extension appends `/api/v1`. No credentials, path, query, or fragment. |
-| `bugdhor.backend.requestTimeoutMs` | `30000` | Timeout for scan and analysis requests. |
-| `bugdhor.backend.healthTimeoutMs` | `3000` | Timeout for health checks. |
-| `bugdhor.privacy.sendSourceText` | `true` | Send the active buffer/selection with explicitly invoked file/selection requests. Disable to send paths and ranges only. |
-| `bugdhor.monitoring.enabled` | `false` | Enable background document monitoring. |
-| `bugdhor.monitoring.allowAutomaticSourceSharing` | `false` | Explicit consent for automatic background source sharing; requires `privacy.sendSourceText` too. |
-| `bugdhor.monitoring.languages` | `["python", "javascript"]` | Eligible language IDs for monitoring. |
-| `bugdhor.localEngine.enabled` | `false` | Opt in to the local Phase 6 commands. |
-| `bugdhor.localEngine.allowSourceWrite` | `false` | Permit explicit local apply/revert; still requires a modal and exact `patch_id`. |
-| `bugdhor.backend.autoStart` / `bugdhor.backend.pythonPath` | `false` / empty | Reserved; the extension does not start a backend. |
+| Setting                                                    | Default                    | Purpose                                                                                                                  |
+| ---------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `bugdhor.backend.url`                                      | `http://127.0.0.1:8765`    | HTTP(S) origin of the running backend. The extension appends `/api/v1`. No credentials, path, query, or fragment.        |
+| `bugdhor.backend.requestTimeoutMs`                         | `30000`                    | Timeout for scan and analysis requests.                                                                                  |
+| `bugdhor.backend.healthTimeoutMs`                          | `3000`                     | Timeout for health checks.                                                                                               |
+| `bugdhor.privacy.sendSourceText`                           | `true`                     | Send the active buffer/selection with explicitly invoked file/selection requests. Disable to send paths and ranges only. |
+| `bugdhor.monitoring.enabled`                               | `false`                    | Enable background document monitoring.                                                                                   |
+| `bugdhor.monitoring.allowAutomaticSourceSharing`           | `false`                    | Explicit consent for automatic background source sharing; requires `privacy.sendSourceText` too.                         |
+| `bugdhor.monitoring.languages`                             | `["python", "javascript"]` | Eligible language IDs for monitoring.                                                                                    |
+| `bugdhor.localEngine.enabled`                              | `false`                    | Opt in to the local Phase 6 commands.                                                                                    |
+| `bugdhor.localEngine.allowSourceWrite`                     | `false`                    | Permit explicit local apply/revert; still requires a modal and exact `patch_id`.                                         |
+| `bugdhor.backend.autoStart` / `bugdhor.backend.pythonPath` | `false` / empty            | Reserved; the extension does not start a backend.                                                                        |
 
 In an SSH/WSL/Codespaces workspace, set the backend URL to an address reachable from the remote
 host. `127.0.0.1` on the local machine will not work from the remote extension host.
@@ -241,13 +242,13 @@ taint engine. There is no functional, dynamic, sandbox, exploitability, or secur
 Provider capabilities are discovered; they are never assumed. Configure one of these under
 `bugdhor.assistant.*`:
 
-| Provider setting | Use |
-|---|---|
-| `editor` | Document only the documented editor change events (capability A). |
-| `vscode-language-model` | Discover a model through the documented VS Code Language Model API; optional `vendor`, `family`, `id`, or `version` selector. |
-| `openai-compatible` | Set `endpoint` and `model`; store the key in the environment variable named by `apiKeyEnvironmentVariable` (default `BUGDHOR_LLM_API_KEY`). |
-| `local-hugging-face` | Provide an absolute `modelPath` with `config.json`. Reading metadata does not grant activation or steering access. |
-| `extension-api` | Provide an explicit local manifest describing an official extension API and declared capabilities. |
+| Provider setting        | Use                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `editor`                | Document only the documented editor change events (capability A).                                                                           |
+| `vscode-language-model` | Discover a model through the documented VS Code Language Model API; optional `vendor`, `family`, `id`, or `version` selector.               |
+| `openai-compatible`     | Set `endpoint` and `model`; store the key in the environment variable named by `apiKeyEnvironmentVariable` (default `BUGDHOR_LLM_API_KEY`). |
+| `local-hugging-face`    | Provide an absolute `modelPath` with `config.json`. Reading metadata does not grant activation or steering access.                          |
+| `extension-api`         | Provide an explicit local manifest describing an official extension API and declared capabilities.                                          |
 
 Hosted assistants expose A/B/C only. Validated local D/E/F access with a real pipeline would be
 required for steering; API requests report the steering pipeline as `None`. Keys are never written
@@ -273,16 +274,16 @@ metadata under its configured data directory.
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| `E_BACKEND_UNAVAILABLE` | Backend running, correct `bugdhor.backend.url`, port 8765 reachable from the extension host. |
-| `401` from `/api/v1` | `BUGDHOR_API_TOKEN` must match in the backend and VS Code host environment; restart VS Code after changing it. |
-| Timeouts | Increase `bugdhor.backend.requestTimeoutMs` or reduce the scan scope. |
-| `analysisAvailable: false` | Required analyzer/model/parser is missing. This is not a clean scan. |
-| No findings | Confirm the workspace is inside `BUGDHOR_WORKSPACE_ROOTS` and the file language is parsed. A Java file is detected but not parsed by the default backend. |
-| Monitoring does nothing | `bugdhor.monitoring.enabled` must be true; eligible language and file size must pass filters. Source sharing needs both consent settings. |
-| Remote workspace cannot scan | The backend must be reachable from the remote extension host; check `extensionKind: ["workspace"]`. |
-| Local Phase 6 command fails | `bugdhor.localEngine.enabled` must be true, Python must expose `bugdhor_ast`, and the workspace must contain `src/bugdhor_ast`. |
+| Symptom                      | Check                                                                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_BACKEND_UNAVAILABLE`      | Backend running, correct `bugdhor.backend.url`, port 8765 reachable from the extension host.                                                              |
+| `401` from `/api/v1`         | `BUGDHOR_API_TOKEN` must match in the backend and VS Code host environment; restart VS Code after changing it.                                            |
+| Timeouts                     | Increase `bugdhor.backend.requestTimeoutMs` or reduce the scan scope.                                                                                     |
+| `analysisAvailable: false`   | Required analyzer/model/parser is missing. This is not a clean scan.                                                                                      |
+| No findings                  | Confirm the workspace is inside `BUGDHOR_WORKSPACE_ROOTS` and the file language is parsed. A Java file is detected but not parsed by the default backend. |
+| Monitoring does nothing      | `bugdhor.monitoring.enabled` must be true; eligible language and file size must pass filters. Source sharing needs both consent settings.                 |
+| Remote workspace cannot scan | The backend must be reachable from the remote extension host; check `extensionKind: ["workspace"]`.                                                       |
+| Local Phase 6 command fails  | `bugdhor.localEngine.enabled` must be true, Python must expose `bugdhor_ast`, and the workspace must contain `src/bugdhor_ast`.                           |
 
 Run **Bug Dhor: Show Status** and **Bug Dhor: Show Logs** for concrete transport and validation
 errors.
@@ -301,8 +302,8 @@ errors.
 - The extension is not bundled into a single JavaScript file; `vsce` reports a startup-performance
   advisory for the staged dependency files.
 - No Marketplace screenshots are bundled yet.
-- No repository license has been selected. Publication remains blocked by the open Phase 04
-  security findings, the missing license, and publisher-identity verification.
+- The repository MIT license is present, but publication remains blocked by the open Phase 04
+  security findings, publisher-identity verification, and owner-side Trusted Publishing setup.
 
 ## Screenshots
 
@@ -312,9 +313,9 @@ application output.
 
 ## License
 
-No license has been selected or added. Do not redistribute this repository or treat the VSIX as
-licensed software until the repository owner chooses and adds a license. Packaging intentionally
-leaves the `vsce` missing-license warning visible.
+This extension and the repository are distributed under the [MIT License](../LICENSE). Packaging
+copies the repository license into the VSIX and does not use `--skip-license` or any equivalent
+bypass.
 
 ## GitHub repository
 

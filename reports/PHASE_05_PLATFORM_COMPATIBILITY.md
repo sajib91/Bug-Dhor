@@ -12,8 +12,9 @@ integration, and Package validation jobs, and record only results that were actu
 **not verified** because no Windows or Linux runtime was available locally and the new CI workflow
 has not yet produced a run. No support claim is made for Windows or Linux in this report.
 
-Publication remains blocked by the Phase 04 release gates, the missing license warning, and
-publisher-identity verification. This phase did not publish, commit, or push anything.
+Publication remains blocked by the Phase 04 release gates and publisher-identity verification. The
+missing-license warning described below is stale: a root MIT `LICENSE` now exists. This phase did
+not publish, commit, or push anything.
 
 ## 2. Verified environment
 

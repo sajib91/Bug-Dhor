@@ -6,6 +6,11 @@
 **Generated artifact:** `vscode-extension/bug-dhor-0.1.0.vsix`  
 **Final SHA-256:** `1808341f0ee9612bba3ebace380d0ce730c0a94272cbeb20f1e6d1214adb49df`
 
+> **Post-Phase-09 note:** This report is historical. The packaging root cause and clean-staging
+> fix remain valid, but a root MIT `LICENSE` now exists and is staged into the VSIX. Artifact
+> hashes, file counts, and license warnings below describe the earlier build. Current evidence is
+> in [`PHASE_09_OIDC_PUBLISHING_SETUP.md`](PHASE_09_OIDC_PUBLISHING_SETUP.md).
+
 ## 1. Executive summary
 
 A lightweight, production-shaped VSIX was produced without changing the extension architecture. The previous ~2.4 GB packaging failure was reproduced and traced to npm workspace dependency traversal through `node_modules/bug-dhor -> ../vscode-extension`, combined with an under-scoped `.vscodeignore`. The final archive contains the extension entry point, all 81 `src/` modules, 11 required media assets, the manifest, README, and the five-package AJV production closure.
@@ -409,12 +414,12 @@ commands: 27 activationEvents: 29 configKeys: 54
 
 ## 8. Size and archive comparison
 
-| Artifact / scan | Files or paths | Bytes | Notes |
-| --- | ---: | ---: | --- |
-| User-reported broken VSIX | ~76,774 | ~2.4 GB | Reported problem. |
-| Reproduced broken `vsce ls` with baseline ignore | 76,435 | 2,515,546,005 | 76,349 parent paths; includes `.venv`, `.git`, tests, `.env`. |
-| Pre-existing development VSIX | 49 | 119,844 | No runtime dependency closure. |
-| **Final VSIX** | **245** | **490,330** | Clean, dependency-complete artifact. |
+| Artifact / scan                                  | Files or paths |         Bytes | Notes                                                         |
+| ------------------------------------------------ | -------------: | ------------: | ------------------------------------------------------------- |
+| User-reported broken VSIX                        |        ~76,774 |       ~2.4 GB | Reported problem.                                             |
+| Reproduced broken `vsce ls` with baseline ignore |         76,435 | 2,515,546,005 | 76,349 parent paths; includes `.venv`, `.git`, tests, `.env`. |
+| Pre-existing development VSIX                    |             49 |       119,844 | No runtime dependency closure.                                |
+| **Final VSIX**                                   |        **245** |   **490,330** | Clean, dependency-complete artifact.                          |
 
 Improvement versus reproduced broken scan:
 

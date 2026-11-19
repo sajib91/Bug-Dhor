@@ -8,6 +8,11 @@
 **VSIX SHA-256:** `76e5ea47efbda6c29081cb11e07518525cfe8682ee7c7f106e7cba97834b1ceb`  
 **Decision:** **PASS for documentation and packaging readiness; FAIL/BLOCKED for publication**
 
+> **Post-Phase-09 note:** The license statements and artifact hashes below are historical. A root
+> MIT `LICENSE` now exists, the manifest declares `"license": "MIT"`, and the current workflow uses
+> a boolean `confirm_publish` with no GitHub Environment. See
+> [`PHASE_09_OIDC_PUBLISHING_SETUP.md`](PHASE_09_OIDC_PUBLISHING_SETUP.md) for current evidence.
+
 > The checksum identifies the on-disk artifact produced during this phase. Rebuilding the VSIX
 > changes ZIP timestamps, so any new artifact must be re-hashed. No publish, commit, push, PAT,
 > credential, or Marketplace policy configuration was performed.

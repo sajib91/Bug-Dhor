@@ -11,6 +11,13 @@
 > success is claimed. The public Marketplace item query returned no listing metadata (HTTP 404 via
 > the web UI and `undefined` from `vsce show`).
 
+> **Post-Phase-09 note:** This gate records commit `e15e67a4a7370d26d5135dc1ffc6e2112d39a9c8`. At
+> current HEAD `dc9d1a6ac2210e9f20ed6513d1e5ebf63ea79ed2` a root MIT `LICENSE` exists, the
+> extension manifest declares `"license": "MIT"`, and the publishing workflow uses
+> `confirm_publish: boolean` with no GitHub Environment. The NO-GO security decision and the
+> artifact evidence below remain historical; current evidence is in
+> [`PHASE_09_OIDC_PUBLISHING_SETUP.md`](PHASE_09_OIDC_PUBLISHING_SETUP.md).
+
 ## Final gate summary
 
 | Field                            | Value                                                                                                                    |

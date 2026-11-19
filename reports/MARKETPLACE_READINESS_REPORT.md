@@ -2,9 +2,9 @@
 
 > **Historical Phase 01 report.** The investigation and root-cause analysis below remain valid, but
 > the artifact hash, file count, README text, and publish command reflect an earlier build. The
-> current Phase 06 evidence and final release checklist are authoritative:
-> [`PHASE_06_MARKETPLACE_READINESS.md`](PHASE_06_MARKETPLACE_READINESS.md). OIDC publishing setup is
-> documented in [`PHASE_07_PUBLISHING_SETUP.md`](PHASE_07_PUBLISHING_SETUP.md).
+> current release workflow and validation evidence in
+> [`PHASE_09_OIDC_PUBLISHING_SETUP.md`](PHASE_09_OIDC_PUBLISHING_SETUP.md) are authoritative. The
+> missing-license statements below are stale: a root MIT `LICENSE` now exists.
 
 **Audit date:** 2026-11-19  
 **Target:** `vscode-extension/` (Bug Dhor VS Code extension)  

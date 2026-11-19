@@ -1,47 +1,43 @@
 name: Publish extension (OIDC Trusted Publishing)
 
-# Manual, intentional release only. This workflow never runs on push, pull_request,
-# or release events, and it does not read or print any credential or secret.
+# Manual, intentional release only. This workflow never runs on push,
+# pull_request, release, or schedule events. Validation has no OIDC permission;
+# the publish job receives a short-lived token only when explicitly confirmed.
 
 on:
   workflow_dispatch:
     inputs:
-      expected_version:
-        description: 'Exact version to publish; must match package.json'
-        type: string
-        required: true
       confirm_publish:
-        description: 'Type or select YES to confirm a Marketplace publication'
-        type: choice
+        description: 'Publish this validated VSIX to the Visual Studio Marketplace'
+        type: boolean
         required: true
-        default: 'NO'
-        options:
-          - 'NO'
-          - 'YES'
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: marketplace-release-${{ github.ref }}
+  group: marketplace-release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
+    working-directory: vscode-extension
 
 env:
   NODE_VERSION: '22.13.0'
   EXTENSION_ID: sajib91.bug-dhor
-  EXPECTED_VERSION: ${{ inputs.expected_version }}
-  CONFIRM_PUBLISH: ${{ inputs.confirm_publish }}
 
 jobs:
   validate-release:
-    name: Validate intentional release
+    name: Validate extension
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.manifest.outputs.version }}
+      sha256: ${{ steps.integrity.outputs.sha256 }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -55,76 +51,107 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # The root workspace owns package-lock.json; npm resolves it from this
+      # directory without switching the working directory.
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Validate approval, publisher, version, and duplicate guards
+      - name: Validate identity, metadata, and toolchain
         id: manifest
+        env:
+          CONFIRM_PUBLISH: ${{ inputs.confirm_publish }}
         run: |
           set -euo pipefail
 
-          if [ "$CONFIRM_PUBLISH" != 'YES' ]; then
-            echo 'Release was not confirmed. Select YES in confirm_publish.' >&2
-            exit 1
-          fi
+          VERSION="$(node -p "require('./package.json').version")"
+          ROOT_VERSION="$(node -p "require('../package.json').version")"
+
+          node - "$VERSION" "$ROOT_VERSION" <<'NODE'
+          const fs = require('node:fs');
+          const [version, rootVersion] = process.argv.slice(2);
+          const manifest = require('./package.json');
+          const vsce = require('../node_modules/@vscode/vsce/package.json');
+
+          if (!/^\d+\.\d+\.\d+$/.test(version)) {
+            throw new Error(`manifest version is not release-grade semver: ${version}`);
+          }
+          if (version !== rootVersion) {
+            throw new Error(`extension ${version} does not match monorepo ${rootVersion}`);
+          }
+          if (manifest.publisher !== 'sajib91' || manifest.name !== 'bug-dhor') {
+            throw new Error(`unexpected extension identity: ${manifest.publisher}.${manifest.name}`);
+          }
+          if (manifest.main !== './src/extension.js' || !fs.existsSync(manifest.main)) {
+            throw new Error('entry point must be ./src/extension.js and must exist');
+          }
+          if (!manifest.dependencies?.ajv) {
+            throw new Error('runtime dependency ajv must be preserved');
+          }
+          if (manifest.license !== 'MIT') {
+            throw new Error('manifest license must be MIT to match the repository LICENSE');
+          }
+
+          const [major, minor, patch] = vsce.version.split('.').map(Number);
+          const oidcCapable = major > 4 || (major === 4 && (minor > 0 || (minor === 0 && patch >= 2)));
+          if (!oidcCapable) {
+            throw new Error(`@vscode/vsce ${vsce.version} does not support OIDC publishing`);
+          }
+          NODE
 
           license_found=0
-          for candidate in LICENSE LICENSE.md LICENSE.txt; do
+          for candidate in ../LICENSE ../LICENSE.md ../LICENSE.txt LICENSE LICENSE.md LICENSE.txt; do
             if [ -f "$candidate" ]; then
               license_found=1
               break
             fi
           done
           if [ "$license_found" -ne 1 ]; then
-            echo 'No LICENSE, LICENSE.md, or LICENSE.txt found. Add a license before publishing.' >&2
+            echo 'No LICENSE, LICENSE.md, or LICENSE.txt found. Refusing to validate a release.' >&2
             exit 1
           fi
 
-          if grep -Fq '**Decision:** **NO-GO for publication**' reports/PHASE_04_SECURITY_AUDIT.md; then
-            echo 'Phase 04 still records a NO-GO publication decision.' >&2
-            exit 1
-          fi
-
-          VERSION="$(node -p "require('./vscode-extension/package.json').version")"
-          ROOT_VERSION="$(node -p "require('./package.json').version")"
-          PUBLISHER="$(node -p "require('./vscode-extension/package.json').publisher")"
-          NAME="$(node -p "require('./vscode-extension/package.json').name")"
-
-          node - "$VERSION" "$EXPECTED_VERSION" "$ROOT_VERSION" "$PUBLISHER" "$NAME" <<'NODE'
-          const [version, expected, rootVersion, publisher, name] = process.argv.slice(2);
-          if (!/^\d+\.\d+\.\d+$/.test(version)) {
-            throw new Error(`manifest version is not release-grade semver: ${version}`);
-          }
-          if (version !== expected) {
-            throw new Error(`expected_version ${expected} does not match manifest ${version}`);
-          }
-          if (version !== rootVersion) {
-            throw new Error(`extension ${version} does not match monorepo ${rootVersion}`);
-          }
-          if (publisher !== 'sajib91' || name !== 'bug-dhor') {
-            throw new Error(`unexpected extension identity: ${publisher}.${name}`);
-          }
-          NODE
-
-          if ! grep -Fq "## [${VERSION}]" vscode-extension/CHANGELOG.md; then
+          if ! grep -Fq "## [${VERSION}]" CHANGELOG.md; then
             echo "CHANGELOG.md has no section for ${VERSION}." >&2
             exit 1
           fi
 
-          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+          if [ "$CONFIRM_PUBLISH" = 'true' ]; then
+            echo 'Publication was explicitly confirmed; release authorization gates are active.'
+          else
+            echo 'Validation-only run (confirm_publish=false); publication job will be skipped.'
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # These gates are only needed for a real publication. Keeping them out of
+      # validation-only runs lets maintainers validate without a Marketplace
+      # network query or a cleared security gate.
+      - name: Release authorization and duplicate guards
+        if: ${{ inputs.confirm_publish }}
+        env:
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if grep -Fq '**Decision:** **NO-GO for publication**' ../reports/PHASE_04_SECURITY_AUDIT.md; then
+            echo 'Phase 04 still records a NO-GO publication decision.' >&2
+            exit 1
+          fi
+
+          if git -C .. rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
             echo "Local tag v${VERSION} already exists." >&2
             exit 1
           fi
-          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+          if git -C .. ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
             echo "Remote tag v${VERSION} already exists." >&2
             exit 1
           fi
 
-          if ! npx @vscode/vsce show "$EXTENSION_ID" --json > marketplace-show.json; then
+          if ! npx @vscode/vsce show "$EXTENSION_ID" --json > "$RUNNER_TEMP/marketplace-show.json"; then
             echo "Could not query Marketplace metadata for $EXTENSION_ID; refusing to publish." >&2
             exit 1
           fi
-          node - "$VERSION" marketplace-show.json <<'NODE'
+          node - "$VERSION" "$RUNNER_TEMP/marketplace-show.json" <<'NODE'
           const fs = require('node:fs');
           const [version, file] = process.argv.slice(2);
           const raw = fs.readFileSync(file, 'utf8').trim();
@@ -143,15 +170,98 @@ jobs:
           console.log(`Version ${version} is not present in Marketplace metadata.`);
           NODE
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # Integration tests need a real Python backend and a graphical Extension
+      # Host. They are intentionally not duplicated here; the separate
+      # extension-tests.yml workflow provides that non-publishing coverage.
+      - name: List staged package contents
+        run: npm run package:list
+
+      - name: Build VSIX
+        run: npm run package:vsix
+
+      - name: Verify VSIX integrity
+        id: integrity
+        env:
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          VSIX="bug-dhor-${VERSION}.vsix"
+          test -s "$VSIX"
+          unzip -t "$VSIX" >/dev/null
+
+          python3 - "$VSIX" "$VERSION" <<'PY'
+          import json
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          vsix_name, version = sys.argv[1:]
+          required = {
+              "extension/package.json",
+              "extension/readme.md",
+              "extension/changelog.md",
+              "extension/src/extension.js",
+              "extension/media/icon.png",
+              "extension/node_modules/ajv/package.json",
+          }
+          forbidden_prefixes = (
+              "../",
+              "extension/test/",
+              "extension/node_modules/@vscode/",
+              "extension/.vscode-test/",
+          )
+          repository_license_names = {
+              "EXTENSION/LICENSE",
+              "EXTENSION/LICENSE.MD",
+              "EXTENSION/LICENSE.TXT",
+          }
+
+          with zipfile.ZipFile(vsix_name) as archive:
+              names = archive.namelist()
+              for required_name in required:
+                  if required_name not in names:
+                      raise SystemExit(f"VSIX is missing {required_name}")
+              if not any(name.upper() in repository_license_names for name in names):
+                  raise SystemExit("VSIX is missing the repository license")
+              for name in names:
+                  if name.startswith(forbidden_prefixes) or "/../" in name:
+                      raise SystemExit(f"VSIX contains forbidden entry: {name}")
+                  upper = name.upper()
+                  if upper.endswith((".ENV", ".PYC", ".SAFETENSORS", ".CKPT", ".PT", ".PTH", ".ONNX")):
+                      raise SystemExit(f"VSIX contains forbidden entry: {name}")
+              packaged = json.loads(archive.read("extension/package.json"))
+              if packaged.get("publisher") != "sajib91" or packaged.get("name") != "bug-dhor":
+                  raise SystemExit("packaged identity is not sajib91.bug-dhor")
+              if packaged.get("version") != version:
+                  raise SystemExit(f"packaged version {packaged.get('version')} is not {version}")
+
+          size = Path(vsix_name).stat().st_size
+          if size < 100_000 or size > 20_000_000:
+              raise SystemExit(f"unexpected VSIX size: {size}")
+          print(f"VSIX integrity OK: {len(names)} entries, {size} bytes")
+          PY
+
+          echo "sha256=$(sha256sum "$VSIX" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload validated VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-vsix-${{ steps.manifest.outputs.version }}
+          path: vscode-extension/bug-dhor-${{ steps.manifest.outputs.version }}.vsix
+          if-no-files-found: error
 
   publish:
     name: Publish with OIDC
     needs: validate-release
+    if: ${{ inputs.confirm_publish == true }}
     runs-on: ubuntu-latest
-    environment:
-      name: marketplace-release
-      url: https://marketplace.visualstudio.com/items?itemName=sajib91.bug-dhor
     permissions:
       contents: read
       id-token: write
@@ -169,40 +279,32 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm --workspace vscode-extension run lint
+      - name: Download validated VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: release-vsix-${{ needs.validate-release.outputs.version }}
+          path: vscode-extension/release-vsix
 
-      - name: Unit tests
-        run: npm --workspace vscode-extension test
-
-      - name: Package VSIX
-        run: npm --workspace vscode-extension run package:vsix
-
-      - name: Verify packaged artifact
+      - name: Verify artifact matches validation
         env:
           VERSION: ${{ needs.validate-release.outputs.version }}
+          EXPECTED_SHA256: ${{ needs.validate-release.outputs.sha256 }}
         run: |
           set -euo pipefail
-          VSIX="vscode-extension/bug-dhor-${VERSION}.vsix"
+
+          VSIX="release-vsix/bug-dhor-${VERSION}.vsix"
           test -s "$VSIX"
-          unzip -p "$VSIX" extension/package.json > packaged-package.json
-          node - "$VERSION" packaged-package.json <<'NODE'
-          const fs = require('node:fs');
-          const [version, file] = process.argv.slice(2);
-          const packaged = JSON.parse(fs.readFileSync(file, 'utf8'));
-          if (packaged.publisher !== 'sajib91' || packaged.name !== 'bug-dhor') {
-            throw new Error('packaged identity is not sajib91.bug-dhor');
-          }
-          if (packaged.version !== version) {
-            throw new Error(`packaged version ${packaged.version} is not ${version}`);
-          }
-          NODE
+          ACTUAL_SHA256="$(sha256sum "$VSIX" | awk '{print $1}')"
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "Artifact checksum changed after validation; refusing to publish." >&2
+            exit 1
+          fi
+          echo "Publishing exact validated artifact with SHA-256 $ACTUAL_SHA256"
 
       - name: Publish to Marketplace using OIDC
         env:
           VERSION: ${{ needs.validate-release.outputs.version }}
-          VSCE_PAT: ''
         run: |
           set -euo pipefail
-          VSIX="vscode-extension/bug-dhor-${VERSION}.vsix"
+          VSIX="release-vsix/bug-dhor-${VERSION}.vsix"
           npx @vscode/vsce publish --oidc --packagePath "$VSIX"
