@@ -7,6 +7,7 @@ const path = require('node:path');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { COMMAND_DEFINITIONS } = require('../../src/commands/definitions');
 const { expectedCommandIds } = require('../../src/commands');
+const { UTILITY_COMMANDS } = require('../../src/commands/utilityCommands');
 
 const extensionRoot = path.resolve(__dirname, '..', '..');
 const manifestPath = path.join(extensionRoot, 'package.json');
@@ -14,11 +15,30 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 test('identity fields match the approved extension identity', () => {
   assert.equal(manifest.name, 'bug-dhor');
-  assert.equal(manifest.displayName, 'Bug Dhor Security Framework');
+  assert.equal(manifest.displayName, 'Bug-Dhor: AI Code Security Analyzer');
   assert.equal(typeof manifest.description, 'string');
   assert.ok(manifest.description.length > 0);
-  assert.equal(manifest.publisher, 'your-publisher-id');
+  assert.equal(manifest.publisher, 'sajib91');
   assert.equal(manifest.version, '0.1.0');
+});
+
+test('marketplace metadata points at the public repository', () => {
+  assert.deepEqual(manifest.repository, {
+    type: 'git',
+    url: 'https://github.com/sajib91/Bug-Dhor.git'
+  });
+  assert.equal(manifest.homepage, 'https://github.com/sajib91/Bug-Dhor#readme');
+  assert.deepEqual(manifest.bugs, {
+    url: 'https://github.com/sajib91/Bug-Dhor/issues'
+  });
+});
+
+test('packaging scripts stage runtime dependencies without workspace traversal', () => {
+  assert.match(manifest.scripts['package:prepare'], /stageRuntimeDeps/);
+  assert.match(manifest.scripts['package:vsix'], /packageVsix\.js package/);
+  assert.match(manifest.scripts['package:list'], /packageVsix\.js list/);
+  assert.doesNotMatch(manifest.scripts['package:vsix'], /--no-dependencies/);
+  assert.doesNotMatch(manifest.scripts['package:list'], /--no-dependencies/);
 });
 
 test('manifest entry point exists and is JavaScript', () => {
@@ -90,7 +110,11 @@ test('severity-specific gutter icons exist as local SVG assets', () => {
 });
 
 test('command definitions are unique and match manifest titles and activation events', () => {
-  assert.equal(COMMAND_DEFINITIONS.length, 15, 'fifteen feature commands must be defined');
+  assert.equal(
+    COMMAND_DEFINITIONS.length,
+    expectedCommandIds().size - UTILITY_COMMANDS.length,
+    'feature command definitions must match the declared registry IDs'
+  );
 
   const definitionIds = COMMAND_DEFINITIONS.map((definition) => definition.id);
   assert.equal(new Set(definitionIds).size, definitionIds.length, 'definition IDs must be unique');
@@ -114,10 +138,14 @@ test('command definitions are unique and match manifest titles and activation ev
   }
 });
 
-test('every feature command except the dashboard declares a service method', () => {
+test('every backend feature command declares a service method; local commands declare localEngine', () => {
   for (const definition of COMMAND_DEFINITIONS) {
     if (definition.id === COMMANDS.openSecurityDashboard) {
       assert.equal(definition.serviceMethod, null);
+    } else if (definition.localEngine === true) {
+      assert.equal(definition.serviceMethod, null);
+      assert.equal(typeof definition.key, 'string');
+      assert.ok(definition.key.length > 0);
     } else {
       assert.equal(
         typeof definition.serviceMethod,
@@ -183,7 +211,12 @@ test('configuration settings are declared', () => {
     'bugdhor.recommendations.runFunctionalTests',
     'bugdhor.recommendations.allowSandboxedExecution',
     'bugdhor.recommendations.testCommand',
-    'bugdhor.recommendations.testTimeoutSeconds'
+    'bugdhor.recommendations.testTimeoutSeconds',
+    'bugdhor.localEngine.enabled',
+    'bugdhor.localEngine.pythonPath',
+    'bugdhor.localEngine.requestTimeoutMs',
+    'bugdhor.localEngine.allowSourceWrite',
+    'bugdhor.localEngine.sessionPath'
   ]) {
     assert.ok(properties[key], `${key} must be declared`);
   }
@@ -203,6 +236,12 @@ test('configuration settings are declared', () => {
   assert.equal(properties['bugdhor.feedback.notifyOnResolution'].default, true);
   assert.equal(properties['bugdhor.recommendations.runFunctionalTests'].default, true);
   assert.equal(properties['bugdhor.recommendations.allowSandboxedExecution'].default, false);
+  assert.equal(properties['bugdhor.localEngine.enabled'].default, false);
+  assert.equal(properties['bugdhor.localEngine.allowSourceWrite'].default, false);
+  assert.equal(properties['bugdhor.localEngine.pythonPath'].default, 'python');
+  assert.equal(properties['bugdhor.localEngine.requestTimeoutMs'].default, 15000);
+  assert.ok(properties['bugdhor.localEngine.requestTimeoutMs'].minimum >= 1000);
+  assert.equal(properties['bugdhor.localEngine.sessionPath'].default, '.bugdhor/phase6-session.json');
 });
 
 test('real-time monitoring is off by default and requires explicit source consent', () => {

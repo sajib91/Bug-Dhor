@@ -23,7 +23,14 @@ const COMMANDS = Object.freeze({
   openSecurityDashboard: 'bugdhor.openSecurityDashboard',
   showAssistantCapabilities: 'bugdhor.showAssistantCapabilities',
   nextFinding: 'bugdhor.nextFinding',
-  previousFinding: 'bugdhor.previousFinding'
+  previousFinding: 'bugdhor.previousFinding',
+  explainFindingPhase6: 'bugdhor.explainFindingPhase6',
+  suggestRepairPhase6: 'bugdhor.suggestRepairPhase6',
+  previewRepairPhase6: 'bugdhor.previewRepairPhase6',
+  applyRepairPhase6: 'bugdhor.applyRepairPhase6',
+  verifyRepairPhase6: 'bugdhor.verifyRepairPhase6',
+  revertRepairPhase6: 'bugdhor.revertRepairPhase6',
+  showRepairHistoryPhase6: 'bugdhor.showRepairHistoryPhase6'
 });
 
 module.exports = { CONTAINER_ID, VIEW_ID, COMMANDS };

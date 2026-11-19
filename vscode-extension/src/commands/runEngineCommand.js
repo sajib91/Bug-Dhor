@@ -24,7 +24,7 @@ function isCancellation(error) {
  * @param {Error} error
  * @param {boolean} expected
  */
-async function reportFailure({ vscode, logger }, commandTitle, error, expected) {
+function reportFailure({ vscode, logger }, commandTitle, error, expected) {
   const message = error instanceof Error ? error.message : String(error);
   if (expected) {
     logger.warn(`${commandTitle}: ${message}`);
@@ -32,10 +32,17 @@ async function reportFailure({ vscode, logger }, commandTitle, error, expected) 
     logger.error(`${commandTitle} failed: ${message}`, error);
   }
 
-  const action = await vscode.window.showErrorMessage(`Bug Dhor: ${message}`, 'Show Logs');
-  if (action === 'Show Logs') {
-    logger.show();
-  }
+  // Notifications must never block command completion. An unattended VS Code
+  // host (including integration tests) may never dismiss an error message.
+  Promise.resolve(vscode.window.showErrorMessage(`Bug Dhor: ${message}`, 'Show Logs'))
+    .then((action) => {
+      if (action === 'Show Logs') {
+        logger.show();
+      }
+    })
+    .catch(() => {
+      // A dismissed or failed notification must not surface a second error.
+    });
 }
 
 /**
@@ -93,12 +100,7 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke, onR
       logger.info(`${definition.title} cancelled.`);
       return undefined;
     }
-    await reportFailure(
-      dependencies,
-      definition.title,
-      error,
-      error instanceof CommandValidationError
-    );
+    reportFailure(dependencies, definition.title, error, error instanceof CommandValidationError);
     return undefined;
   }
 }

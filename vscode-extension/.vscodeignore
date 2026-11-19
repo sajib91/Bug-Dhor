@@ -1,43 +1,104 @@
-# Development tooling, tests, and generated output
+# Never package files outside the extension directory. The workspace root is an
+# npm workspace whose node_modules/bug-dhor symlink points back here; dependency
+# traversal without --no-dependencies otherwise includes the entire repository.
+../**
+
+# Git metadata
+.git/**
+.gitignore
+.gitattributes
+
+# Editors, OS files, and local VS Code state
 .vscode/**
 .vscode-test/**
+.idea/**
+.DS_Store
+*.swp
+
+# Node dependencies. Only the staged production closure created by
+# scripts/stageRuntimeDeps.js is shipped; all development packages are excluded.
+node_modules/**
+!node_modules/ajv/dist/*.js
+!node_modules/ajv/dist/**/*.js
+!node_modules/ajv/dist/**/*.json
+!node_modules/ajv/package.json
+!node_modules/ajv/LICENSE
+!node_modules/ajv/README.md
+!node_modules/fast-deep-equal/index.js
+!node_modules/fast-deep-equal/react.js
+!node_modules/fast-deep-equal/es6/*.js
+!node_modules/fast-deep-equal/package.json
+!node_modules/fast-deep-equal/LICENSE
+!node_modules/fast-deep-equal/README.md
+!node_modules/fast-uri/index.js
+!node_modules/fast-uri/lib/*.js
+!node_modules/fast-uri/package.json
+!node_modules/fast-uri/LICENSE
+!node_modules/fast-uri/README.md
+!node_modules/json-schema-traverse/index.js
+!node_modules/json-schema-traverse/package.json
+!node_modules/json-schema-traverse/LICENSE
+!node_modules/json-schema-traverse/README.md
+!node_modules/require-from-string/index.js
+!node_modules/require-from-string/package.json
+!node_modules/require-from-string/license
+!node_modules/require-from-string/readme.md
+
+# Dependency source artifacts that are not needed at runtime
+**/*.map
+**/*.ts
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/spec/**
+node_modules/**/benchmark/**
+node_modules/**/.github/**
+
+scripts/**
+
+# Python environments and caches
+.venv/**
+venv/**
+env/**
+ENV/**
+**/__pycache__/**
+**/*.py[cod]
+**/*.pyo
+.pytest_cache/**
+.mypy_cache/**
+.ruff_cache/**
+
+# Tests, coverage, and build output
 test/**
 **/*.test.js
-eslint.config.js
-node_modules/**
-**/*.map
 coverage/**
+htmlcov/**
+.nyc_output/**
+**/test-results/**
 dist/**
 build/**
+*.egg-info/**
+eslint.config.js
 
-# Package artifacts (never ship a VSIX inside a VSIX)
-*.vsix
-
-# Repository placeholder files
-.gitkeep
-**/.gitkeep
-
-# Local environment and secrets
-.env
-.env.*
-*.env
-
-# Local data, databases, caches, and logs
+# Logs, temporary files, and local state
+**/*.log
+**/*.tmp
+tmp/**
+temp/**
+.cache/**
 .bugdhor-data/**
 .bugdhor/**
 artifacts/**
 logs/**
-*.log
-.cache/**
-.ruff_cache/**
-.pytest_cache/**
-__pycache__/**
-*.py[cod]
 *.sqlite
 *.sqlite3
 *.db
 
-# Model weights, checkpoints, and datasets (never bundle large artifacts)
+# Environment files and credentials
+.env
+.env.*
+*.env
+
+# Large model weights, checkpoints, and datasets
 models/**
 checkpoints/**
 datasets/**
@@ -49,12 +110,17 @@ datasets/**
 *.h5
 *.bin
 
-# Lockfiles (dependencies are not shipped; see packaging note)
+# Lockfiles and package artifacts
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+*.vsix
 
-# Editor and OS metadata
-.DS_Store
-.idea/**
-*.swp
+# Repository development artifacts and documentation output
+docs/**
+docs/build/**
+site/**
+.github/**
+reports/**
+outputs/**
+benchmarks/results/**

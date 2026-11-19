@@ -96,6 +96,62 @@ const COMMAND_DEFINITIONS = Object.freeze([
     title: 'Open Security Dashboard',
     progressTitle: 'Bug Dhor: Opening security dashboard',
     serviceMethod: null
+  }),
+  Object.freeze({
+    key: 'explainFindingPhase6',
+    id: COMMANDS.explainFindingPhase6,
+    title: 'Explain Finding (Local Engine)',
+    progressTitle: 'Bug Dhor: Explaining finding with the local engine',
+    serviceMethod: null,
+    localEngine: true
+  }),
+  Object.freeze({
+    key: 'suggestRepairPhase6',
+    id: COMMANDS.suggestRepairPhase6,
+    title: 'Suggest Repair (Local Engine)',
+    progressTitle: 'Bug Dhor: Suggesting repair with the local engine',
+    serviceMethod: null,
+    localEngine: true
+  }),
+  Object.freeze({
+    key: 'previewRepairPhase6',
+    id: COMMANDS.previewRepairPhase6,
+    title: 'Preview Repair (Local Engine)',
+    progressTitle: 'Bug Dhor: Previewing repair with the local engine',
+    serviceMethod: null,
+    localEngine: true
+  }),
+  Object.freeze({
+    key: 'applyRepairPhase6',
+    id: COMMANDS.applyRepairPhase6,
+    title: 'Apply Reviewed Patch (Local Engine)',
+    progressTitle: 'Bug Dhor: Applying a reviewed local patch',
+    serviceMethod: null,
+    localEngine: true
+  }),
+  Object.freeze({
+    key: 'verifyRepairPhase6',
+    id: COMMANDS.verifyRepairPhase6,
+    title: 'Verify Applied Repair (Local Engine)',
+    progressTitle: 'Bug Dhor: Verifying a local repair',
+    serviceMethod: null,
+    localEngine: true
+  }),
+  Object.freeze({
+    key: 'revertRepairPhase6',
+    id: COMMANDS.revertRepairPhase6,
+    title: 'Revert Applied Patch (Local Engine)',
+    progressTitle: 'Bug Dhor: Reverting a local patch',
+    serviceMethod: null,
+    localEngine: true
+  }),
+  Object.freeze({
+    key: 'showRepairHistoryPhase6',
+    id: COMMANDS.showRepairHistoryPhase6,
+    title: 'Show Repair History (Local Engine)',
+    progressTitle: 'Bug Dhor: Showing local repair history',
+    serviceMethod: null,
+    localEngine: true
   })
 ]);
 

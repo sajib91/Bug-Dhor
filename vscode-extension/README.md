@@ -2,11 +2,28 @@
 
 JavaScript VS Code client for the Bug Dhor security framework.
 
+![Bug Dhor extension icon](media/icon.png)
+
 ## Status
 
 **Extension shell with a live local-backend transport, diagnostics pipeline, and proposal-only secure recommendations.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **Bug Dhor Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Health checks, file scans, selection detection requests, workspace scans, and secure recommendations reach the real backend through a `SecurityEngineService`; analysis stages that are unconfigured report explicit `unavailable` states. **Bug Dhor: Generate Secure Code** is a custom provider-backed workflow that uses the backend-built prompt and returns an unapplied, verified proposal. The extension does **not** start the Python backend and never applies code without explicit user approval.
 
-The extension produces no analysis result on its own: diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results. The dashboard starts empty until a connected backend supplies state. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, recommendations, feedback lifecycle, verification checks, and reports empty. Commands show cancellable progress while they contact the backend and report transport or validation errors; they never show a placeholder success message. Backend findings may include a `heuristic_index` risk assessment; no probability is rendered unless a validated calibration artifact supplied one. An empty findings list with `analysisAvailable: false` is reported as unavailable analysis, never as a clean scan.
+Backend-backed diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results; the opt-in local Phase 6 commands described below are a separate path and never replace the backend path. The dashboard starts empty until a connected backend supplies state. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, recommendations, feedback lifecycle, verification checks, and reports empty. Backend commands show cancellable progress while they contact the backend and report transport or validation errors; they never show a placeholder success message. Backend findings may include a `heuristic_index` risk assessment; no probability is rendered unless a validated calibration artifact supplied one. An empty findings list with `analysisAvailable: false` is reported as unavailable analysis, never as a clean scan.
+
+**Phase 6 is an additive, opt-in local-engine path.** Standard scans, explanations, recommendations, and verification commands still use the FastAPI backend by default. The local `bugdhor_ast` engine is used only when `bugdhor.localEngine.enabled` is true, and source writes remain forbidden unless `bugdhor.localEngine.allowSourceWrite` is also enabled. The adapter runs only the explicit Python CLI module through `execFile` without a shell; it never executes generated or repaired source. Python, JavaScript, and Java are supported by the local explanation and deterministic repair strategies, with explicit static-verification limitations documented below.
+
+## Installation
+
+For a published build, install the extension with:
+
+```bash
+code --install-extension sajib91.bug-dhor
+```
+
+The extension does not start a backend. Start the Python backend separately, set
+`bugdhor.backend.url`, and configure `BUGDHOR_WORKSPACE_ROOTS` for the folders
+the backend may inspect. See [Backend transport and privacy](#backend-transport-and-privacy)
+before enabling source sharing or background monitoring.
 
 ## Manifest contributions
 
@@ -26,6 +43,13 @@ The extension produces no analysis result on its own: diagnostics, hover content
 | Command | `bugdhor.repairVulnerability` | Generate a repair proposal |
 | Command | `bugdhor.verifyRepair` | Verify a repair at workspace scope |
 | Command | `bugdhor.openSecurityDashboard` | Open or reveal the Bug Dhor Security Dashboard panel |
+| Command (local engine) | `bugdhor.explainFindingPhase6` | Show local evidence-based explanation and repair suggestion |
+| Command (local engine) | `bugdhor.suggestRepairPhase6` | Show a deterministic local repair recommendation |
+| Command (local engine) | `bugdhor.previewRepairPhase6` | Show the exact unified diff without writing source |
+| Command (local engine) | `bugdhor.applyRepairPhase6` | Apply a reviewed patch after explicit approval |
+| Command (local engine) | `bugdhor.verifyRepairPhase6` | Verify the latest active applied patch with fresh static analysis |
+| Command (local engine) | `bugdhor.revertRepairPhase6` | Restore exact pre-apply bytes after explicit approval |
+| Command (local engine) | `bugdhor.showRepairHistoryPhase6` | Show the persisted local patch history |
 
 All commands use the `Bug Dhor` category. The extension activates on startup, on any of its commands, and when the sidebar view is opened.
 
@@ -39,7 +63,7 @@ All commands use the `Bug Dhor` category. The extension activates on startup, on
 - Every engine-backed command calls its declared `SecurityEngineService` method. `generateSecureCode` is the deliberate exception: it first asks the backend for a secure prompt, invokes a configured provider with capabilities B and C, and submits candidate diffs back to the backend for verification. Transport failures, timeouts, problem details, and schema mismatches are reported instead of inventing a result.
 - Successful scan results are validated and published as diagnostics; failed or cancelled scans never alter the Problems panel.
 - `bugdhor.repairVulnerability` accepts an optional finding context from a diagnostic Quick Fix while retaining its no-argument Command Palette and dashboard behavior. A finding for another file is rejected before the engine call.
-- A single `CommandRegistry` owns all 13 registrations and is disposed with the extension.
+- A single `CommandRegistry` owns all 22 canonical command definitions (15 backend/dashboard plus 7 local-engine commands) and is disposed with the extension.
 
 ## Backend transport and privacy
 
@@ -68,7 +92,24 @@ Hosted assistants expose A/B/C only and never claim validated steering. Only
 validated local D/E/F access with a real pipeline can support steering, and API
 requests always report the steering pipeline as `None`.
 
-The publisher is set to the explicit placeholder `your-publisher-id`. Replace it with the real Marketplace publisher ID before publishing; no publisher identity is claimed by this repository.
+### Privacy policy
+
+The extension contains no built-in telemetry, analytics, crash reporting, or
+advertising SDK. Source text is sent only to the backend URL you configure, and
+only for explicitly invoked file/selection requests when
+`bugdhor.privacy.sendSourceText` is enabled. Automatic background source sharing
+requires both `bugdhor.monitoring.enabled` and
+`bugdhor.monitoring.allowAutomaticSourceSharing`; both are off by default.
+Workspace scans send folder metadata only. Health checks send no source code.
+Provider credentials stay in the extension-host environment and are never sent
+in request bodies or written to settings or logs. The opt-in local Phase 6
+session is written under the workspace at `bugdhor.localEngine.sessionPath` and
+is never sent to the backend. See the repository root README for the broader
+data-handling statement.
+
+The Marketplace publisher is `sajib91`. Verify that this account is owned by the
+publisher before release; this repository does not claim an unverified
+identity.
 
 ## Security dashboard
 
@@ -96,7 +137,7 @@ The scan commands feed successful backend results into a native VS Code `Diagnos
 - **Severity mapping.** `critical` and `high` become errors, `medium` becomes a warning, `low` becomes information, and `info` becomes a hint. Severity is taken from the backend, never inferred from the message.
 - **Problems panel.** The diagnostic uses the backend range, the concise backend message, source `Bug Dhor`, and the CWE identifier as clickable diagnostic code when supplied. Related information carries backend evidence and source references.
 - **Hover explanations.** Hovering a finding shows its message, severity, CWE, rule ID, backend explanation, evidence, source references, and repair eligibility. Missing explanation, sources, or repair metadata are stated explicitly rather than filled in.
-- **Repair Quick Fix.** A Quick Fix appears only when the backend sets `repair.eligible` to `true`. It invokes the existing `bugdhor.repairVulnerability` command with the finding ID, document URI, range, CWE, and rule ID. The extension does not edit code or generate a patch itself.
+- **Repair Quick Fix.** A Quick Fix appears only when the backend sets `repair.eligible` to `true`. It invokes the existing `bugdhor.repairVulnerability` command with the finding ID, document URI, range, CWE, and rule ID. That Quick Fix does not edit code or generate a patch itself; local patch generation is limited to the separate opt-in Phase 6 commands.
 - **Validation and containment.** Malformed findings are rejected and logged; a malformed result envelope is rejected without clearing existing diagnostics. Findings outside an open workspace folder and non-`file:` URIs are never published. `scope.uris` or the scanned document URI clears stale diagnostics for the covered files.
 - **Model-internal evidence is not wired.** Scans, detection, explanation, repair proposals, and verification reach real backend paths whose availability is declared by `/health`. SAE features, counterfactual effects, and activation steering remain unavailable without compatible model artifacts and direct D/E/F access; the extension does not simulate them. Provider adapters are tested with backend-shaped fixtures.
 
@@ -156,6 +197,56 @@ See `docs/workspace-scanning-audit.md` and `docs/workspace-scanning-implementati
 | `bugdhor.monitoring.excludeBinaryFiles` | `true` | Skip common binary extensions by path without reading file content |
 | `bugdhor.monitoring.excludeGeneratedFiles` | `true` | Skip minified bundles, source maps, generated files, and lockfiles |
 | `bugdhor.monitoring.notifyOnFindings` | `true` | Show a non-blocking notification when findings are published |
+| `bugdhor.localEngine.enabled` | `false` | Opt in to the local `bugdhor_ast` Phase 6 engine; backend scans remain the default |
+| `bugdhor.localEngine.pythonPath` | `"python"` | Python executable used only by the local Phase 6 CLI |
+| `bugdhor.localEngine.requestTimeoutMs` | `15000` | Timeout for one local Phase 6 CLI request (1000–300000 ms) |
+| `bugdhor.localEngine.allowSourceWrite` | `false` | Permit explicit local apply/revert writes; still requires modal and exact `patch_id` confirmation |
+| `bugdhor.localEngine.sessionPath` | `".bugdhor/phase6-session.json"` | Workspace-relative local patch/verification session; never sent to the backend |
+
+### Opt-in local Phase 6 engine
+
+The seven `(Local Engine)` commands use a separate local workflow and never
+change backend behavior. They run
+`python -m bugdhor_ast.phase6.cli <action>` via `execFile` without a shell, with
+a bounded timeout and a `PYTHONPATH` pointing at the repository's `src/`. The
+CLI emits one JSON object per invocation; the adapter rejects non-JSON output
+and error envelopes instead of inventing a result.
+
+Supported actions are `analyze`, `explain`, `suggest`, `preview`, `apply`,
+`verify`, `revert`, and `history`. `preview` and all read-only commands leave
+source bytes unchanged. Verification reruns the local AST, detection, flow, and
+taint analyzers from current bytes and reports `verified`,
+`partially_verified`, `failed`, or `not_verified`. Explanations separate
+`observed`, `derived`, `heuristic`, and `unavailable` evidence; root causes are
+`determined`, `heuristic`, or `unknown`; CWE mappings require concrete taint
+sink or null-access evidence.
+
+Writes are deliberately difficult:
+
+1. `bugdhor.localEngine.enabled` must be true to invoke any local command.
+2. `bugdhor.localEngine.allowSourceWrite` must also be true for `apply` or
+   `revert`; the adapter independently rechecks this before starting the CLI.
+3. A modal warning must be accepted.
+4. The exact `patch_id` must be typed into the confirmation box.
+5. The CLI additionally requires `--allow-source-write`, checks exact file
+   identity/content/freshness, records backup/applied snapshots, and refuses to
+   revert over an external file change.
+
+A wrong confirmation cancels without writing. The local session defaults to
+`.bugdhor/phase6-session.json`, is written with owner-only permissions, and is
+never sent to the backend. Optional AI repair is disabled by default,
+provider-neutral, and returns untrusted candidates only; generated source is
+never executed.
+
+The deterministic repair matrix covers Python (SQL parameterization and process
+argument lists), JavaScript (HTML property to `textContent`), and Java
+(`PreparedStatement`). In the measured matrix, JavaScript and Java repairs were
+`verified` by static reanalysis, while both Python forms remained `failed`
+because the current syntax-only taint engine still flags the transformed sink
+arguments. These are static checks only: no compiler, functional test, dynamic
+analysis, sandbox, exploitability proof, or security guarantee is claimed. See
+`../reports/PHASE_6_REPAIR_VALIDATION_REPORT.md` and
+`../reports/PHASE_6_FINAL_REPORT.md` for exact results.
 
 The backend must be started separately, for example from `security-engine/`:
 
@@ -166,6 +257,23 @@ The backend must be started separately, for example from `security-engine/`:
 Set `BUGDHOR_WORKSPACE_ROOTS` to the folders the backend may inspect. Set the
 same `BUGDHOR_API_TOKEN` in the extension host environment when backend bearer
 authentication is enabled.
+
+## Supported languages
+
+- **Backend scans:** Python, JavaScript, and Java are exercised by the AST,
+  detection, flow, and taint suites. Backend findings are rendered as native VS
+  Code diagnostics for any file URI returned by the backend, subject to the
+  workspace-containment validation described above.
+- **Background monitoring:** eligible language IDs default to Python and
+  JavaScript (`bugdhor.monitoring.languages`). Java can be added explicitly when
+  the backend supports the workspace.
+- **Opt-in local Phase 6 engine:** Python, JavaScript, and Java have
+  deterministic explanation and repair strategies. Static reanalysis of the
+  measured repair matrix verified the JavaScript and Java forms; the Python
+  forms remain flagged by the current syntax-only taint engine.
+
+No language support is claimed for model-internal SAE, counterfactual, or
+steering features; those stages remain unavailable without compatible artifacts.
 
 ## Development
 
@@ -184,7 +292,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit suite (325 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), workspace monitoring (settings normalization, file filtering, scheduler coalescing/cancellation/concurrency, provider matrix, official events, open/create/delete/folder handling), secure recommendation request mapping and provider B/C gating, candidate extraction, feedback deduplication/resolution/lifecycle, one-shot suppression and bounded rescan, dashboard recommendation review and explicit approval, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, produces a real SQL-injection finding and publishes it as a native diagnostic with hover and observation-only explanation, verifies honest SAE/counterfactual/steering stubs and proposal-only repair with explicit-patch verification, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
+The unit suite (403 tests; measured run: 403 pass, 0 fail) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), workspace monitoring (settings normalization, file filtering, scheduler coalescing/cancellation/concurrency, provider matrix, official events, open/create/delete/folder handling), secure recommendation request mapping and provider B/C gating, candidate extraction, feedback deduplication/resolution/lifecycle, one-shot suppression and bounded rescan, dashboard recommendation review and explicit approval, the opt-in local Phase 6 adapter and approval guards, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, produces a real SQL-injection finding and publishes it as a native diagnostic with hover and observation-only explanation, verifies honest SAE/counterfactual/steering stubs and proposal-only repair with explicit-patch verification, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
 
 ## Extension Development Host
 
@@ -204,9 +312,37 @@ Build the VSIX from `vscode-extension/` with:
 npm run package:vsix
 ```
 
-The script runs `vsce package --no-dependencies --allow-missing-repository --skip-license`. `--no-dependencies` is required because npm workspaces hoist dependencies to the repository root; without it, `vsce` would package the entire repository. The current VSIX contains 45 files and about 102 KB, including the dashboard, launcher, and diagnostics modules. Tests, placeholders, lockfiles, secrets, local data, model weights, and other development files are excluded by `.vscodeignore`.
+`scripts/packageVsix.js` stages the declared production dependency closure
+(`ajv` 8.20.0 plus its four production transitive packages), copies only the
+extension entry point, `src/`, `media/`, README, manifest, and `.vscodeignore`
+into a temporary directory outside the workspace, and runs `vsce` there. This
+avoids the npm workspace symlink `node_modules/bug-dhor -> ../vscode-extension`
+that previously made `vsce` walk the parent repository. `--no-dependencies` is
+**not** used: `vsce` detects the staged local dependencies normally, and the
+packaged `ajv/dist/2020.js` was verified to load after extraction.
 
-The extension has no runtime npm dependency: `ajv` is used only by the unit tests. Add a bundling step before importing a runtime dependency or publishing. The manifest still uses the placeholder publisher `your-publisher-id` and lacks a repository URL and license, so the VSIX is a development artifact only and is not Marketplace-ready. See `docs/release-checklist.md` at the repository root for the full release procedure, versioning policy, backend setup, and clean-install verification.
+Measured result: 245 files and 489,975 bytes (about 478 KiB), with no `../`
+entries, no test outputs, no development dependencies, and no secrets. The
+reproduced pre-fix dependency traversal listed 76,389 paths totaling
+2,515,860,774 bytes (about 2.34 GiB / 2.52 GB). `--skip-license` remains in the
+script only because no license has been selected in this repository; do not
+publish until the intended license is added. See
+`../reports/MARKETPLACE_READINESS_REPORT.md` for the full audit and exact
+publication commands.
+
+## Known limitations
+
+- The backend is not bundled and must be started separately; an unreachable
+  backend is reported honestly rather than simulated.
+- SAE features, counterfactual effects, and activation steering remain
+  unavailable without compatible model artifacts and direct model access.
+- Opt-in Phase 6 repairs are deterministic proposals with static reanalysis
+  only; no functional, dynamic, sandbox, exploitability, or security guarantee
+  is claimed. Python SQL and subprocess repairs remain flagged by the current
+  syntax-only taint engine.
+- The extension ships an icon but no Marketplace screenshots yet.
+- No repository license has been selected, so the VSIX is built with
+  `--skip-license` and is not yet cleared for publication.
 
 ## Layout
 
@@ -220,6 +356,8 @@ The extension has no runtime npm dependency: `ajv` is used only by the unit test
 | `src/commands/registry.js` | Duplicate-safe registration and composite disposal |
 | `src/commands/validation.js` | Re-exports the workspace validation and request builders |
 | `src/commands/runEngineCommand.js` | Cancellable progress, cancellation, and error reporting |
+| `src/commands/phase6Commands.js` | Seven opt-in local-engine handlers and exact patch approval flow |
+| `src/phase6/localEngine.js` | Local CLI adapter, settings/write guards, JSON validation, and one-based finding mapping |
 | `src/commands/registerEngineCommand.js` | Binds a command definition to a service method |
 | `src/commands/scanCommands.js` | Scan Current File, Scan Selection, Scan Workspace |
 | `src/commands/analysisCommands.js` | Explain, security features, counterfactual analysis |

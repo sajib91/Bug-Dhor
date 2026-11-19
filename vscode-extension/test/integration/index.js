@@ -567,4 +567,29 @@ async function run() {
   console.log('Bug Dhor Extension Host checks passed.');
 }
 
-module.exports = { run };
+module.exports = {
+  async run() {
+    let watchdog;
+    try {
+      // A bounded watchdog turns a hung UI interaction into an explicit
+      // failure instead of leaving the extension host open indefinitely.
+      await Promise.race([
+        run(),
+        new Promise((_, reject) => {
+          watchdog = setTimeout(
+            () => reject(new Error('Bug Dhor integration checks exceeded 5 minutes.')),
+            5 * 60_000
+          );
+        })
+      ]);
+    } catch (error) {
+      // The extension host swallows runner stack traces in its own output;
+      // echo the first failure so runTest.js can report the real assertion.
+      const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+      console.error(`Bug Dhor integration failure: ${detail}`);
+      throw error;
+    } finally {
+      clearTimeout(watchdog);
+    }
+  }
+};

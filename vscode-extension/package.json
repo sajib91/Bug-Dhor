@@ -1,9 +1,17 @@
 {
   "name": "bug-dhor",
-  "displayName": "Bug Dhor Security Framework",
+  "displayName": "Bug-Dhor: AI Code Security Analyzer",
   "description": "Explainable vulnerability analysis, counterfactual feature inspection, and verified repair for VS Code.",
   "version": "0.1.0",
-  "publisher": "your-publisher-id",
+  "publisher": "sajib91",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sajib91/Bug-Dhor.git"
+  },
+  "homepage": "https://github.com/sajib91/Bug-Dhor#readme",
+  "bugs": {
+    "url": "https://github.com/sajib91/Bug-Dhor/issues"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -44,6 +52,13 @@
     "onCommand:bugdhor.showAssistantCapabilities",
     "onCommand:bugdhor.nextFinding",
     "onCommand:bugdhor.previousFinding",
+    "onCommand:bugdhor.explainFindingPhase6",
+    "onCommand:bugdhor.suggestRepairPhase6",
+    "onCommand:bugdhor.previewRepairPhase6",
+    "onCommand:bugdhor.applyRepairPhase6",
+    "onCommand:bugdhor.verifyRepairPhase6",
+    "onCommand:bugdhor.revertRepairPhase6",
+    "onCommand:bugdhor.showRepairHistoryPhase6",
     "onView:bugdhor.sidebar"
   ],
   "main": "./src/extension.js",
@@ -154,6 +169,41 @@
         "title": "Previous Finding",
         "category": "Bug Dhor",
         "icon": "$(arrow-up)"
+      },
+      {
+        "command": "bugdhor.explainFindingPhase6",
+        "title": "Explain Finding (Local Engine)",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.suggestRepairPhase6",
+        "title": "Suggest Repair (Local Engine)",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.previewRepairPhase6",
+        "title": "Preview Repair (Local Engine)",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.applyRepairPhase6",
+        "title": "Apply Reviewed Patch (Local Engine)",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.verifyRepairPhase6",
+        "title": "Verify Applied Repair (Local Engine)",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.revertRepairPhase6",
+        "title": "Revert Applied Patch (Local Engine)",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.showRepairHistoryPhase6",
+        "title": "Show Repair History (Local Engine)",
+        "category": "Bug Dhor"
       }
     ],
     "keybindings": [
@@ -636,6 +686,38 @@
           "default": false,
           "scope": "machine-overridable",
           "markdownDescription": "Enable attempts to attach a configured counterfactual provider. D, E, and F must be discovered first."
+        },
+        "bugdhor.localEngine.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine-overridable",
+          "markdownDescription": "Opt in to the local bugdhor_ast Phase 6 engine for explain, suggest, preview, apply, verify, revert, and history commands. Backend scans remain the default and are unaffected by this setting."
+        },
+        "bugdhor.localEngine.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "scope": "machine-overridable",
+          "markdownDescription": "Python executable used only by the opt-in local Phase 6 CLI. The extension runs `python -m bugdhor_ast.phase6.cli` without a shell; it never executes generated source."
+        },
+        "bugdhor.localEngine.requestTimeoutMs": {
+          "type": "number",
+          "default": 15000,
+          "minimum": 1000,
+          "maximum": 300000,
+          "scope": "machine-overridable",
+          "description": "Timeout in milliseconds for one local Phase 6 CLI request."
+        },
+        "bugdhor.localEngine.allowSourceWrite": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine-overridable",
+          "markdownDescription": "Permit explicit apply and revert writes from the local Phase 6 engine. Even when enabled, each command requires a modal warning and an exact patch_id confirmation. Leave disabled unless you intend to edit source locally."
+        },
+        "bugdhor.localEngine.sessionPath": {
+          "type": "string",
+          "default": ".bugdhor/phase6-session.json",
+          "scope": "machine-overridable",
+          "markdownDescription": "Workspace-relative path for the local-only Phase 6 patch and verification session. This file is never sent to the backend."
         }
       }
     }
@@ -647,8 +729,9 @@
     "test": "node --test test/unit/*.test.js",
     "test:integration": "node test/integration/runTest.js",
     "package": "npm run package:vsix",
-    "package:vsix": "vsce package --no-dependencies --allow-missing-repository --skip-license",
-    "package:list": "vsce ls --tree --no-dependencies"
+    "package:prepare": "node scripts/stageRuntimeDeps.js",
+    "package:vsix": "node scripts/packageVsix.js package",
+    "package:list": "node scripts/packageVsix.js list"
   },
   "dependencies": {
     "ajv": "^8.20.0"
