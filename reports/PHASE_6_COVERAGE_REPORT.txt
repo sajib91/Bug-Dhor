@@ -1,0 +1,88 @@
+================================================================================
+PHASE 6 COVERAGE REPORT -- BUG-DHOR
+================================================================================
+
+Date:            2026-11-19
+Repository:      /Users/md.khayrulislamsajib/Downloads/Bug-Dhor
+Coverage tool:   coverage.py via pytest-cov 7.1.0
+Python:          3.11.14
+Command:
+  PYTHONPATH=src ./.venv/bin/python -m pytest tests/ \
+    --cov=bugdhor_ast --cov-report=term-missing -q
+
+Measured result:
+  275 passed in 2.46s
+  TOTAL 6526 statements, 719 missed, 89%
+
+Historical Phase 4 baseline:
+  205 passed in 0.89s
+  TOTAL 3811 statements, 186 missed, 95%
+
+The total percentage decreased because this report is for the entire
+bugdhor_ast package and now includes new explanation, repair, patch, AI,
+verification, and Phase 6 workflow modules. The counts and percentages below
+are the exact values from the measured terminal coverage table.
+
+--------------------------------------------------------------------------------
+Phase 6-relevant modules
+--------------------------------------------------------------------------------
+
+Name                                                  Stmts   Miss  Cover
+-----------------------------------------------------------------------------------
+src/bugdhor_ast/explain/__init__.py                        8      0   100%
+src/bugdhor_ast/explain/cwe.py                            73      9    88%
+src/bugdhor_ast/explain/evidence.py                      293     49    83%
+src/bugdhor_ast/explain/explainer.py                      34      9    74%
+src/bugdhor_ast/explain/repair/__init__.py                 6      0   100%
+src/bugdhor_ast/explain/repair/ai.py                     295     46    84%
+src/bugdhor_ast/explain/repair/history.py                174     26    85%
+src/bugdhor_ast/explain/repair/patch.py                  274     47    83%
+src/bugdhor_ast/explain/repair/recommendation.py         143     23    84%
+src/bugdhor_ast/explain/repair/strategies.py             463    115    75%
+src/bugdhor_ast/explain/root_cause.py                    120     31    74%
+src/bugdhor_ast/explain/schema.py                        240     16    93%
+src/bugdhor_ast/explain/verification.py                  253     32    87%
+src/bugdhor_ast/phase6/__init__.py                         3      0   100%
+src/bugdhor_ast/phase6/cli.py                            109    109     0%
+src/bugdhor_ast/phase6/service.py                        147     20    86%
+src/bugdhor_ast/phase6/session.py                         80     10    88%
+
+--------------------------------------------------------------------------------
+Interpretation
+--------------------------------------------------------------------------------
+
+- phase6/service.py is covered at 86%; phase6/session.py is covered at 88%.
+- phase6/cli.py reports 0% because the CLI is exercised as a subprocess by
+  tests/test_phase6_local.py. coverage.py traces the in-process pytest run and
+  does not trace those child processes. The CLI workflow is nevertheless tested
+  end to end: the subprocess test asserts analyze, explain, suggest, preview,
+  denied apply, approved apply, history, verify, revert, JSON-only output, and
+  error envelopes. This report does not claim CLI line coverage.
+- The lower percentages in explanation/repair modules are statement coverage,
+  not evidence-quality or security-effectiveness measurements.
+- Python, JavaScript, and Java paths are exercised by the local workflow tests
+  and repair-validation matrix. Coverage percentages are not broken down by
+  language by coverage.py.
+- JavaScript extension code is validated by ESLint and Node unit tests; no
+  JavaScript coverage tool was run or is claimed.
+- FastAPI backend coverage was not remeasured for Phase 6 because backend
+  behavior was unchanged. Its full suite passed: 726 passed in 10.27s.
+
+--------------------------------------------------------------------------------
+Reproduction
+--------------------------------------------------------------------------------
+
+From the repository root:
+
+  PYTHONPATH=src ./.venv/bin/python -m pytest tests/ \
+    --cov=bugdhor_ast --cov-report=term-missing -q
+
+Full test details:
+  reports/PHASE_6_TEST_REPORT.txt
+
+Performance measurements:
+  reports/PHASE_6_BENCHMARK_REPORT.md
+
+================================================================================
+End of Phase 6 coverage report
+================================================================================

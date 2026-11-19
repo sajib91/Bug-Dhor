@@ -1,0 +1,7 @@
+tree-sitter==0.26.1
+tree-sitter-python
+tree-sitter-javascript
+tree-sitter-java
+tree-sitter-c
+tree-sitter-cpp
+tree-sitter-go

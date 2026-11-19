@@ -1,0 +1,93 @@
+{
+    "language": "java",
+    "has_syntax_errors": false,
+    "summary": {
+        "functions": 2,
+        "classes": 1,
+        "variables": 2,
+        "function_calls": 2,
+        "imports": 1,
+        "syntax_errors": 0
+    },
+    "functions": [
+        {
+            "type": "method_declaration",
+            "start_line": 6,
+            "end_line": 8,
+            "start_column": 5,
+            "end_column": 6,
+            "name": "getUser"
+        },
+        {
+            "type": "method_declaration",
+            "start_line": 10,
+            "end_line": 17,
+            "start_column": 5,
+            "end_column": 6,
+            "name": "main"
+        }
+    ],
+    "classes": [
+        {
+            "type": "class_declaration",
+            "start_line": 4,
+            "end_line": 18,
+            "start_column": 1,
+            "end_column": 2,
+            "name": "UserManager"
+        }
+    ],
+    "variables": [
+        {
+            "type": "variable_declarator",
+            "start_line": 12,
+            "end_line": 12,
+            "start_column": 21,
+            "end_column": 48,
+            "name": "manager",
+            "source": "manager = new UserManager()"
+        },
+        {
+            "type": "variable_declarator",
+            "start_line": 14,
+            "end_line": 14,
+            "start_column": 16,
+            "end_column": 47,
+            "name": "user",
+            "source": "user = manager.getUser(\"admin\")"
+        }
+    ],
+    "function_calls": [
+        {
+            "type": "method_invocation",
+            "start_line": 14,
+            "end_line": 14,
+            "start_column": 23,
+            "end_column": 47,
+            "name": "getUser",
+            "source": "manager.getUser(\"admin\")"
+        },
+        {
+            "type": "method_invocation",
+            "start_line": 16,
+            "end_line": 16,
+            "start_column": 9,
+            "end_column": 33,
+            "name": "println",
+            "source": "System.out.println(user)"
+        }
+    ],
+    "imports": [
+        {
+            "type": "import_declaration",
+            "start_line": 2,
+            "end_line": 2,
+            "start_column": 1,
+            "end_column": 26,
+            "name": "java.util.Scanner",
+            "source": "import java.util.Scanner;"
+        }
+    ],
+    "syntax_errors": [],
+    "file": "examples/sample.java"
+}

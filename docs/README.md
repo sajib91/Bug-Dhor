@@ -3,6 +3,9 @@
 - [Software architecture](architecture.md) — monorepo design, runtime model, contracts, pipeline, roadmap, risks.
 - [HTTP API](api.md) — implemented `/api/v1` endpoints, envelopes, errors, auth, limits, and OpenAPI access.
 - [Program analysis](program-analysis.md) — standalone Python/JavaScript CFG, DFG, and taint analysis, NetworkX graphs, exact spans, supported constructs, tests, and limitations.
+- [Static bug detection](static-bug-detection.md) — rule-based detection in `bugdhor_ast`: 30 language-specific rules, diagnostic schema, CLI usage, support matrix, limitations, and verification record.
+- [Scope and data-flow analysis](scope-data-flow-analysis.md) — symbol tables, lexical scopes, def-use chains, reaching definitions, liveness, CFGs, language-pack taint analysis for Python/JavaScript/Java, interprocedural and conservative object flow, CLI/JSON sections, and verification record.
+- [Phase 6 evidence-based repair](../reports/PHASE_6_FINAL_REPORT.md) — opt-in local `bugdhor_ast` engine; evidence-separated explanations, root-cause localization, evidence-based CWE mapping, deterministic Python/JavaScript/Java repairs, exact patch preview/apply/revert with approval, independent static verification, optional untrusted AI candidates, JSON-only CLI actions, seven VS Code local-engine commands/settings, measured tests/coverage/benchmarks, and explicit limitations.
 - [AI assistant integration](ai-assistant-integration.md) — model-independent provider adapters, A–F capability taxonomy, compatibility matrix, honest provenance, and the incremental assisted-analysis workflow.
 - [Workspace scanning audit](workspace-scanning-audit.md) — evidence audit of the VS Code, FastAPI, privacy, and research boundaries for workspace scanning.
 - [Current feature status](current-feature-status.md) — one current status matrix and verification record for implemented, partial, unavailable, and not-run capabilities.

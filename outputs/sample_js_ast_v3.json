@@ -1,0 +1,102 @@
+{
+    "language": "javascript",
+    "has_syntax_errors": false,
+    "summary": {
+        "functions": 2,
+        "classes": 1,
+        "variables": 2,
+        "function_calls": 3,
+        "imports": 1,
+        "syntax_errors": 0
+    },
+    "functions": [
+        {
+            "type": "method_definition",
+            "start_line": 6,
+            "end_line": 8,
+            "start_column": 5,
+            "end_column": 6,
+            "name": "getUser"
+        },
+        {
+            "type": "function_declaration",
+            "start_line": 12,
+            "end_line": 21,
+            "start_column": 1,
+            "end_column": 2,
+            "name": "authenticate"
+        }
+    ],
+    "classes": [
+        {
+            "type": "class_declaration",
+            "start_line": 4,
+            "end_line": 10,
+            "start_column": 1,
+            "end_column": 2,
+            "name": "UserService"
+        }
+    ],
+    "variables": [
+        {
+            "type": "variable_declarator",
+            "start_line": 14,
+            "end_line": 14,
+            "start_column": 11,
+            "end_column": 35,
+            "name": "user",
+            "source": "user = new UserService()"
+        },
+        {
+            "type": "variable_declarator",
+            "start_line": 23,
+            "end_line": 23,
+            "start_column": 7,
+            "end_column": 49,
+            "name": "result",
+            "source": "result = authenticate(\"admin\", \"admin123\")"
+        }
+    ],
+    "function_calls": [
+        {
+            "type": "call_expression",
+            "start_line": 17,
+            "end_line": 17,
+            "start_column": 16,
+            "end_column": 38,
+            "name": "user.getUser",
+            "source": "user.getUser(username)"
+        },
+        {
+            "type": "call_expression",
+            "start_line": 23,
+            "end_line": 23,
+            "start_column": 16,
+            "end_column": 49,
+            "name": "authenticate",
+            "source": "authenticate(\"admin\", \"admin123\")"
+        },
+        {
+            "type": "call_expression",
+            "start_line": 25,
+            "end_line": 25,
+            "start_column": 1,
+            "end_column": 20,
+            "name": "console.log",
+            "source": "console.log(result)"
+        }
+    ],
+    "imports": [
+        {
+            "type": "import_statement",
+            "start_line": 2,
+            "end_line": 2,
+            "start_column": 1,
+            "end_column": 21,
+            "name": "\"fs\"",
+            "source": "import fs from \"fs\";"
+        }
+    ],
+    "syntax_errors": [],
+    "file": "examples/sample.js"
+}

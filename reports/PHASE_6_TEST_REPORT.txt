@@ -1,0 +1,227 @@
+================================================================================
+PHASE 6 TEST REPORT -- BUG-DHOR
+================================================================================
+
+Date:            2026-11-19
+Repository:      /Users/md.khayrulislamsajib/Downloads/Bug-Dhor
+Scope:           Phase 6 explanation, root-cause localization, CWE mapping,
+                 deterministic repair, patch workflow, independent verification,
+                 optional AI-provider abstraction, local CLI, and additive
+                 VS Code local-engine commands.
+Status:          Python Phase 4/6 suites pass. Backend suite passes. The
+                 VS Code unit suite has one pre-existing, user-owned manifest
+                 identity assertion failure; all Phase 6 tests pass.
+
+--------------------------------------------------------------------------------
+1. Environment
+--------------------------------------------------------------------------------
+
+Python:          3.11.14
+pytest:          9.2.0
+Node:            v25.9.0
+npm:             11.13.0
+Platform:        macOS 26.3.1 arm64-arm-64bit (from benchmark metadata)
+Repository root: /Users/md.khayrulislamsajib/Downloads/Bug-Dhor
+
+--------------------------------------------------------------------------------
+2. Commands and measured results
+--------------------------------------------------------------------------------
+
+2.1 Full AST/Phase 6 Python suite (no coverage)
+
+Command:
+  PYTHONPATH=src ./.venv/bin/python -m pytest tests/ -q
+
+Result:
+  275 passed in 1.51s
+
+Historical Phase 4 baseline from reports/PHASE_4_TEST_REPORT.txt:
+  205 passed in 0.24s
+
+The increase is additive: existing Phase 3/4 tests remain and 70 new AST-layer
+tests were added for explanation, evidence, CWE mapping, repair strategies,
+patch safety, AI handling, verification, and the Phase 6 local workflow.
+
+2.2 Full AST/Phase 6 Python suite with coverage
+
+Command:
+  PYTHONPATH=src ./.venv/bin/python -m pytest tests/ \
+    --cov=bugdhor_ast --cov-report=term-missing -q
+
+Result:
+  275 passed in 2.46s
+  TOTAL 6526 statements, 719 missed, 89%
+
+Coverage detail is in reports/PHASE_6_COVERAGE_REPORT.txt.
+
+2.3 Focused Phase 6 local workflow suite
+
+Command:
+  PYTHONPATH=src ./.venv/bin/python -m pytest tests/test_phase6_local.py -v
+
+Result:
+  collected 9 items
+  9 passed in 0.73s
+
+Tests executed:
+
+  test_session_round_trip_preserves_exact_state
+  test_session_load_rejects_invalid_schema
+  test_preview_is_reviewable_and_never_writes_source
+  test_apply_verify_and_revert_round_trip
+  test_revert_refuses_to_overwrite_external_change
+  test_explain_and_suggest_cover_python_javascript_and_java
+  test_suggest_supports_explicit_ai_config
+  test_cli_actions_emit_one_json_object_and_no_extra_text
+  test_cli_error_envelopes
+
+These tests cover exact session persistence (0600 mode), invalid-session
+rejection, read-only preview, wrong-confirmation refusal, apply/verify/revert
+round trip, refusal to revert over an external file change, Python/JavaScript/
+Java coverage, optional AI configuration, JSON-only CLI envelopes, and CLI
+error envelopes.
+
+2.4 Focused explanation/repair Python modules
+
+Command:
+  PYTHONPATH=src ./.venv/bin/python -m pytest \
+    tests/test_explain_schema.py \
+    tests/test_explain_evidence.py \
+    tests/test_explain_repair.py \
+    tests/test_explain_repair_patch.py \
+    tests/test_explain_repair_ai.py -q
+
+Result:
+  36 passed in 0.13s
+
+2.5 Backend/FastAPI suite
+
+Command (from security-engine/):
+  ../.venv/bin/python -m pytest -q
+
+Result:
+  726 passed in 10.27s
+
+No backend API schema, endpoint, or behavior was changed by Phase 6.
+
+2.6 VS Code extension unit suite
+
+Command (from vscode-extension/):
+  npm test
+
+Result:
+  tests 401
+  pass 400
+  fail 1
+  cancelled 0
+  skipped 0
+  todo 0
+  duration_ms 2947.046375
+
+The single failure is the pre-existing manifest identity assertion:
+
+  test at test/unit/manifest.test.js:16:1
+  identity fields match the approved extension identity
+  expected 'Bug Dhor Security Framework'
+  actual   'Bug Dhor Security Framewor'
+
+The package.json identity is user-owned and was preserved verbatim. The test
+assertion was not changed to hide the mismatch. No Phase 6 test failed.
+
+2.7 Focused Phase 6 extension tests
+
+Command (from vscode-extension/):
+  node --test test/unit/phase6LocalEngine.test.js
+
+Result:
+  tests 10
+  pass 10
+  fail 0
+  cancelled 0
+  skipped 0
+  todo 0
+  duration_ms 111.092
+
+Covered behavior:
+
+  - local engine defaults are opt-in and write-safe;
+  - disabled engine refuses every invocation without starting a process;
+  - invoke builds an explicit JSON-only CLI command with a bounded timeout;
+  - CLI error envelopes become typed local errors;
+  - VS Code zero-based ranges map to engine one-based indices;
+  - direct apply/revert reject when source writes are disabled;
+  - read-only commands publish evidence without process writes;
+  - apply/revert require settings opt-in, modal warning, and exact patch_id;
+  - verify/revert use the latest active history entry;
+  - history reports the persisted entry count without writing.
+
+2.8 Lint
+
+Commands:
+  npm run lint                         (from vscode-extension/)
+  ./.venv/bin/python -m ruff check \
+    src/bugdhor_ast/explain \
+    src/bugdhor_ast/phase6 \
+    tests/test_phase6_local.py \
+    benchmarks/harness/run_phase6_performance.py
+
+Results:
+  ESLint: clean, no output.
+  Ruff:   All checks passed!
+
+A broader Ruff invocation that includes all older test files still reports
+17 pre-existing errors in files not introduced by Phase 6. Phase 6 modules,
+the Phase 6 test module, and the Phase 6 benchmark harness are clean.
+
+--------------------------------------------------------------------------------
+3. CLI end-to-end smoke coverage
+--------------------------------------------------------------------------------
+
+tests/test_phase6_local.py::test_cli_actions_emit_one_json_object_and_no_extra_text
+executes the local CLI as a subprocess and verifies that each invocation emits
+exactly one JSON object. The tested sequence is:
+
+  analyze -> explain -> suggest -> preview -> apply (denied)
+          -> apply (--allow-source-write) -> history -> verify -> revert
+
+Observed assertions:
+
+  - read-only actions exit 0 and write no source bytes;
+  - apply without --allow-source-write exits 1 with a write-permission error;
+  - apply with --allow-source-write and exact patch_id confirmation succeeds;
+  - history returns one entry;
+  - verify on the applied JavaScript repair returns "verified";
+  - revert restores the original source bytes;
+  - CLI usage failures return JSON error envelopes, not stderr-only argparse
+    output.
+
+--------------------------------------------------------------------------------
+4. Repair validation and performance
+--------------------------------------------------------------------------------
+
+Repair validation matrix and static-verification limitations:
+  reports/PHASE_6_REPAIR_VALIDATION_REPORT.md
+
+Measured Phase 6 core-workflow performance:
+  reports/PHASE_6_BENCHMARK_REPORT.md
+  benchmarks/results/phase6-performance/results.json
+
+--------------------------------------------------------------------------------
+5. Not run or not claimed
+--------------------------------------------------------------------------------
+
+- The execution-based coding benchmark remains not_run. No security-effectiveness
+  claim is made from Phase 6 tests or the Phase 6 performance benchmark.
+- VS Code Extension Host integration tests were not executed as part of this
+  Phase 6 validation run.
+- No generated or repaired source was executed by the test suite, local engine,
+  VS Code adapter, benchmark harness, or verification layer.
+- No sandbox is implemented or claimed.
+- No functional-correctness proof, exploitability proof, or guaranteed-secure
+  repair is claimed.
+- No SAE feature extraction, activation steering, or counterfactual model
+  analysis was added or claimed.
+
+================================================================================
+End of Phase 6 test report
+================================================================================

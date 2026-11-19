@@ -1,0 +1,74 @@
+{
+    "language": "java",
+    "has_syntax_errors": false,
+    "summary": {
+        "functions": 2,
+        "classes": 1,
+        "variables": 0,
+        "function_calls": 2,
+        "imports": 1,
+        "syntax_errors": 0
+    },
+    "functions": [
+        {
+            "type": "method_declaration",
+            "name": "getUser",
+            "start_line": 6,
+            "end_line": 8,
+            "start_column": 5,
+            "end_column": 6
+        },
+        {
+            "type": "method_declaration",
+            "name": "main",
+            "start_line": 10,
+            "end_line": 17,
+            "start_column": 5,
+            "end_column": 6
+        }
+    ],
+    "classes": [
+        {
+            "type": "class_declaration",
+            "name": "UserManager",
+            "start_line": 4,
+            "end_line": 18,
+            "start_column": 1,
+            "end_column": 2
+        }
+    ],
+    "variables": [],
+    "function_calls": [
+        {
+            "type": "method_invocation",
+            "name": "getUser",
+            "start_line": 14,
+            "end_line": 14,
+            "start_column": 23,
+            "end_column": 47,
+            "source": "manager.getUser(\"admin\")"
+        },
+        {
+            "type": "method_invocation",
+            "name": "println",
+            "start_line": 16,
+            "end_line": 16,
+            "start_column": 9,
+            "end_column": 33,
+            "source": "System.out.println(user)"
+        }
+    ],
+    "imports": [
+        {
+            "type": "import_declaration",
+            "name": null,
+            "start_line": 2,
+            "end_line": 2,
+            "start_column": 1,
+            "end_column": 26,
+            "source": "import java.util.Scanner;"
+        }
+    ],
+    "syntax_errors": [],
+    "file": "examples/sample.java"
+}

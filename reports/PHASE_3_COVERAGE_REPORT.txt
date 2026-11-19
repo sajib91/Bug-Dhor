@@ -1,0 +1,55 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.14, pytest-9.2.0, pluggy-1.7.0
+rootdir: /Users/md.khayrulislamsajib/Downloads/Bug-Dhor
+plugins: platformdirs-4.14.5, cov-7.1.0, timeout-2.4.0, typeguard-4.6.0, anyio-4.16.0
+collected 163 items
+
+tests/test_ast_engine.py ......................                          [ 13%]
+tests/test_cli.py ..........                                             [ 19%]
+tests/test_detection_cli.py .........                                    [ 25%]
+tests/test_detection_core.py .............                               [ 33%]
+tests/test_detection_helpers.py .....                                    [ 36%]
+tests/test_detection_java.py ................                            [ 46%]
+tests/test_detection_javascript.py ..................                    [ 57%]
+tests/test_detection_python.py ...................                       [ 68%]
+tests/test_flow_cfg.py ....                                              [ 71%]
+tests/test_flow_cli.py ......                                            [ 74%]
+tests/test_flow_dataflow.py .....                                        [ 77%]
+tests/test_flow_scopes.py .....                                          [ 80%]
+tests/test_flow_taint.py ......                                          [ 84%]
+tests/test_languages.py .........................                        [100%]
+
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.11.14-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+src/bugdhor_ast/__init__.py                               0      0   100%
+src/bugdhor_ast/cli.py                                   64      0   100%
+src/bugdhor_ast/detection/__init__.py                     5      0   100%
+src/bugdhor_ast/detection/context.py                     67      0   100%
+src/bugdhor_ast/detection/engine.py                      52      0   100%
+src/bugdhor_ast/detection/models.py                      51      0   100%
+src/bugdhor_ast/detection/registry.py                    34      0   100%
+src/bugdhor_ast/detection/reporting.py                   16      0   100%
+src/bugdhor_ast/detection/rules/__init__.py               0      0   100%
+src/bugdhor_ast/detection/rules/base.py                  18      0   100%
+src/bugdhor_ast/detection/rules/common.py                54      0   100%
+src/bugdhor_ast/detection/rules/java_rules.py           448     44    90%   282, 284, 321, 336, 344, 349, 355-357, 373, 384, 399, 406, 451, 478, 499, 508, 532, 576, 578, 611, 617, 622, 675, 681, 701, 728, 731, 743, 777, 785, 796-797, 808-811, 820, 869-871, 877, 916, 930
+src/bugdhor_ast/detection/rules/javascript_rules.py     384     33    91%   232, 237, 242-243, 251-252, 258, 276, 296, 340-346, 363, 365, 370, 372, 374, 379, 447, 473, 479, 486, 542, 558, 599, 644, 647, 729, 736-742
+src/bugdhor_ast/detection/rules/python_rules.py         265      7    97%   161, 185, 194-195, 273, 288, 365
+src/bugdhor_ast/engine.py                               187     11    94%   123, 160, 193-195, 202, 216, 240, 258, 284, 302, 333
+src/bugdhor_ast/flow/__init__.py                          4      0   100%
+src/bugdhor_ast/flow/cfg.py                             153      6    96%   85, 100, 146, 177, 271-272
+src/bugdhor_ast/flow/dataflow.py                        162      1    99%   293
+src/bugdhor_ast/flow/engine.py                           65      6    91%   51, 74-78, 124, 129, 154
+src/bugdhor_ast/flow/ir.py                              141      3    98%   105, 160, 252
+src/bugdhor_ast/flow/models.py                          262      8    97%   142, 191, 193, 198, 202, 207, 222, 226
+src/bugdhor_ast/flow/profiles.py                        476    123    74%   65, 98, 103, 108, 113, 118, 123, 128-132, 137-141, 172-176, 191, 207, 214, 216, 218, 227, 230, 237, 239-243, 245-247, 262-266, 337, 344, 351, 363, 381, 383-386, 390-391, 397, 408, 456-460, 478, 486, 502, 504, 529, 531, 551, 596-604, 617-627, 629-639, 650, 663, 670-685, 690, 728-736, 749, 752, 765, 841-850, 852-860, 907, 918-922, 977-983, 988-991, 1007
+src/bugdhor_ast/flow/scopes.py                          276      9    97%   115, 323, 341-342, 438, 445, 457, 506, 636
+src/bugdhor_ast/flow/taint.py                           187     12    94%   127, 137-138, 142-143, 147, 346, 412-413, 434, 448-449
+src/bugdhor_ast/flow/tree.py                             64     13    80%   12, 19, 53-56, 65-66, 77, 97-100
+src/bugdhor_ast/languages.py                             17      0   100%
+-----------------------------------------------------------------------------------
+TOTAL                                                  3452    276    92%
+============================= 163 passed in 0.60s ==============================

@@ -1,0 +1,100 @@
+{
+    "language": "python",
+    "has_syntax_errors": false,
+    "summary": {
+        "functions": 3,
+        "classes": 1,
+        "variables": 0,
+        "function_calls": 4,
+        "imports": 1,
+        "syntax_errors": 0
+    },
+    "functions": [
+        {
+            "type": "function_definition",
+            "name": "__init__",
+            "start_line": 6,
+            "end_line": 7,
+            "start_column": 5,
+            "end_column": 33
+        },
+        {
+            "type": "function_definition",
+            "name": "get_user",
+            "start_line": 9,
+            "end_line": 10,
+            "start_column": 5,
+            "end_column": 29
+        },
+        {
+            "type": "function_definition",
+            "name": "authenticate",
+            "start_line": 13,
+            "end_line": 20,
+            "start_column": 1,
+            "end_column": 16
+        }
+    ],
+    "classes": [
+        {
+            "type": "class_definition",
+            "name": "UserManager",
+            "start_line": 4,
+            "end_line": 10,
+            "start_column": 1,
+            "end_column": 29
+        }
+    ],
+    "variables": [],
+    "function_calls": [
+        {
+            "type": "call",
+            "name": null,
+            "start_line": 15,
+            "end_line": 15,
+            "start_column": 12,
+            "end_column": 33,
+            "source": "UserManager(username)"
+        },
+        {
+            "type": "call",
+            "name": null,
+            "start_line": 18,
+            "end_line": 18,
+            "start_column": 16,
+            "end_column": 31,
+            "source": "user.get_user()"
+        },
+        {
+            "type": "call",
+            "name": null,
+            "start_line": 23,
+            "end_line": 23,
+            "start_column": 10,
+            "end_column": 43,
+            "source": "authenticate(\"admin\", \"admin123\")"
+        },
+        {
+            "type": "call",
+            "name": null,
+            "start_line": 24,
+            "end_line": 24,
+            "start_column": 1,
+            "end_column": 14,
+            "source": "print(result)"
+        }
+    ],
+    "imports": [
+        {
+            "type": "import_statement",
+            "name": "os",
+            "start_line": 2,
+            "end_line": 2,
+            "start_column": 1,
+            "end_column": 10,
+            "source": "import os"
+        }
+    ],
+    "syntax_errors": [],
+    "file": "examples/sample.py"
+}

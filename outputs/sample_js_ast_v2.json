@@ -1,0 +1,94 @@
+{
+    "language": "javascript",
+    "has_syntax_errors": false,
+    "summary": {
+        "functions": 1,
+        "classes": 1,
+        "variables": 2,
+        "function_calls": 3,
+        "imports": 1,
+        "syntax_errors": 0
+    },
+    "functions": [
+        {
+            "type": "function_declaration",
+            "name": "authenticate",
+            "start_line": 12,
+            "end_line": 21,
+            "start_column": 1,
+            "end_column": 2
+        }
+    ],
+    "classes": [
+        {
+            "type": "class_declaration",
+            "name": "UserService",
+            "start_line": 4,
+            "end_line": 10,
+            "start_column": 1,
+            "end_column": 2
+        }
+    ],
+    "variables": [
+        {
+            "type": "lexical_declaration",
+            "name": null,
+            "start_line": 14,
+            "end_line": 14,
+            "start_column": 5,
+            "end_column": 36,
+            "source": "const user = new UserService();"
+        },
+        {
+            "type": "lexical_declaration",
+            "name": null,
+            "start_line": 23,
+            "end_line": 23,
+            "start_column": 1,
+            "end_column": 50,
+            "source": "const result = authenticate(\"admin\", \"admin123\");"
+        }
+    ],
+    "function_calls": [
+        {
+            "type": "call_expression",
+            "name": null,
+            "start_line": 17,
+            "end_line": 17,
+            "start_column": 16,
+            "end_column": 38,
+            "source": "user.getUser(username)"
+        },
+        {
+            "type": "call_expression",
+            "name": null,
+            "start_line": 23,
+            "end_line": 23,
+            "start_column": 16,
+            "end_column": 49,
+            "source": "authenticate(\"admin\", \"admin123\")"
+        },
+        {
+            "type": "call_expression",
+            "name": null,
+            "start_line": 25,
+            "end_line": 25,
+            "start_column": 1,
+            "end_column": 20,
+            "source": "console.log(result)"
+        }
+    ],
+    "imports": [
+        {
+            "type": "import_statement",
+            "name": null,
+            "start_line": 2,
+            "end_line": 2,
+            "start_column": 1,
+            "end_column": 21,
+            "source": "import fs from \"fs\";"
+        }
+    ],
+    "syntax_errors": [],
+    "file": "examples/sample.js"
+}
