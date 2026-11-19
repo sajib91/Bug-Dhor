@@ -1,14 +1,18 @@
 # Bug Dhor VS Code Extension Release Checklist
 
 This checklist covers packaging the Bug Dhor VS Code extension as a VSIX. It
-does **not** cover Marketplace publication. The current manifest still uses the
-placeholder publisher `your-publisher-id` and has no repository URL or license,
-so every build is a development artifact until those fields are resolved.
+does **not** publish to the Marketplace. The manifest uses the approved
+publisher `sajib91`, extension ID `bug-dhor`, version `0.1.0`, and public GitHub
+repository URLs, but no license has been selected, so every build remains a
+release candidate until the release gates are resolved.
 
 The extension is a client only. It connects to an already-running Python
 backend and never starts one. Python backend installation is documented
-separately in [the user guide](user-guide.md#5-installation-instructions) and
-[development setup](development-setup.md).
+separately in [the user guide](user-guide.md#5-installation-instructions),
+[development setup](development-setup.md), and the Marketplace-facing
+[extension README](../vscode-extension/README.md). Marketplace preparation is
+tracked in [Phase 06](../reports/PHASE_06_MARKETPLACE_READINESS.md) and OIDC
+publishing setup in [Phase 07](../reports/PHASE_07_PUBLISHING_SETUP.md).
 
 ## 1. Versioning policy
 
@@ -55,8 +59,8 @@ Manually inspect `vscode-extension/package.json` for the `publisher`,
 
 ## 3. Commands and activation
 
-The manifest currently contributes 13 commands and activates on
-`onStartupFinished`, the 12 `onCommand:` events, and
+The manifest currently contributes 27 commands and activates on
+`onStartupFinished`, the corresponding `onCommand:` events, and
 `onView:bugdhor.sidebar`. There is no `*` activation event.
 
 Check that:
@@ -92,31 +96,36 @@ updating the CSP and the webview unit tests.
 
 The ignore file excludes development tests, editor state, lockfiles,
 placeholders, secrets, local data, logs, datasets, and model weights, while
-keeping `package.json`, `README.md`, `media/**`, and `src/**`.
+keeping `package.json`, `README.md`, `CHANGELOG.md`, `media/**`, and `src/**`.
+It also allows an existing `LICENSE`, `LICENSE.md`, or `LICENSE.txt` to be
+staged if the repository owner adds one; no license is invented.
 
 Build a candidate archive and inspect it:
 
 ```bash
-cd vscode-extension
-npm run package:vsix -- --out /tmp/bugdhor-candidate.vsix
-unzip -l /tmp/bugdhor-candidate.vsix
+npm --workspace vscode-extension run package:vsix
+python -m zipfile -l vscode-extension/bug-dhor-0.1.0.vsix
 ```
 
 Confirm the archive does **not** contain:
 
 - `.env`, `.env.*`, or `*.env`
-- `.git/`, `.venv/`, `node_modules/`, `.vscode-test/`, or test files
+- `.git/`, `.venv/`, `.vscode-test/`, `test/`, or development dependencies such as
+  `node_modules/@vscode/`
 - `package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`
-- `.gitkeep` placeholders
+- `.gitkeep` or `.DS_Store` placeholders
 - `*.vsix`, `*.safetensors`, `*.ckpt`, `*.pt`, `*.pth`, `*.onnx`, or datasets
 - local databases, logs, or cache directories
 
-The expected current contents are 45 files (VSIX manifest, content types,
-`package.json`, `README.md`, six media assets, and `src/**`). The size is about
-102 KB. A candidate VSIX must never include another VSIX.
+The staged production dependency closure (`ajv` and its runtime dependencies)
+**is** expected under `node_modules/`. The current build has 236 entries and
+483,685 bytes, including the lowercase `changelog.md` and `readme.md` entries
+that `vsce` writes into the archive. A candidate VSIX must never include another
+VSIX.
 
-Run `npm run package:list` if you need a verbose list, but note that `vsce ls`
-may display parent-workspace files. The packaged archive is authoritative.
+Run `npm --workspace vscode-extension run package:list` for a verbose staged
+tree. The `packageVsix.js` wrapper stages the copy outside the npm workspace, so
+it does not display parent-repository files.
 
 ## 6. Backend connection configuration
 
@@ -203,15 +212,13 @@ From `vscode-extension/`:
 npm run package:vsix
 ```
 
-This runs:
-
-```bash
-vsce package --no-dependencies --allow-missing-repository --skip-license
-```
-
-`--no-dependencies` is required because npm workspaces hoist dependencies to
-the repository root. The extension has no runtime npm dependency; `ajv` is used
-only by tests. Add bundling before importing a runtime dependency.
+This calls `scripts/packageVsix.js`, which copies only extension sources, media,
+and the declared production dependency closure into a temporary directory and
+runs `vsce` there. Do not run `vsce` directly from `vscode-extension/`: npm
+workspace hoisting can make it traverse the repository root. The staged archive
+includes `ajv` and its runtime dependencies. The missing-license warning is left
+visible; no `--skip-license`, `--no-dependencies`, or equivalent bypass flag is
+used.
 
 The default output is `vscode-extension/bug-dhor-<version>.vsix`. Confirm the
 file exists, is non-zero, and contains the expected files from section 5.
@@ -247,28 +254,31 @@ Views and More Actions → Install from VSIX…** and verify:
   gracefully when the backend is unreachable.
 - With the backend running and healthy, a scan reaches the backend and can render
   real detector-produced findings with `heuristic_index` risk. `analysisAvailable:
-  false` is still possible when a stage produces no result; it is reported as
+false` is still possible when a stage produces no result; it is reported as
   unavailable analysis, not as a clean scan.
 - No finding is fabricated when analysis is unavailable.
 
 A clean installation was verified in the current macOS environment by installing
 `bug-dhor-0.1.0.vsix` into a temporary `--extensions-dir` with a temporary
-`--user-data-dir`; the result listed as
-`your-publisher-id.bug-dhor@0.1.0`. The temporary profile was removed afterward.
-Interactive activation checks still need to be repeated in the target VS Code
-version and OS.
+`--user-data-dir`; the result listed as `sajib91.bug-dhor@0.1.0`. The temporary
+profile was removed afterward. Interactive activation checks still need to be
+repeated in the target VS Code version and OS.
 
 Remove the temporary directory after verification. Do not reuse a stale VSIX
 from a previous build.
 
 ## 9. Known release blockers and limitations
 
-- Placeholder publisher `your-publisher-id`; a real Marketplace publisher is
-  required before publishing.
-- No `repository` URL and no `LICENSE` file. `--allow-missing-repository` and
-  `--skip-license` are used only to produce a development VSIX.
-- No runtime dependency bundling step. Keep `--no-dependencies` only while the
-  runtime remains dependency-free.
+- Phase 04 records a **NO-GO for publication** decision with 2 CRITICAL and 4
+  HIGH findings still open. Packaging and documentation work does not clear
+  those security gates. See [`PHASE_04_SECURITY_AUDIT.md`](../reports/PHASE_04_SECURITY_AUDIT.md).
+- Publisher identity is declared as `sajib91` but has not been verified against
+  the Marketplace account intended for publication.
+- No `LICENSE` file is present. Packaging leaves the `vsce` missing-license
+  warning visible; publication stays blocked until a license decision is made.
+- Runtime dependencies are staged from the declared production closure rather
+  than bundled into a single file. A bundling step is still recommended for
+  extension startup performance.
 - Docker-backed sandbox execution is optional and not assumed. Without a
   sandbox backend, execution is not attempted and verification reports
   `inconclusive` with explicit limitations.
@@ -278,7 +288,8 @@ from a previous build.
   describe model-backed features as available without the required artifacts.
 - No licensed benchmark datasets or experimental runs are included. Do not
   claim empirical results from packaging.
-- Backend test suite is green: 638 passed, 0 failed. See the root
+- A prior backend test run recorded 638 passed and 0 failed; that result was not
+  repeated during the Phase 06 documentation and packaging update. See the root
   [`release-checklist.md`](../release-checklist.md) §3.2.
 - Research-completeness gaps (trained detector, interaction screening, prevention
   loop, localization attribution, end-to-end model/SAE/sandbox evaluation) remain
@@ -290,19 +301,28 @@ from a previous build.
 
 ## 10. Release checklist
 
-| Check | Command or action | Status |
-|---|---|---|
-| Manifest identity, entry point, icon, engine | `npm --workspace vscode-extension test` | Pass (295 tests) |
-| Commands and activation events consistent | Unit suite + manifest inspection | Pass |
-| Webview assets present and packaged | Archive listing | Pass |
-| `.vscodeignore` excludes dev files, secrets, weights | Archive listing | Pass |
-| Version updated consistently | `package.json` + manifest test | Pass (0.1.0) |
-| Backend unit/API suite | `cd security-engine && ../.venv/bin/python -m pytest -q` | Pass (638 tests) |
-| Backend starts locally | `../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765` | Pass (started) |
-| Backend health reachable | `curl http://127.0.0.1:8765/api/v1/health` | Pass (HTTP 200) |
-| Optional token behavior | Set `BUGDHOR_API_TOKEN` on both sides | Pass (401 without, 200 with) |
-| Optional remote backend | Set `bugdhor.backend.url` + token + TLS | Documented; not tested |
-| VSIX builds cleanly | `npm run package:vsix` | Pass (45 files, 101.87 KB) |
-| Clean VS Code install | Temporary `--extensions-dir` install | Pass (listed `your-publisher-id.bug-dhor@0.1.0`) |
-| Interactive activation/UI checks | Launch the installed extension and run a command | Verify per machine |
-| Marketplace fields complete | Publisher, repository, license | **Blocked** |
+| Check                                                | Command or action                                                     | Status                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------- |
+| Manifest identity, entry point, icon, engine         | `npm --workspace vscode-extension test`                               | Pass (411 tests, 0 failed)                         |
+| Marketplace metadata and HTTPS README images         | Manifest + README unit assertions                                     | Pass                                               |
+| Commands and activation events consistent            | Unit suite + manifest inspection                                      | Pass (27 commands)                                 |
+| Webview assets present and packaged                  | Archive listing                                                       | Pass                                               |
+| `.vscodeignore` excludes dev files, secrets, weights | Archive listing                                                       | Pass                                               |
+| Version updated consistently                         | `package.json` + manifest test                                        | Pass (0.1.0)                                       |
+| Backend unit/API suite                               | `cd security-engine && ../.venv/bin/python -m pytest -q`              | Prior run: 638 pass; rerun required                |
+| Backend starts locally                               | `../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765`         | Pass (started in prior verification)               |
+| Backend health reachable                             | `curl http://127.0.0.1:8765/api/v1/health`                            | Pass (HTTP 200 in prior verification)              |
+| Optional token behavior                              | Set `BUGDHOR_API_TOKEN` on both sides                                 | Pass (401 without, 200 with in prior verification) |
+| Optional remote backend                              | Set `bugdhor.backend.url` + token + TLS                               | Documented; not tested                             |
+| Extension Host integration                           | `npm --workspace vscode-extension run test:integration`               | Pass                                               |
+| Installed VSIX smoke test                            | `npm --workspace vscode-extension run test:integration:vsix`          | Pass                                               |
+| VSIX builds cleanly                                  | `npm --workspace vscode-extension run package:vsix`                   | Pass (236 entries, 483,685 bytes)                  |
+| Clean VS Code install                                | Temporary `--extensions-dir` install                                  | Pass (listed `sajib91.bug-dhor@0.1.0`)             |
+| Interactive activation/UI checks                     | Launch the installed extension and run a command                      | Verify per machine                                 |
+| Marketplace documentation                            | `vscode-extension/README.md` and `CHANGELOG.md`                       | Pass                                               |
+| Marketplace license field                            | `LICENSE`, `LICENSE.md`, or `LICENSE.txt`                             | **Blocked**                                        |
+| Publisher identity                                   | Marketplace account ownership                                         | **Blocked**                                        |
+| Phase 04 security gates                              | [`PHASE_04_SECURITY_AUDIT.md`](../reports/PHASE_04_SECURITY_AUDIT.md) | **Fail** (NO-GO)                                   |
+| Three-OS CI evidence                                 | [`extension-tests.yml`](../.github/workflows/extension-tests.yml)     | **Blocked** (no run yet)                           |
+| OIDC Trusted Publishing policy                       | Marketplace publisher settings                                        | **Blocked** (owner setup required)                 |
+| Final release decision                               | All gates above                                                       | **NO-GO — do not publish**                         |

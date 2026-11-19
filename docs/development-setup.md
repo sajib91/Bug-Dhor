@@ -1,21 +1,21 @@
 # Development Setup
 
-**Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, diagnostics, and HTTP API verification was repeated on 2026-11-12. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
+**Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, diagnostics, and HTTP API verification was repeated on 2026-11-12. Packaging, Marketplace documentation, and OIDC publishing preparation were rechecked on 2026-11-19. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
 This repository is an early implementation. Setup installs the toolchain, and the VS Code extension with its dashboard and diagnostics pipeline can run in an Extension Development Host. The Python engine provides a tested, versioned FastAPI HTTP API with real file/workspace inspection, source preprocessing, program analysis, static-analyzer adapters, detection, explanation, proposal-only repair, and bounded verification. The extension uses a live HTTP client but does not start the backend process. SAE extraction, counterfactual analysis, and activation steering remain honest HTTP stubs that report `unavailable`; no production model/SAE artifact, calibration artifact, or adequate execution sandbox is present. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced by setup.
 
 ## 1. Supported toolchain
 
-| Component | Required | Verified on this host |
-|---|---|---|
-| Python | `>=3.11,<3.15` | 3.11.14 |
-| Node.js | 22.13+ or 24+ (24 LTS recommended) | 25.9.0 |
-| npm | Bundled with Node | 11.13.0 |
-| VS Code | 1.90+ | 1.143.1; Extension Host launched |
-| OS | macOS or Windows | macOS 26.3.1, arm64 |
-| Docker | Optional, for future sandbox verification | 29.2.1 detected |
-| Semgrep | Optional | 1.185.0 |
-| Bandit | Optional | 1.9.4 |
+| Component | Required                                  | Verified on this host            |
+| --------- | ----------------------------------------- | -------------------------------- |
+| Python    | `>=3.11,<3.15`                            | 3.11.14                          |
+| Node.js   | 22.13+ or 24+ (24 LTS recommended)        | 25.9.0                           |
+| npm       | Bundled with Node                         | 11.13.0                          |
+| VS Code   | 1.90+                                     | 1.143.1; Extension Host launched |
+| OS        | macOS or Windows                          | macOS 26.3.1, arm64              |
+| Docker    | Optional, for future sandbox verification | 29.2.1 detected                  |
+| Semgrep   | Optional                                  | 1.185.0                          |
+| Bandit    | Optional                                  | 1.9.4                            |
 
 Node 23 is intentionally excluded because ESLint 10 and `@vscode/vsce` 4 do not support it. `.nvmrc` pins Node 24 for nvm users. `.python-version` pins Python 3.11 as the most thoroughly verified interpreter.
 
@@ -152,12 +152,12 @@ Do not run both the setup script and the manual commands against the same enviro
 
 ## 6. Dependency profiles
 
-| Goal | Command | Verification status |
-|---|---|---|
-| Full local development with CPU PyTorch and analyzer CLIs | `npm run setup -- --cpu --with-analyzers` | Executed and verified with Python 3.11 on macOS |
-| Core + dev + ML, no Semgrep/Bandit | `npm run setup -- --cpu` | Same path minus the analyzer extra; not separately executed |
-| Static-only engine, no PyTorch/Transformers | `npm run setup -- --static-only` | Not separately executed |
-| Python environment only, skip npm | `npm run setup -- --cpu --skip-node` | Not separately executed |
+| Goal                                                      | Command                                   | Verification status                                         |
+| --------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- |
+| Full local development with CPU PyTorch and analyzer CLIs | `npm run setup -- --cpu --with-analyzers` | Executed and verified with Python 3.11 on macOS             |
+| Core + dev + ML, no Semgrep/Bandit                        | `npm run setup -- --cpu`                  | Same path minus the analyzer extra; not separately executed |
+| Static-only engine, no PyTorch/Transformers               | `npm run setup -- --static-only`          | Not separately executed                                     |
+| Python environment only, skip npm                         | `npm run setup -- --cpu --skip-node`      | Not separately executed                                     |
 
 The Python extras are declared in `security-engine/pyproject.toml`:
 
@@ -170,29 +170,29 @@ The Python extras are declared in `security-engine/pyproject.toml`:
 
 Setup copies `.env.example` to `.env`. Never commit `.env`. The template sets CPU development as the default.
 
-| Variable | Default in template | Purpose |
-|---|---|---|
-| `BUGDHOR_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` |
-| `BUGDHOR_DATA_DIR` | `./.bugdhor-data` | Local data directory |
-| `BUGDHOR_LOG_DIR` | `./.bugdhor-data/logs` | Local log directory |
-| `BUGDHOR_HOST` | `127.0.0.1` | API bind address; keep loopback for local use |
-| `BUGDHOR_PORT` | `8765` | API port; `0` selects an ephemeral port |
-| `BUGDHOR_CORS_ORIGINS` | commented out | Exact comma-separated origin allowlist; wildcards are rejected |
-| `BUGDHOR_WORKSPACE_ROOTS` | commented out | Allowed scan roots; defaults to the process working directory |
-| `BUGDHOR_MAX_REQUEST_BYTES` | `2097152` | Maximum JSON request body |
-| `BUGDHOR_MAX_FILE_BYTES` | `1048576` | Maximum inspected file size |
-| `BUGDHOR_MAX_WORKSPACE_FILES` | `50000` | Maximum files discovered per workspace scan |
-| `BUGDHOR_API_TOKEN` | commented out | Optional bearer token for `/api/*` requests |
-| `BUGDHOR_DEVICE` | `cpu` | `cpu`, `auto`, `cuda`, or `mps`; `auto` detects hardware |
-| `BUGDHOR_GPU_CONCURRENCY` | `1` | Integer from 1 to 8 |
-| `BUGDHOR_MODEL_ID` | commented out | Hugging Face model identifier, only when a workflow needs it |
-| `BUGDHOR_MODEL_REVISION` | commented out | Immutable model revision, preferably a commit SHA |
-| `BUGDHOR_HF_TOKEN` or `HF_TOKEN` | commented out | Optional gated-model token; redacted from serialized settings |
-| `BUGDHOR_SAE_MANIFEST` | commented out | Registered, compatible SAE manifest path |
-| `BUGDHOR_SANDBOX_BACKEND` | `docker` | `docker`, `process`, or `none`; no sandbox backend is implemented yet |
-| `BUGDHOR_SANDBOX_TIMEOUT_SECONDS` | `900` | Sandbox timeout |
-| `BUGDHOR_SEMGREP_PATH` | `semgrep` | Semgrep executable or command |
-| `BUGDHOR_BANDIT_PATH` | `bandit` | Bandit executable or command |
+| Variable                          | Default in template    | Purpose                                                               |
+| --------------------------------- | ---------------------- | --------------------------------------------------------------------- |
+| `BUGDHOR_LOG_LEVEL`               | `INFO`                 | `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`                    |
+| `BUGDHOR_DATA_DIR`                | `./.bugdhor-data`      | Local data directory                                                  |
+| `BUGDHOR_LOG_DIR`                 | `./.bugdhor-data/logs` | Local log directory                                                   |
+| `BUGDHOR_HOST`                    | `127.0.0.1`            | API bind address; keep loopback for local use                         |
+| `BUGDHOR_PORT`                    | `8765`                 | API port; `0` selects an ephemeral port                               |
+| `BUGDHOR_CORS_ORIGINS`            | commented out          | Exact comma-separated origin allowlist; wildcards are rejected        |
+| `BUGDHOR_WORKSPACE_ROOTS`         | commented out          | Allowed scan roots; defaults to the process working directory         |
+| `BUGDHOR_MAX_REQUEST_BYTES`       | `2097152`              | Maximum JSON request body                                             |
+| `BUGDHOR_MAX_FILE_BYTES`          | `1048576`              | Maximum inspected file size                                           |
+| `BUGDHOR_MAX_WORKSPACE_FILES`     | `50000`                | Maximum files discovered per workspace scan                           |
+| `BUGDHOR_API_TOKEN`               | commented out          | Optional bearer token for `/api/*` requests                           |
+| `BUGDHOR_DEVICE`                  | `cpu`                  | `cpu`, `auto`, `cuda`, or `mps`; `auto` detects hardware              |
+| `BUGDHOR_GPU_CONCURRENCY`         | `1`                    | Integer from 1 to 8                                                   |
+| `BUGDHOR_MODEL_ID`                | commented out          | Hugging Face model identifier, only when a workflow needs it          |
+| `BUGDHOR_MODEL_REVISION`          | commented out          | Immutable model revision, preferably a commit SHA                     |
+| `BUGDHOR_HF_TOKEN` or `HF_TOKEN`  | commented out          | Optional gated-model token; redacted from serialized settings         |
+| `BUGDHOR_SAE_MANIFEST`            | commented out          | Registered, compatible SAE manifest path                              |
+| `BUGDHOR_SANDBOX_BACKEND`         | `docker`               | `docker`, `process`, or `none`; no sandbox backend is implemented yet |
+| `BUGDHOR_SANDBOX_TIMEOUT_SECONDS` | `900`                  | Sandbox timeout                                                       |
+| `BUGDHOR_SEMGREP_PATH`            | `semgrep`              | Semgrep executable or command                                         |
+| `BUGDHOR_BANDIT_PATH`             | `bandit`               | Bandit executable or command                                          |
 
 Relative paths are resolved from the process working directory. Run engine commands from the repository root unless a later component documents otherwise.
 
@@ -202,19 +202,19 @@ The settings layer is implemented and tested in `security-engine/src/bugdhor/cor
 
 Run these from the repository root after setup.
 
-| Command | What it does | Verified |
-|---|---|---|
-| `npm run doctor` | Prints Node, npm, venv Python, installed packages, optional analyzers, Docker, and `.env` status; performs no downloads | Yes |
-| `npm run structure:check` | Validates required directories/files, package markers, JavaScript entry point, and absence of TypeScript | Yes |
-| `npm run lint` | Runs Ruff on `security-engine/src` and `security-engine/tests`, then ESLint on `vscode-extension` | Yes |
-| `npm run format` | Writes Ruff and Prettier formatting | Yes |
-| `npm run format:check` | Checks formatting without writing | Yes |
-| `npm test` | Runs pytest and VS Code extension unit tests | Yes |
-| `npm run build` | Builds the Python wheel and packages a development VSIX | Yes |
-| `npm run check` | Runs structure, lint, format check, and tests | Yes |
-| `npm run extension:test` | Runs only extension unit tests | Yes (via the same command path) |
-| `npm run extension:lint` | Runs only extension ESLint | Yes (via the same command path) |
-| `npm run extension:test:integration` | Launches a real VS Code Extension Host and validates activation, commands, views, and settings | Yes; VS Code 1.143.1 on macOS |
+| Command                              | What it does                                                                                                            | Verified                        |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `npm run doctor`                     | Prints Node, npm, venv Python, installed packages, optional analyzers, Docker, and `.env` status; performs no downloads | Yes                             |
+| `npm run structure:check`            | Validates required directories/files, package markers, JavaScript entry point, and absence of TypeScript                | Yes                             |
+| `npm run lint`                       | Runs Ruff on `security-engine/src` and `security-engine/tests`, then ESLint on `vscode-extension`                       | Yes                             |
+| `npm run format`                     | Writes Ruff and Prettier formatting                                                                                     | Yes                             |
+| `npm run format:check`               | Checks formatting without writing                                                                                       | Yes                             |
+| `npm test`                           | Runs pytest and VS Code extension unit tests                                                                            | Yes                             |
+| `npm run build`                      | Builds the Python wheel and packages a development VSIX                                                                 | Yes                             |
+| `npm run check`                      | Runs structure, lint, format check, and tests                                                                           | Yes                             |
+| `npm run extension:test`             | Runs only extension unit tests                                                                                          | Yes (via the same command path) |
+| `npm run extension:lint`             | Runs only extension ESLint                                                                                              | Yes (via the same command path) |
+| `npm run extension:test:integration` | Launches a real VS Code Extension Host and validates activation, commands, views, and settings                          | Yes; VS Code 1.143.1 on macOS   |
 
 Direct Python commands, after activation:
 
@@ -240,26 +240,31 @@ The manifest contributes:
 - **Sidebar launcher:** `bugdhor.sidebar`, titled **Security Dashboard**, rendered by `src/webviews/sidebarView.js` with a nonce CSP and local CSS/JS. Its only action posts `openDashboard`; it cannot execute commands or read analysis data.
 - **Security dashboard panel:** opened on demand by `bugdhor.openSecurityDashboard`, not contributed as a manifest view. It is a singleton editor-area panel with 11 sections, theme-aware styling, and a restrictive nonce CSP.
 - **Settings:** `bugdhor.backend.pythonPath`, `bugdhor.backend.autoStart`, `bugdhor.logging.level`, and `bugdhor.ui.showStatusBarItem`.
-- **Extension icon:** `media/icon.png`, a 128×128 PNG placeholder. The publisher is the explicit placeholder `your-publisher-id`; replace it before publishing.
+- **Extension icon:** `media/icon.png`, a valid 128×128 PNG used as the Marketplace icon. The manifest publisher is the approved ID `sajib91`; the Marketplace account still requires owner verification.
 
 All commands use the **Bug Dhor** category:
 
-| Command | Scope | Service method |
-|---|---|---|
-| `bugdhor.showStatus` | None | — |
-| `bugdhor.showLogs` | None | — |
-| `bugdhor.scanCurrentFile` | Saved file in a workspace folder | `scanFile` |
-| `bugdhor.scanSelection` | Saved file with a non-empty selection | `scanSelection` |
-| `bugdhor.scanWorkspace` | One or more workspace folders | `scanWorkspace` |
-| `bugdhor.explainVulnerability` | Saved file in a workspace folder | `explainVulnerability` |
-| `bugdhor.analyzeSecurityFeatures` | Saved file in a workspace folder | `analyzeSecurityFeatures` |
-| `bugdhor.counterfactualAnalysis` | Saved file with a non-empty selection | `counterfactualAnalysis` |
-| `bugdhor.generateSecureCode` | Saved file in a workspace folder | `generateSecureCode` |
-| `bugdhor.repairVulnerability` | Saved file in a workspace folder; optional finding context from a diagnostic Quick Fix | `repairVulnerability` |
-| `bugdhor.verifyRepair` | Saved file in a workspace folder | `verifyRepair` |
-| `bugdhor.openSecurityDashboard` | None | — |
+| Command                           | Scope                                                                                  | Service method            |
+| --------------------------------- | -------------------------------------------------------------------------------------- | ------------------------- |
+| `bugdhor.showStatus`              | None                                                                                   | —                         |
+| `bugdhor.showLogs`                | None                                                                                   | —                         |
+| `bugdhor.scanCurrentFile`         | Saved file in a workspace folder                                                       | `scanFile`                |
+| `bugdhor.scanSelection`           | Saved file with a non-empty selection                                                  | `scanSelection`           |
+| `bugdhor.scanWorkspace`           | One or more workspace folders                                                          | `scanWorkspace`           |
+| `bugdhor.explainVulnerability`    | Saved file in a workspace folder                                                       | `explainVulnerability`    |
+| `bugdhor.analyzeSecurityFeatures` | Saved file in a workspace folder                                                       | `analyzeSecurityFeatures` |
+| `bugdhor.counterfactualAnalysis`  | Saved file with a non-empty selection                                                  | `counterfactualAnalysis`  |
+| `bugdhor.generateSecureCode`      | Saved file in a workspace folder                                                       | `generateSecureCode`      |
+| `bugdhor.repairVulnerability`     | Saved file in a workspace folder; optional finding context from a diagnostic Quick Fix | `repairVulnerability`     |
+| `bugdhor.verifyRepair`            | Saved file in a workspace folder                                                       | `verifyRepair`            |
+| `bugdhor.openSecurityDashboard`   | None                                                                                   | —                         |
 
-The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, configuration service, HTTP security-engine service, diagnostics controller and providers, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 13 registrations and the diagnostics feature. No Python process is started by the extension. Activation performs a non-blocking backend health check that sends no source code.
+This table lists the original engine-backed commands. The current manifest contributes 27 commands in
+total, including repository/changed-file scanning, assistant capability inspection, finding
+navigation, and the opt-in local Phase 6 workflows; see
+[`vscode-extension/package.json`](../vscode-extension/package.json) for the full list.
+
+The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, configuration service, HTTP security-engine service, diagnostics controller and providers, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 27 registrations and the diagnostics feature. No Python process is started by the extension. Activation performs a non-blocking backend health check that sends no source code.
 
 `bugdhor.openSecurityDashboard` calls the injected `DashboardPanelController`, which creates or reveals a singleton editor-area panel titled **Bug Dhor Security Dashboard**. The dashboard is empty by default: unknown counts are `null` and result lists are empty. The **Load demo preview** action requests a separately labeled state with 18 illustrative findings and matching severity/CWE totals; it intentionally leaves SAE features, interactions, steering, explanations, repairs, recommendations, feedback lifecycle, verification checks, and reports empty. Dashboard action buttons may execute only the nine engine-backed commands in the controller's allowlist, with no arguments; commands that fail produce an error notice, never a success notice. The webview cannot write source files; patch buttons only post a message, and the extension host applies a change solely after explicit approval, base-hash revalidation, target-path validation, and a successful `WorkspaceEdit`.
 
@@ -275,7 +280,7 @@ Use the **Run Bug Dhor Extension** launch configuration in `.vscode/launch.json`
 npm run extension:test:integration
 ```
 
-This uses a locally installed VS Code when found (`BUGDHOR_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The runner creates a disposable workspace, starts the Python backend on a free loopback port with `BUGDHOR_WORKSPACE_ROOTS` limited to that workspace, waits for `/api/v1/health`, and passes the backend URL to the Extension Host. The suite activates the extension, sets the workspace-scoped backend URL, verifies health and unreachable-backend handling, scans an unsaved editor buffer and checks that the returned SHA-256 matches the buffer rather than the saved file, disables source sharing and verifies the backend falls back to the disk copy, scans the workspace and a selection, verifies that unavailable analysis publishes no diagnostics, opens the dashboard, and verifies that a second invocation reuses the same tab. The backend is terminated and the temporary workspace removed afterwards.
+This uses a locally installed VS Code when found (`BUGDHOR_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The runner creates a disposable workspace, starts the Python backend on a free loopback port with `BUGDHOR_WORKSPACE_ROOTS` limited to that workspace, waits for `/api/v1/health`, and passes the backend URL to the Extension Host. The suite activates the extension, sets the workspace-scoped backend URL, verifies health and unreachable-backend handling, scans an unsaved editor buffer and checks that the returned SHA-256 matches the buffer rather than the saved file, disables source sharing and verifies the backend falls back to the disk copy, scans the workspace and a selection, verifies that unavailable analysis publishes no diagnostics, opens the dashboard, and verifies that a second invocation reuses the same tab. The backend is terminated and the temporary workspace removed afterwards. The workspace path deliberately contains spaces and non-ASCII characters, and the suite scans both Python and JavaScript files. A separate `npm run test:integration:vsix` installs the packaged VSIX into an isolated extensions directory and repeats activation, backend, and webview checks against the installed artifact.
 
 The launch configuration itself was not clicked on this host, but the same development-extension path was loaded by the Extension Host integration test.
 
@@ -290,37 +295,37 @@ Outputs:
 - Python wheel: `security-engine/dist/bugdhor_engine-0.1.0-py3-none-any.whl`
 - VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`
 
-The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The current packaged VSIX contains 50 files and about 74.6 KB, including the dashboard, launcher, and diagnostics modules. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
+The VSIX is built by `scripts/packageVsix.js` from a clean staging copy containing only extension sources, media, `CHANGELOG.md`, and the declared production dependency closure. This workspace-aware staging avoids `--no-dependencies` and includes `ajv` with its runtime dependencies. A current build contains 236 entries, 472.35 KB as reported by `vsce`, and 483,685 bytes on disk. An existing `LICENSE`, `LICENSE.md`, or `LICENSE.txt` is staged automatically if added later. Today `vsce` still reports `WARNING LICENSE, LICENSE.md, or LICENSE.txt not found`; no license warning is suppressed and no bypass flag is used.
 
-The VSIX is a development artifact. It has no repository URL or license yet, so packaging uses `--allow-missing-repository` and `--skip-license`. Do not publish it until those decisions are made.
+The development dependency is `@vscode/vsce` 4.1.1, which requires Node.js 22 or newer and supports `publish --oidc`. The manual-only release workflow is documented in [`PHASE_07_PUBLISHING_SETUP.md`](../reports/PHASE_07_PUBLISHING_SETUP.md). Do not publish until the Phase 04 gates, license, and publisher-identity decisions are resolved.
 
 ## 11. Verification record
 
 Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer, dashboard, and diagnostics verification on 2026-11-12, and source-preprocessing, program-analysis, and taint verification on 2026-11-13/14:
 
-| Check | Result |
-|---|---|
-| `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads |
-| `npm run structure:check` | 50 required directories and 161 required files present; no TypeScript sources |
-| `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
-| CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
-| Tree-sitter grammars | Python, JavaScript, TypeScript, and TSX grammars exercised by parsing tests; all 13 requested languages are detectable, but only those three language families are parsed and only Python/JavaScript have CFG/DFG/taint |
-| `npm run lint` | Root Ruff gate fails on the pre-existing repository baseline; extension ESLint is clean |
-| `npm run format:check` | Fails on a pre-existing baseline: 55 files would be reformatted, 184 already formatted; no file changed by this work appears in the reformat list |
-| `npm test` | 806 pytest tests passed from the repository root (engine + mathematical regressions); engine-only run from `security-engine/` passed 717 tests; 325 Node unit tests passed |
-| Language and parsing unit tests | Coverage for 13-language detection, installed-parser capability reporting, TSX grammar selection, explicit `no_installed_parser` skips, BOM/CRLF source maps, UTF-16 positions, tokenization, function extraction, chunking, syntax diagnostics, and repository metadata |
-| Program-analysis unit tests | 62 tests passed over Python/JavaScript basic blocks, branches, loops, exceptions, functions, exact locations, reaching definitions, calls, returns, closures, unresolved uses, graph invariants, determinism, and positive/negative taint flows for five vulnerability classes |
-| Detection unit tests | 70 engine/fusion/contract/analysis tests, 81 contract and shared-schema tests, 32 opt-in general-bug rule tests, and 13 health/pipeline tests passed |
-| Static-adapter tests | 32 tests passed over subprocess safety, timeouts, output capture, Semgrep/Bandit/SARIF/Joern parsing, CWE normalization, deduplication, missing/failed/unavailable statuses, CodeQL license/config gates, Joern version gates, and mocked end-to-end integrations |
-| `npm run extension:test:integration` | Extension Host activated the extension; all 13 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
-| Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
-| `npm run check` | Fails on the pre-existing root lint/format baseline; extension lint, backend 717/806 tests, and extension 325 tests pass |
-| `npm run build` | Python wheel built; 50-file, 74.63 KB VSIX packaged |
-| `npm audit --omit=dev` | 0 production vulnerabilities |
-| `npm audit` | 4 moderate `minimatch` advisories in development tooling only |
-| Windows wheel availability | Torch CPU `win_amd64`, Semgrep `win_amd64`, and tree-sitter Windows wheels present in metadata; not executed |
+| Check                                                         | Result                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads                                                                                                                                                                                                                                  |
+| `npm run structure:check`                                     | 50 required directories and 161 required files present; no TypeScript sources                                                                                                                                                                                                          |
+| `npm run doctor`                                              | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1                                                                                                                                                           |
+| CPU-only PyTorch                                              | `torch 2.15.0`, `torch.version.cuda is None`                                                                                                                                                                                                                                           |
+| Tree-sitter grammars                                          | Python, JavaScript, TypeScript, and TSX grammars exercised by parsing tests; all 13 requested languages are detectable, but only those three language families are parsed and only Python/JavaScript have CFG/DFG/taint                                                                |
+| `npm run lint`                                                | Root Ruff gate fails on the pre-existing repository baseline; extension ESLint is clean                                                                                                                                                                                                |
+| `npm run format:check`                                        | Fails on a pre-existing baseline: 55 files would be reformatted, 184 already formatted; no file changed by this work appears in the reformat list                                                                                                                                      |
+| `npm test`                                                    | Earlier aggregate run: 806 pytest tests passed from the repository root (engine + mathematical regressions), engine-only run passed 717 tests, and 325 Node unit tests passed. The Phase 06 recheck ran 411 extension unit tests with 0 failures; the aggregate command was not rerun. |
+| Language and parsing unit tests                               | Coverage for 13-language detection, installed-parser capability reporting, TSX grammar selection, explicit `no_installed_parser` skips, BOM/CRLF source maps, UTF-16 positions, tokenization, function extraction, chunking, syntax diagnostics, and repository metadata               |
+| Program-analysis unit tests                                   | 62 tests passed over Python/JavaScript basic blocks, branches, loops, exceptions, functions, exact locations, reaching definitions, calls, returns, closures, unresolved uses, graph invariants, determinism, and positive/negative taint flows for five vulnerability classes         |
+| Detection unit tests                                          | 70 engine/fusion/contract/analysis tests, 81 contract and shared-schema tests, 32 opt-in general-bug rule tests, and 13 health/pipeline tests passed                                                                                                                                   |
+| Static-adapter tests                                          | 32 tests passed over subprocess safety, timeouts, output capture, Semgrep/Bandit/SARIF/Joern parsing, CWE normalization, deduplication, missing/failed/unavailable statuses, CodeQL license/config gates, Joern version gates, and mocked end-to-end integrations                      |
+| `npm run extension:test:integration`                          | Extension Host activated the extension; all 13 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1                                                                    |
+| Dashboard runtime smoke test                                  | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check`                                                                                                                                     |
+| `npm run check`                                               | Fails on the pre-existing root lint/format baseline; extension lint, backend 717/806 tests, and extension 325 tests pass                                                                                                                                                               |
+| `npm run build`                                               | Python wheel built; VSIX packaged through clean staging (236 entries, 483,685 bytes in the current build)                                                                                                                                                                              |
+| `npm audit --omit=dev`                                        | 0 production vulnerabilities                                                                                                                                                                                                                                                           |
+| `npm audit`                                                   | 2 moderate advisories in development tooling only (`@vscode/vsce` / `minimatch`)                                                                                                                                                                                                       |
+| Windows wheel availability                                    | Torch CPU `win_amd64`, Semgrep `win_amd64`, and tree-sitter Windows wheels present in metadata; not executed                                                                                                                                                                           |
 
-The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependencies. They are not shipped in the VSIX because packaging uses `--no-dependencies`. Revisit them when upstream releases compatible fixed versions; do not force a downgrade to ESLint 9 or vsce 3 to silence the audit.
+The `minimatch` advisories affect the `@vscode/vsce` development dependency. They are not shipped in the VSIX because packaging stages only the declared production dependency closure. Revisit them when upstream releases a compatible fixed `@vscode/vsce`; do not force a downgrade to an older toolchain to silence the audit.
 
 ## 12. Troubleshooting
 
@@ -336,7 +341,7 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 
 **Docker is missing.** Setup, lint, and unit tests still work. Execution-based verification is not attempted without an adequate sandbox; verification reports `inconclusive` with explicit limitations and never a pass verdict.
 
-**The VSIX is unexpectedly huge.** Do not remove `--no-dependencies` from the packaging script until the extension is bundled. Without it, npm workspace hoisting causes `vsce` to include the entire repository.
+**The VSIX is unexpectedly huge.** Do not run `vsce` directly from `vscode-extension/`: npm workspace hoisting can make it traverse the repository root. Use `npm run package:vsix`, which builds from a clean staging copy and stages only the production dependency closure.
 
 **A model download is requested.** Setup and doctor do not download models. Any later workflow that needs a model must request it explicitly and record the model ID and immutable revision.
 
@@ -356,7 +361,7 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 - The FastAPI server, analyzer adapters, detector, explanation engine, repair workflow, and verifier are implemented and covered by backend tests. SAE/counterfactual/steering libraries exist but are unwired HTTP stubs; no production model, SAE artifact, calibration artifact, or adequate sandbox is present.
 - Python 3.12–3.14 were not exercised end-to-end.
 - Native Semgrep on Windows was not exercised.
-- The development VSIX does not bundle `ajv` or other runtime dependencies.
-- The extension icon and activity bar icon are placeholders, and the publisher ID is a placeholder.
-- The repository has no license and no repository URL, so it is not publishable.
+- The development VSIX stages `ajv` and its runtime dependency closure, but it does not bundle the Python backend, model artifacts, analyzers, or sandbox.
+- The extension icon is a valid 128×128 PNG and the publisher ID is `sajib91`; no Marketplace screenshots are bundled and the publisher account still requires owner verification.
+- The repository has public GitHub URLs but no license, so it is not publishable. Phase 04 also records a NO-GO publication decision.
 - No model weights, SAE artifacts, datasets, benchmarks, or research results are included.

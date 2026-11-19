@@ -1,405 +1,324 @@
-# Bug Dhor VS Code Extension
+# Bug-Dhor: AI Code Security Analyzer
 
-JavaScript VS Code client for the Bug Dhor security framework.
+![Bug-Dhor extension icon](https://raw.githubusercontent.com/sajib91/Bug-Dhor/main/vscode-extension/media/icon.png)
 
-![Bug Dhor extension icon](media/icon.png)
+Bug-Dhor is a local-first VS Code extension for security analysis of source code. It connects to a
+separately installed Python/FastAPI engine and turns validated backend results into native
+diagnostics, hover explanations, and proposal-only repair workflows. It does **not** start or bundle
+the backend, and it does not fabricate findings, model activations, risk probabilities, or security
+guarantees.
 
-## Status
+> **Release status:** Version `0.1.0` is prepared as a release candidate. Publication is blocked by
+> open security findings, the missing license, and publisher-identity verification. The Marketplace
+> identifier is intended to be `sajib91.bug-dhor`; do not assume the listing is live yet.
 
-**Extension shell with a live local-backend transport, diagnostics pipeline, and proposal-only secure recommendations.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **Bug Dhor Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Health checks, file scans, selection detection requests, workspace scans, and secure recommendations reach the real backend through a `SecurityEngineService`; analysis stages that are unconfigured report explicit `unavailable` states. **Bug Dhor: Generate Secure Code** is a custom provider-backed workflow that uses the backend-built prompt and returns an unapplied, verified proposal. The extension does **not** start the Python backend and never applies code without explicit user approval.
+## Project overview
 
-Backend-backed diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results; the opt-in local Phase 6 commands described below are a separate path and never replace the backend path. The dashboard starts empty until a connected backend supplies state. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, recommendations, feedback lifecycle, verification checks, and reports empty. Backend commands show cancellable progress while they contact the backend and report transport or validation errors; they never show a placeholder success message. Backend findings may include a `heuristic_index` risk assessment; no probability is rendered unless a validated calibration artifact supplied one. An empty findings list with `analysisAvailable: false` is reported as unavailable analysis, never as a clean scan.
+The project has two independently deployed parts:
 
-**Phase 6 is an additive, opt-in local-engine path.** Standard scans, explanations, recommendations, and verification commands still use the FastAPI backend by default. The local `bugdhor_ast` engine is used only when `bugdhor.localEngine.enabled` is true, and source writes remain forbidden unless `bugdhor.localEngine.allowSourceWrite` is also enabled. The adapter runs only the explicit Python CLI module through `execFile` without a shell; it never executes generated or repaired source. Python, JavaScript, and Java are supported by the local explanation and deterministic repair strategies, with explicit static-verification limitations documented below.
+- **VS Code extension** — commands, Activity Bar container, sidebar launcher, Security Dashboard,
+  HTTP client, response validation, diagnostics, and privacy controls.
+- **Python security engine** — a versioned `/api/v1` HTTP API for health checks, file/workspace
+  scanning, program analysis, explanation, verification, and related research routes.
 
-## Installation
+The extension is deliberately an honest client: empty backend state stays empty, `unavailable`
+analysis is reported as unavailable, and a clean result means the configured engine returned no
+findings — not that the code is secure.
 
-For a published build, install the extension with:
+## Key features
+
+- Scan the active saved file, the selected code, the workspace, or a repository inventory through a
+  running backend.
+- Publish native VS Code diagnostics from validated backend findings, with hover explanations and
+  Quick Fixes only for findings marked repair-eligible by the backend.
+- Open an 11-section **Bug-Dhor Security Dashboard**. It starts empty and merges only validated live
+  state; an explicitly labeled demo preview is available for interface exploration.
+- Opt in to model-independent workspace monitoring with debounced, version-aware, bounded analysis.
+  Monitoring is off by default.
+- Request evidence-grounded explanations and configured counterfactual evidence. Missing artifacts
+  or unavailable stages are shown explicitly.
+- Generate secure-code **proposals** through a configured provider with capabilities B and C, then
+  submit candidates to the backend for verification. Nothing is applied without explicit approval.
+- Use seven opt-in local Phase 6 commands for explanation, deterministic repair preview, apply,
+  verify, revert, and history. These require a repository checkout with `src/bugdhor_ast` available;
+  they are not bundled in the VSIX.
+- Keep credentials in the extension-host environment, not in settings or logs.
+
+## Architecture
+
+```text
+VS Code Extension Host
+  -> SecurityEngineService (typed HTTP client)
+    -> Python/FastAPI backend at bugdhor.backend.url
+      -> parsing / program analysis / detection / explanation / verification
+```
+
+The manifest declares `extensionKind: ["workspace"]`. In SSH, WSL, and Codespaces, the extension
+runs on the **remote** side of the workspace, so the backend must be reachable from that remote
+environment. A loopback address on the local client is not sufficient. The backend runs separately
+and must already be running; `bugdhor.backend.autoStart` and `bugdhor.backend.pythonPath` are
+reserved settings and currently have no effect.
+
+The baseline VS Code API requirement is `^1.90.0`. Production dependencies are staged in the VSIX;
+the Python engine and any model, SAE, analyzer, or sandbox artifacts are not.
+
+## Supported languages
+
+Language support is capability-specific and deliberately narrow:
+
+| Capability | Evidence-backed scope |
+|---|---|
+| Backend parsing / AST / CFG / DFG / taint | Python and JavaScript are exercised by the backend suites and the Extension Host smoke tests. TypeScript has parsing support only in the engine. |
+| Java | Detected and covered by the opt-in local Phase 6 deterministic repair strategy (`PreparedStatement`). The default backend has no installed Java parser and must not be described as analyzing Java. |
+| Background monitoring | Python and JavaScript by default (`bugdhor.monitoring.languages`). |
+| Repository inventory | Files are discovered by extension and Git metadata; unsupported languages are reported as gaps, not analyzed. |
+
+No language support is claimed for SAE feature extraction, counterfactual effects, or activation
+steering. Those stages remain unavailable in the default integrated path without compatible
+artifacts and direct model access.
+
+## Requirements
+
+- **VS Code:** 1.90 or newer.
+- **Python backend:** Python 3.11–3.14; 3.11 is the verified baseline.
+- **Backend dependencies:** installed from `security-engine/` (FastAPI, Uvicorn, parsers, and
+  related packages). Optional analyzers and model/SAE artifacts are not bundled.
+- **Workspace:** a local `file:` workspace folder for file, selection, and repository commands.
+- **For building from source:** Node.js 22.13+ or 24+ and npm. Node 23 is not supported by the
+  repository toolchain.
+- **For remote development:** a backend reachable from the remote environment where the extension
+  host runs.
+
+## Installation from Marketplace
+
+After publication, install with either of these methods:
 
 ```bash
 code --install-extension sajib91.bug-dhor
 ```
 
-The extension does not start a backend. Start the Python backend separately, set
-`bugdhor.backend.url`, and configure `BUGDHOR_WORKSPACE_ROOTS` for the folders
-the backend may inspect. See [Backend transport and privacy](#backend-transport-and-privacy)
-before enabling source sharing or background monitoring.
+Or open **Extensions**, search for `Bug-Dhor`, and choose the publisher `sajib91`. Verify the
+publisher identity before installing. A local VSIX can also be installed for evaluation with
+`code --install-extension bug-dhor-0.1.0.vsix`.
 
-## Manifest contributions
+Installing the extension alone is not sufficient: continue with the separate backend installation
+below.
 
-| Contribution | Identifier | Purpose |
-|---|---|---|
-| Activity bar container | `bugdhor` | Bug Dhor entry in the Activity Bar |
-| Sidebar webview | `bugdhor.sidebar` | Activity Bar launcher for the editor-area dashboard |
-| Command | `bugdhor.showStatus` | Report the real extension and engine status |
-| Command | `bugdhor.showLogs` | Open the Bug Dhor output channel |
-| Command | `bugdhor.scanCurrentFile` | Scan the active saved file |
-| Command | `bugdhor.scanSelection` | Scan the selected code |
-| Command | `bugdhor.scanWorkspace` | Scan open workspace folders (client sends metadata; backend reads allowlisted files) |
-| Command | `bugdhor.explainVulnerability` | Explain the vulnerability in context |
-| Command | `bugdhor.analyzeSecurityFeatures` | Analyze security-relevant features |
-| Command | `bugdhor.counterfactualAnalysis` | Compare a selected code region with counterfactual variants |
-| Command | `bugdhor.generateSecureCode` | Generate a verified secure-code proposal from a validated finding using a configured B/C provider |
-| Command | `bugdhor.repairVulnerability` | Generate a repair proposal |
-| Command | `bugdhor.verifyRepair` | Verify a repair at workspace scope |
-| Command | `bugdhor.openSecurityDashboard` | Open or reveal the Bug Dhor Security Dashboard panel |
-| Command (local engine) | `bugdhor.explainFindingPhase6` | Show local evidence-based explanation and repair suggestion |
-| Command (local engine) | `bugdhor.suggestRepairPhase6` | Show a deterministic local repair recommendation |
-| Command (local engine) | `bugdhor.previewRepairPhase6` | Show the exact unified diff without writing source |
-| Command (local engine) | `bugdhor.applyRepairPhase6` | Apply a reviewed patch after explicit approval |
-| Command (local engine) | `bugdhor.verifyRepairPhase6` | Verify the latest active applied patch with fresh static analysis |
-| Command (local engine) | `bugdhor.revertRepairPhase6` | Restore exact pre-apply bytes after explicit approval |
-| Command (local engine) | `bugdhor.showRepairHistoryPhase6` | Show the persisted local patch history |
+## Separate Python backend installation
 
-All commands use the `Bug Dhor` category. The extension activates on startup, on any of its commands, and when the sidebar view is opened.
-
-## Command validation and service wiring
-
-- File, selection, analysis, generation, and repair commands require a saved `file:` editor inside an open workspace folder.
-- `scanSelection` and `counterfactualAnalysis` also require a non-empty selection.
-- `scanWorkspace` requires at least one local file-system workspace folder. `verifyRepair` requires an active saved editor because the backend verification contract extends the file context.
-- Validation failures are logged as warnings and shown as error messages with a **Show Logs** action.
-- Engine calls run under `window.withProgress` with a cancellable notification. Cancellation is logged and produces no error dialog.
-- Every engine-backed command calls its declared `SecurityEngineService` method. `generateSecureCode` is the deliberate exception: it first asks the backend for a secure prompt, invokes a configured provider with capabilities B and C, and submits candidate diffs back to the backend for verification. Transport failures, timeouts, problem details, and schema mismatches are reported instead of inventing a result.
-- Successful scan results are validated and published as diagnostics; failed or cancelled scans never alter the Problems panel.
-- `bugdhor.repairVulnerability` accepts an optional finding context from a diagnostic Quick Fix while retaining its no-argument Command Palette and dashboard behavior. A finding for another file is rejected before the engine call.
-- A single `CommandRegistry` owns all 22 canonical command definitions (15 backend/dashboard plus 7 local-engine commands) and is disposed with the extension.
-
-## Backend transport and privacy
-
-- `bugdhor.backend.url` points at an already-running backend. Only an HTTP(S) origin is accepted; credentials, paths, queries, and fragments are rejected.
-- The client calls `GET /api/v1/health`, `POST /api/v1/scan/file`, `POST /api/v1/scan/workspace`, and the analysis routes under `/api/v1`. Timeouts abort the request and are reported to the user.
-- An optional bearer token is read from the extension host environment (`BUGDHOR_API_TOKEN`, with `BUGDHOR_ENGINE_TOKEN` as a legacy alias). Tokens are never stored in settings or logs.
-- File and selection requests include the current editor buffer as `sourceText` and the selected code as `selectedText` only when `bugdhor.privacy.sendSourceText` is enabled. The commands are always explicitly user-invoked. Disabling the setting sends only paths and ranges; the backend then reads the saved file from disk.
-- Workspace scans send folder name, path, and file-URI metadata only, never file contents.
-- Health checks send no source code.
-- Every response is validated before use. The backend's `partial`/`unavailable` statuses and `analysisAvailable: false` are preserved; they are never converted into a clean scan.
-- Background monitoring is off by default and sends no source text unless `bugdhor.monitoring.allowAutomaticSourceSharing` AND `bugdhor.privacy.sendSourceText` are both enabled.
-- Secure recommendations call `POST /api/v1/recommendations/generate` twice when generating: once with no candidates for the prompt and once with extracted candidates for verification. No provider credential is sent in the request body; environment-backed API keys remain in the extension host.
-
-### Secure recommendation and feedback settings
-
-| Setting | Default | Effect |
-|---|---|---|
-| `bugdhor.feedback.notifyOnPatchApplied` | `true` | Notify when an explicitly applied patch is recorded. |
-| `bugdhor.feedback.notifyOnResolution` | `true` | Notify when a finding reaches `resolved`. |
-| `bugdhor.recommendations.runFunctionalTests` | `true` | Request functional tests; disabling them prevents recommendation rather than bypassing the gate. |
-| `bugdhor.recommendations.allowSandboxedExecution` | `false` | Permit sandboxed test execution; network, privileged, and destructive operations stay forbidden. |
-| `bugdhor.recommendations.testCommand` | `[]` | Optional argv list for the project's functional tests. |
-| `bugdhor.recommendations.testTimeoutSeconds` | `120` | Per-run functional-test timeout (1–3600 seconds). |
-
-Hosted assistants expose A/B/C only and never claim validated steering. Only
-validated local D/E/F access with a real pipeline can support steering, and API
-requests always report the steering pipeline as `None`.
-
-### Privacy policy
-
-The extension contains no built-in telemetry, analytics, crash reporting, or
-advertising SDK. Source text is sent only to the backend URL you configure, and
-only for explicitly invoked file/selection requests when
-`bugdhor.privacy.sendSourceText` is enabled. Automatic background source sharing
-requires both `bugdhor.monitoring.enabled` and
-`bugdhor.monitoring.allowAutomaticSourceSharing`; both are off by default.
-Workspace scans send folder metadata only. Health checks send no source code.
-Provider credentials stay in the extension-host environment and are never sent
-in request bodies or written to settings or logs. The opt-in local Phase 6
-session is written under the workspace at `bugdhor.localEngine.sessionPath` and
-is never sent to the backend. See the repository root README for the broader
-data-handling statement.
-
-The Marketplace publisher is `sajib91`. Verify that this account is owned by the
-publisher before release; this repository does not claim an unverified
-identity.
-
-## Security dashboard
-
-`bugdhor.openSecurityDashboard` opens (or reveals) a singleton editor-area webview panel titled **Bug Dhor Security Dashboard**. The Activity Bar sidebar is a launcher that sends one message, `openDashboard`.
-
-The dashboard has 11 sections: Overview, Security Scan, Vulnerabilities, SAE Features, Feature Interactions, Security Steering, Explanations, Automated Repair, Verification, Research Reports, and Settings. Overview shows total findings, severity counts, vulnerability and CWE distributions, verification status, and recent scan history.
-
-- **Empty by default.** Counts are `null` and lists are empty until a real scan result is supplied. The dashboard never estimates missing values.
-- **Explicit demo preview.** The **Load demo preview** button requests a separately labeled data mode with 18 illustrative findings, matching severity and CWE totals, and scan history. It does not simulate SAE activations, feature interactions, steering, explanations, repairs, verification checks, or reports.
-- **Backend-ready state.** The panel controller calls an injected `getState(dataMode)` function and merges validated live results into the empty baseline. Unavailable backend data is never fabricated.
-- **Secure recommendations.** Verified proposals show the exact original and repaired source, what changed, why, remaining risks, verification and functional results, and prompt provenance. Recommendations are proposals only: every display states that no perfect security is guaranteed and that explicit approval is required. The dashboard itself never applies a patch.
-- **Feedback lifecycle.** The same section shows tracked finding states and bounded-loop counters (validated scans, suppressed self-induced scans, follow-up rescans, approved patches, verifications, and resolutions). Resolution requires an applied patch, a clean rescan, and passing verification.
-- **Counterfactual evidence view.** When a live state supplies measured `baselineRisk`, `singleFeatureEffects`, `pairwiseEffects`, `higherOrderEffects`, `activationChanges`, `cweResults`, and `metadata`, Feature Interactions renders native local SVG charts, uncertainty, evidence categories, provenance, and a selector for supplied code examples. Missing values are labeled **Unavailable evidence**; the UI never derives effects, probabilities, or vulnerability-status changes.
-- **Restricted execution.** Dashboard action buttons can execute only the engine-backed commands in the controller's allowlist, with no arguments. The webview cannot execute arbitrary VS Code commands, write files, or start a backend. Patch buttons only post a message; the extension host applies a file change solely after an explicit approval, base-hash revalidation, target-path validation, and a successful `WorkspaceEdit`.
-- **Validation.** Inbound messages are checked for shape and value. Unknown or malformed messages are logged and ignored. Engine command failures produce an error notice, never a success notice.
-- **Webview security.** The shell uses a per-render nonce, a restrictive CSP (`default-src 'none'`, no network or inline execution), local resource roots, escaped embedded JSON, and DOM text APIs for dynamic content. The sidebar launcher has its own nonce CSP and can only post `openDashboard`.
-- **Accessibility and theming.** Navigation uses an accessible vertical tablist with keyboard support, tables have captions and scoped headers, status changes use a live region, and styling uses VS Code theme tokens with reduced-motion and forced-colors handling.
-- **Read-only settings.** Settings are displayed read-only; **Open VS Code Settings** and **Show logs** delegate to VS Code.
-
-## Vulnerability diagnostics
-
-The scan commands feed successful backend results into a native VS Code `DiagnosticCollection`. No finding is hardcoded in the extension: an empty backend result produces no diagnostics, and the extension is empty at activation.
-
-- **Required result contract.** A scan result is either a findings array or `{ findings: [...], scope?: { uris: [...] } }`. Each finding requires `id`, `message`, `severity`, and a `location` with a `file:` URI and a zero-based `range`; `cwe`, `ruleId`, `evidence`, `explanation`, `sourceReferences`, and `repair` are optional.
-- **Severity mapping.** `critical` and `high` become errors, `medium` becomes a warning, `low` becomes information, and `info` becomes a hint. Severity is taken from the backend, never inferred from the message.
-- **Problems panel.** The diagnostic uses the backend range, the concise backend message, source `Bug Dhor`, and the CWE identifier as clickable diagnostic code when supplied. Related information carries backend evidence and source references.
-- **Hover explanations.** Hovering a finding shows its message, severity, CWE, rule ID, backend explanation, evidence, source references, and repair eligibility. Missing explanation, sources, or repair metadata are stated explicitly rather than filled in.
-- **Repair Quick Fix.** A Quick Fix appears only when the backend sets `repair.eligible` to `true`. It invokes the existing `bugdhor.repairVulnerability` command with the finding ID, document URI, range, CWE, and rule ID. That Quick Fix does not edit code or generate a patch itself; local patch generation is limited to the separate opt-in Phase 6 commands.
-- **Validation and containment.** Malformed findings are rejected and logged; a malformed result envelope is rejected without clearing existing diagnostics. Findings outside an open workspace folder and non-`file:` URIs are never published. `scope.uris` or the scanned document URI clears stale diagnostics for the covered files.
-- **Model-internal evidence is not wired.** Scans, detection, explanation, repair proposals, and verification reach real backend paths whose availability is declared by `/health`. SAE features, counterfactual effects, and activation steering remain unavailable without compatible model artifacts and direct D/E/F access; the extension does not simulate them. Provider adapters are tested with backend-shaped fixtures.
-
-## Model-independent workspace monitoring
-
-`WorkspaceMonitor` is the single owner of official VS Code event registration. When `bugdhor.monitoring.enabled` is set, it observes:
-
-- `onDidOpenTextDocument` — tracked once per document version; scanned only when `bugdhor.monitoring.scanOnOpen` is explicitly enabled.
-- `onDidChangeTextDocument` — debounced, versioned, incremental analysis.
-- `onDidSaveTextDocument` — supersedes pending work with an immediate bounded file scan.
-- `onDidCreateFiles` — eligible new source files are opened with `workspace.openTextDocument` and scanned once.
-- `onDidDeleteFiles` — cancels work, forgets state, and clears that file's diagnostics.
-- `onDidChangeWorkspaceFolders` — prunes stale state; optionally schedules one debounced metadata-only full workspace scan.
-
-`onDidCloseTextDocument` is also registered when available. No private API, reverse engineering, or provider-specific dependency is required. This works identically for code from Copilot, Cursor, Claude, ChatGPT pasted text, OpenCode, other assistants, or manual edits.
-
-The incremental executor tracks document versions and ignores repeated or out-of-order events. Each batch identifies changed lines, then scopes analysis to the enclosing function (lexically detected for Python and JavaScript), to the changed lines, or to the whole file according to `bugdhor.monitoring.analysisScope`. Open, create, and save events use full-file scope; wide batches also fall back to a bounded file-level scan. Text is read once per debounced batch, and documents above `bugdhor.monitoring.maxFileBytes` are skipped.
-
-Changes are debounced (`bugdhor.monitoring.debounceMs`, minimum 100 ms) so no scan runs per keystroke. At most one request per document is active: a newer edit cancels the superseded request through a cancellation token, and the API client aborts its in-flight HTTP call. Workspace-level scans are coalesced and bounded by `bugdhor.monitoring.maxConcurrentScans`. Analysis runs off the editor's event path, publishes backend findings to the native Problems panel with the document URI as scope, and shows a non-blocking notification when findings exist. Backend results remain the only source of findings; `analysisAvailable: false` or `status: 'unavailable'` never becomes a clean scan.
-
-**Eligibility:** `fileFilter.js` skips paths outside open `file:` workspace folders, unsupported languages, binary extensions (by path only), generated artifacts such as `*.min.js`, bundles, source maps and lockfiles, and configurable exclude globs covering `node_modules`, `.git`, virtual environments, `site-packages`, caches, build/coverage directories, `vendor`, and `.bugdhor-data`. It never reads file bytes to guess a language author.
-
-**Attribution:** every edit is treated as an ordinary document change. The monitor does not assume an AI assistant produced it, does not detect an "AI mode", and does not claim to identify the model or author responsible. `src/monitoring/providerMatrix.js` reports `workspace-document-events` and `attribution: 'none'` for every supported workflow; optional adapters are listed only for separately configured generation-metadata workflows and never alter scan results.
-
-**Privacy:** monitoring is disabled by default. No background request containing source text is sent unless both the explicit `bugdhor.monitoring.allowAutomaticSourceSharing` consent and `bugdhor.privacy.sendSourceText` are enabled. With consent disabled, the monitor tracks versions locally but makes no engine call. Full workspace scans send folder metadata only; the backend reads allowlisted files from disk. Stats exposed on the activation API contain metadata only: no source text, selected text, or code identifiers.
-
-See `docs/workspace-scanning-audit.md` and `docs/workspace-scanning-implementation-plan.md` at the repository root for the evidence boundary and full event/settings map.
-
-## Settings
-
-| Setting | Default | Behavior |
-|---|---|---|
-| `bugdhor.backend.url` | `http://127.0.0.1:8765` | Base URL of the already-running FastAPI backend; must be an HTTP(S) origin |
-| `bugdhor.backend.requestTimeoutMs` | `30000` | Timeout for scan and analysis requests |
-| `bugdhor.backend.healthTimeoutMs` | `3000` | Timeout for backend health checks |
-| `bugdhor.privacy.sendSourceText` | `true` | Send the current buffer and selection with explicitly user-invoked file/selection requests |
-| `bugdhor.backend.pythonPath` | empty | Reserved for a future backend process manager; the extension does not start an engine |
-| `bugdhor.backend.autoStart` | `false` | Reserved; enabling it logs a warning because no engine is started |
-| `bugdhor.logging.level` | `info` | Filters messages written to the Bug Dhor output channel |
-| `bugdhor.ui.showStatusBarItem` | `true` | Shows or hides the Bug Dhor status bar item |
-| `bugdhor.monitoring.enabled` | `false` | Enable background monitoring of document changes (off by default) |
-| `bugdhor.monitoring.allowAutomaticSourceSharing` | `false` | Explicit consent to send changed source text automatically; required with `privacy.sendSourceText` |
-| `bugdhor.monitoring.onSaveOnly` | `false` | Analyze only on save instead of after debounced edits |
-| `bugdhor.monitoring.debounceMs` | `750` | Delay before a debounced scan runs (minimum 100 ms) |
-| `bugdhor.monitoring.languages` | `["python", "javascript"]` | Language IDs eligible for monitoring |
-| `bugdhor.monitoring.analysisScope` | `function` | Scope of incremental analysis: `changedLines`, `function`, or `file` |
-| `bugdhor.monitoring.maxFileBytes` | `1048576` | Skip documents larger than this size |
-| `bugdhor.monitoring.maxChangedLines` | `500` | Wider change batches fall back to a file-level scan |
-| `bugdhor.monitoring.excludeGlobs` | generated dirs | Path globs excluded from monitoring (`*`, `**`, `?`) |
-| `bugdhor.monitoring.watchWorkspaceFiles` | `true` | Watch official file create/delete and workspace-folder events when monitoring is enabled |
-| `bugdhor.monitoring.scanNewFiles` | `true` | Scan eligible newly created source files once |
-| `bugdhor.monitoring.scanOnOpen` | `false` | Scan an eligible document when opened; off by default so browsing does not trigger scans |
-| `bugdhor.monitoring.fullScanOnWorkspaceChange` | `false` | Opt in to one debounced metadata-only full workspace scan on folder changes |
-| `bugdhor.monitoring.fullScanDebounceMs` | `2000` | Debounce for workspace-level full scans |
-| `bugdhor.monitoring.maxConcurrentScans` | `2` | Maximum concurrent workspace-level scans |
-| `bugdhor.monitoring.maxWorkspaceFiles` | `2000` | Maximum new files observed from a single create event |
-| `bugdhor.monitoring.excludeBinaryFiles` | `true` | Skip common binary extensions by path without reading file content |
-| `bugdhor.monitoring.excludeGeneratedFiles` | `true` | Skip minified bundles, source maps, generated files, and lockfiles |
-| `bugdhor.monitoring.notifyOnFindings` | `true` | Show a non-blocking notification when findings are published |
-| `bugdhor.localEngine.enabled` | `false` | Opt in to the local `bugdhor_ast` Phase 6 engine; backend scans remain the default |
-| `bugdhor.localEngine.pythonPath` | `"python"` | Python executable used only by the local Phase 6 CLI |
-| `bugdhor.localEngine.requestTimeoutMs` | `15000` | Timeout for one local Phase 6 CLI request (1000–300000 ms) |
-| `bugdhor.localEngine.allowSourceWrite` | `false` | Permit explicit local apply/revert writes; still requires modal and exact `patch_id` confirmation |
-| `bugdhor.localEngine.sessionPath` | `".bugdhor/phase6-session.json"` | Workspace-relative local patch/verification session; never sent to the backend |
-
-### Opt-in local Phase 6 engine
-
-The seven `(Local Engine)` commands use a separate local workflow and never
-change backend behavior. They run
-`python -m bugdhor_ast.phase6.cli <action>` via `execFile` without a shell, with
-a bounded timeout and a `PYTHONPATH` pointing at the repository's `src/`. The
-CLI emits one JSON object per invocation; the adapter rejects non-JSON output
-and error envelopes instead of inventing a result.
-
-Supported actions are `analyze`, `explain`, `suggest`, `preview`, `apply`,
-`verify`, `revert`, and `history`. `preview` and all read-only commands leave
-source bytes unchanged. Verification reruns the local AST, detection, flow, and
-taint analyzers from current bytes and reports `verified`,
-`partially_verified`, `failed`, or `not_verified`. Explanations separate
-`observed`, `derived`, `heuristic`, and `unavailable` evidence; root causes are
-`determined`, `heuristic`, or `unknown`; CWE mappings require concrete taint
-sink or null-access evidence.
-
-Writes are deliberately difficult:
-
-1. `bugdhor.localEngine.enabled` must be true to invoke any local command.
-2. `bugdhor.localEngine.allowSourceWrite` must also be true for `apply` or
-   `revert`; the adapter independently rechecks this before starting the CLI.
-3. A modal warning must be accepted.
-4. The exact `patch_id` must be typed into the confirmation box.
-5. The CLI additionally requires `--allow-source-write`, checks exact file
-   identity/content/freshness, records backup/applied snapshots, and refuses to
-   revert over an external file change.
-
-A wrong confirmation cancels without writing. The local session defaults to
-`.bugdhor/phase6-session.json`, is written with owner-only permissions, and is
-never sent to the backend. Optional AI repair is disabled by default,
-provider-neutral, and returns untrusted candidates only; generated source is
-never executed.
-
-The deterministic repair matrix covers Python (SQL parameterization and process
-argument lists), JavaScript (HTML property to `textContent`), and Java
-(`PreparedStatement`). In the measured matrix, JavaScript and Java repairs were
-`verified` by static reanalysis, while both Python forms remained `failed`
-because the current syntax-only taint engine still flags the transformed sink
-arguments. These are static checks only: no compiler, functional test, dynamic
-analysis, sandbox, exploitability proof, or security guarantee is claimed. See
-`../reports/PHASE_6_REPAIR_VALIDATION_REPORT.md` and
-`../reports/PHASE_6_FINAL_REPORT.md` for exact results.
-
-The backend must be started separately, for example from `security-engine/`:
+Clone the repository and create a virtual environment. On macOS/Linux:
 
 ```bash
+git clone https://github.com/sajib91/Bug-Dhor.git
+cd Bug-Dhor
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e "./security-engine[dev]"
+```
+
+On Windows PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e ".\security-engine[dev]"
+```
+
+Omit the `dev` extra for a smaller install. Add `analyzers` or `ml` only when those tools and their
+licenses are actually needed; setup does not download model weights. The repository also provides
+`npm run setup -- --cpu --with-analyzers` from the root for a managed development setup.
+
+## Backend startup
+
+From `security-engine/` with the virtual environment active:
+
+```bash
+# macOS/Linux
 ../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765
+
+# Windows PowerShell
+..\.venv\Scripts\python.exe -m bugdhor --host 127.0.0.1 --port 8765
 ```
 
-Set `BUGDHOR_WORKSPACE_ROOTS` to the folders the backend may inspect. Set the
-same `BUGDHOR_API_TOKEN` in the extension host environment when backend bearer
-authentication is enabled.
+Set `BUGDHOR_WORKSPACE_ROOTS` to the folders the backend may inspect. Keep it as narrow as
+possible. If bearer authentication is enabled, set `BUGDHOR_API_TOKEN` in the backend environment
+and the same value in the environment that launches VS Code; the extension reads the token from the
+environment, not from a setting.
 
-## Supported languages
-
-- **Backend scans:** Python, JavaScript, and Java are exercised by the AST,
-  detection, flow, and taint suites. Backend findings are rendered as native VS
-  Code diagnostics for any file URI returned by the backend, subject to the
-  workspace-containment validation described above.
-- **Background monitoring:** eligible language IDs default to Python and
-  JavaScript (`bugdhor.monitoring.languages`). Java can be added explicitly when
-  the backend supports the workspace.
-- **Opt-in local Phase 6 engine:** Python, JavaScript, and Java have
-  deterministic explanation and repair strategies. Static reanalysis of the
-  measured repair matrix verified the JavaScript and Java forms; the Python
-  forms remain flagged by the current syntax-only taint engine.
-
-No language support is claimed for model-internal SAE, counterfactual, or
-steering features; those stages remain unavailable without compatible artifacts.
-
-## Development
-
-Set up the repository once from the root:
+Verify connectivity:
 
 ```bash
-npm run setup -- --cpu --with-analyzers
+curl -sS http://127.0.0.1:8765/api/v1/health
 ```
 
-Then use the root commands:
+An HTTP 200 response with API version `v1` means the backend is reachable. Do not expose an
+unauthenticated backend to a public network. For non-loopback access, use TLS and a token, and
+configure the extension with an HTTPS origin.
 
-```bash
-npm run extension:lint
-npm run extension:test
-npm run extension:test:integration
-npm run build
-```
+## VS Code configuration
 
-The unit suite (403 tests; measured run: 403 pass, 0 fail) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable and HTTP service contracts, backend URL/timeout/privacy configuration, request mapping and consent omission, API transport failures and cancellation, response schema validation, workspace metadata limits, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, real-time monitoring (change analysis, version tracking, debouncing, cancellation, privacy gating), workspace monitoring (settings normalization, file filtering, scheduler coalescing/cancellation/concurrency, provider matrix, official events, open/create/delete/folder handling), secure recommendation request mapping and provider B/C gating, candidate extraction, feedback deduplication/resolution/lifecycle, one-shot suppression and bounded rescan, dashboard recommendation review and explicit approval, the opt-in local Phase 6 adapter and approval guards, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, starts the Python backend against a disposable workspace, points the extension at that backend, checks health and unreachable-backend handling, scans an unsaved buffer and verifies the returned SHA-256 matches the buffer rather than the disk copy, disables source sharing and verifies the backend falls back to the saved file, scans the workspace and a selection, verifies that unavailable analysis never publishes findings, produces a real SQL-injection finding and publishes it as a native diagnostic with hover and observation-only explanation, verifies honest SAE/counterfactual/steering stubs and proposal-only repair with explicit-patch verification, exercises real-time monitoring for rapid edits, paste, save, and concurrent documents, and opens the singleton dashboard tab. Tests never download models.
+Open **Settings** and search for `Bug Dhor`. Key settings are:
 
-## Extension Development Host
+| Setting | Default | Purpose |
+|---|---|---|
+| `bugdhor.backend.url` | `http://127.0.0.1:8765` | HTTP(S) origin of the running backend. The extension appends `/api/v1`. No credentials, path, query, or fragment. |
+| `bugdhor.backend.requestTimeoutMs` | `30000` | Timeout for scan and analysis requests. |
+| `bugdhor.backend.healthTimeoutMs` | `3000` | Timeout for health checks. |
+| `bugdhor.privacy.sendSourceText` | `true` | Send the active buffer/selection with explicitly invoked file/selection requests. Disable to send paths and ranges only. |
+| `bugdhor.monitoring.enabled` | `false` | Enable background document monitoring. |
+| `bugdhor.monitoring.allowAutomaticSourceSharing` | `false` | Explicit consent for automatic background source sharing; requires `privacy.sendSourceText` too. |
+| `bugdhor.monitoring.languages` | `["python", "javascript"]` | Eligible language IDs for monitoring. |
+| `bugdhor.localEngine.enabled` | `false` | Opt in to the local Phase 6 commands. |
+| `bugdhor.localEngine.allowSourceWrite` | `false` | Permit explicit local apply/revert; still requires a modal and exact `patch_id`. |
+| `bugdhor.backend.autoStart` / `bugdhor.backend.pythonPath` | `false` / empty | Reserved; the extension does not start a backend. |
 
-1. Open the repository root in VS Code.
-2. Install the recommended extensions from `.vscode/extensions.json` if prompted.
-3. Open **Run and Debug** and select **Run Bug Dhor Extension** from `.vscode/launch.json`.
-4. Press F5. The Extension Development Host loads `vscode-extension/` as the development extension.
-5. Open the Bug Dhor shield in the Activity Bar or run a `Bug Dhor:` command from the Command Palette.
+In an SSH/WSL/Codespaces workspace, set the backend URL to an address reachable from the remote
+host. `127.0.0.1` on the local machine will not work from the remote extension host.
 
-To run the integration test, use `npm run extension:test:integration`. It prefers a locally installed VS Code (`BUGDHOR_VSCODE_EXECUTABLE` overrides the path) and otherwise lets `@vscode/test-electron` download a stable build into `.vscode-test/`, which is gitignored.
+## Scanning workflow
 
-## Packaging note
+1. Start the backend and confirm `/api/v1/health`.
+2. Open a workspace folder in VS Code and ensure it is inside `BUGDHOR_WORKSPACE_ROOTS`.
+3. Run a command from the Command Palette:
+   - **Bug Dhor: Scan Current File** — saved `file:` editor required.
+   - **Bug Dhor: Scan Selection** — non-empty selection required.
+   - **Bug Dhor: Scan Workspace** — sends folder metadata; the backend reads allowlisted files.
+   - **Bug Dhor: Scan Full Repository**, **Scan Changed Files**, or **Scan Incremental Findings**.
+4. Review validated results in the **Problems** panel and the Security Dashboard.
+5. Use **Bug Dhor: Show Status** and **Bug Dhor: Show Logs** to inspect connectivity and errors.
 
-Build the VSIX from `vscode-extension/` with:
+A result with `analysisAvailable: false`, `partial`, or `unavailable` is not a clean scan. Cancelled
+or failed requests do not alter existing diagnostics.
 
-```bash
-npm run package:vsix
-```
+## Security analysis workflow
 
-`scripts/packageVsix.js` stages the declared production dependency closure
-(`ajv` 8.20.0 plus its four production transitive packages), copies only the
-extension entry point, `src/`, `media/`, README, manifest, and `.vscodeignore`
-into a temporary directory outside the workspace, and runs `vsce` there. This
-avoids the npm workspace symlink `node_modules/bug-dhor -> ../vscode-extension`
-that previously made `vsce` walk the parent repository. `--no-dependencies` is
-**not** used: `vsce` detects the staged local dependencies normally, and the
-packaged `ajv/dist/2020.js` was verified to load after extraction.
+- Hover a diagnostic to see its backend message, severity, CWE, rule ID, explanation, evidence,
+  source references, and repair eligibility. Missing fields are labeled rather than invented.
+- Run **Bug Dhor: Explain Vulnerability** for evidence-grounded context when the backend supplies
+  it. Explanations distinguish observed, derived, heuristic, and unavailable evidence.
+- Run **Bug Dhor: Analyze Security Features** only when a compatible model and SAE artifact are
+  configured. In the default integrated path this returns an explicit unavailable result.
+- Static tools such as Semgrep and Bandit are optional. Missing tools are reported as unavailable,
+  not as a clean result.
 
-Measured result: 245 files and 489,975 bytes (about 478 KiB), with no `../`
-entries, no test outputs, no development dependencies, and no secrets. The
-reproduced pre-fix dependency traversal listed 76,389 paths totaling
-2,515,860,774 bytes (about 2.34 GiB / 2.52 GB). `--skip-license` remains in the
-script only because no license has been selected in this repository; do not
-publish until the intended license is added. See
-`../reports/MARKETPLACE_READINESS_REPORT.md` for the full audit and exact
-publication commands.
+Bug-Dhor does not claim calibrated probabilities, causal security effects, exploitability proofs,
+or a security guarantee from these workflows.
+
+## Counterfactual analysis
+
+**Bug Dhor: Counterfactual Analysis** compares a selected code region with counterfactual variants
+when the backend supplies measured evidence. The dashboard can render supplied `baselineRisk`,
+single/pairwise/higher-order effects, activation changes, CWE results, and provenance. It never
+derives effects or probabilities from missing values, and it labels absent evidence as
+**Unavailable evidence**.
+
+The counterfactual libraries exist for configured research runs, but the default HTTP path reports
+the stage as unavailable without the required model, SAE, and intervention artifacts. Do not treat
+the command as a universally available feature.
+
+## Repair and verification
+
+- A **Quick Fix** appears only when a backend finding has `repair.eligible: true`. It invokes
+  **Bug Dhor: Repair Vulnerability** with validated finding context.
+- **Bug Dhor: Generate Secure Code** asks the backend for a prompt, calls a configured provider with
+  capabilities B and C, and submits candidates back to the backend for syntax, security, functional,
+  and contract checks. The result is an unapplied, reviewed proposal.
+- **Bug Dhor: Verify Repair** runs backend verification at workspace scope. Verification is limited
+  by the configured analyzers and tests; `inconclusive` is an explicit outcome.
+- The seven **Local Engine** commands are opt-in and require `bugdhor.localEngine.enabled`. Apply and
+  revert additionally require `allowSourceWrite`, a modal warning, and the exact `patch_id`.
+  The local CLI runs without a shell and never executes generated source.
+
+Local deterministic strategies cover Python SQL parameterization and process argument lists,
+JavaScript HTML-to-`textContent`, and Java `PreparedStatement`. Static reanalysis verified the
+measured JavaScript and Java forms; the Python forms remained flagged by the current syntax-only
+taint engine. There is no functional, dynamic, sandbox, exploitability, or security guarantee.
+
+## AI provider configuration
+
+Provider capabilities are discovered; they are never assumed. Configure one of these under
+`bugdhor.assistant.*`:
+
+| Provider setting | Use |
+|---|---|
+| `editor` | Document only the documented editor change events (capability A). |
+| `vscode-language-model` | Discover a model through the documented VS Code Language Model API; optional `vendor`, `family`, `id`, or `version` selector. |
+| `openai-compatible` | Set `endpoint` and `model`; store the key in the environment variable named by `apiKeyEnvironmentVariable` (default `BUGDHOR_LLM_API_KEY`). |
+| `local-hugging-face` | Provide an absolute `modelPath` with `config.json`. Reading metadata does not grant activation or steering access. |
+| `extension-api` | Provide an explicit local manifest describing an official extension API and declared capabilities. |
+
+Hosted assistants expose A/B/C only. Validated local D/E/F access with a real pipeline would be
+required for steering; API requests report the steering pipeline as `None`. Keys are never written
+to settings, logs, or request bodies.
+
+## Privacy controls
+
+- The extension contains no built-in telemetry, analytics, crash reporting, or advertising SDK.
+- Health checks send no source code. Workspace scans send folder name, path, and URI metadata only;
+  the backend reads allowlisted files from disk.
+- Explicit file and selection commands send the active buffer/selection only when
+  `bugdhor.privacy.sendSourceText` is enabled. Disabling it sends paths and ranges instead.
+- Background monitoring is off by default. It sends source text only when both
+  `bugdhor.monitoring.enabled` and `bugdhor.monitoring.allowAutomaticSourceSharing` are enabled,
+  together with `privacy.sendSourceText`.
+- `BUGDHOR_API_TOKEN` and provider keys are read from the environment and are never stored in
+  settings or logs.
+- The opt-in local Phase 6 session defaults to `.bugdhor/phase6-session.json`, is written with
+  owner-only permissions, and is never sent to the backend.
+
+Treat backend result directories as potentially sensitive because the backend may persist analysis
+metadata under its configured data directory.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| `E_BACKEND_UNAVAILABLE` | Backend running, correct `bugdhor.backend.url`, port 8765 reachable from the extension host. |
+| `401` from `/api/v1` | `BUGDHOR_API_TOKEN` must match in the backend and VS Code host environment; restart VS Code after changing it. |
+| Timeouts | Increase `bugdhor.backend.requestTimeoutMs` or reduce the scan scope. |
+| `analysisAvailable: false` | Required analyzer/model/parser is missing. This is not a clean scan. |
+| No findings | Confirm the workspace is inside `BUGDHOR_WORKSPACE_ROOTS` and the file language is parsed. A Java file is detected but not parsed by the default backend. |
+| Monitoring does nothing | `bugdhor.monitoring.enabled` must be true; eligible language and file size must pass filters. Source sharing needs both consent settings. |
+| Remote workspace cannot scan | The backend must be reachable from the remote extension host; check `extensionKind: ["workspace"]`. |
+| Local Phase 6 command fails | `bugdhor.localEngine.enabled` must be true, Python must expose `bugdhor_ast`, and the workspace must contain `src/bugdhor_ast`. |
+
+Run **Bug Dhor: Show Status** and **Bug Dhor: Show Logs** for concrete transport and validation
+errors.
 
 ## Known limitations
 
-- The backend is not bundled and must be started separately; an unreachable
-  backend is reported honestly rather than simulated.
-- SAE features, counterfactual effects, and activation steering remain
-  unavailable without compatible model artifacts and direct model access.
-- Opt-in Phase 6 repairs are deterministic proposals with static reanalysis
-  only; no functional, dynamic, sandbox, exploitability, or security guarantee
-  is claimed. Python SQL and subprocess repairs remain flagged by the current
-  syntax-only taint engine.
-- The extension ships an icon but no Marketplace screenshots yet.
-- No repository license has been selected, so the VSIX is built with
-  `--skip-license` and is not yet cleared for publication.
+- The Python backend is not bundled and must be installed and started separately.
+- SAE feature extraction, counterfactual effects, and activation steering are unavailable in the
+  default integrated path without compatible artifacts and model access.
+- Java is detected but has no installed default parser; do not expect backend AST/taint findings for
+  Java.
+- Repairs are proposals. Static reanalysis is not a functional, dynamic, or security proof; some
+  Python local repairs remain flagged by the current taint engine.
+- Windows and Linux runtime behavior is unverified locally and remains pending the three-OS CI
+  matrix. macOS is verified only on the tested configuration.
+- The extension is not bundled into a single JavaScript file; `vsce` reports a startup-performance
+  advisory for the staged dependency files.
+- No Marketplace screenshots are bundled yet.
+- No repository license has been selected. Publication remains blocked by the open Phase 04
+  security findings, the missing license, and publisher-identity verification.
 
-## Layout
+## Screenshots
 
-| Path | Purpose |
-|------|---------|
-| `src/extension.js` | Activation entry point and disposable registration |
-| `src/config.js` | Typed settings access and change subscription |
-| `src/constants.js` | Command, container, and view IDs shared with tests |
-| `src/commands/index.js` | Registers all commands and returns one composite disposable |
-| `src/commands/definitions.js` | Canonical feature-command metadata and service mapping |
-| `src/commands/registry.js` | Duplicate-safe registration and composite disposal |
-| `src/commands/validation.js` | Re-exports the workspace validation and request builders |
-| `src/commands/runEngineCommand.js` | Cancellable progress, cancellation, and error reporting |
-| `src/commands/phase6Commands.js` | Seven opt-in local-engine handlers and exact patch approval flow |
-| `src/phase6/localEngine.js` | Local CLI adapter, settings/write guards, JSON validation, and one-based finding mapping |
-| `src/commands/registerEngineCommand.js` | Binds a command definition to a service method |
-| `src/commands/scanCommands.js` | Scan Current File, Scan Selection, Scan Workspace |
-| `src/commands/analysisCommands.js` | Explain, security features, counterfactual analysis |
-| `src/commands/repairCommands.js` | Generate secure code, repair, verify |
-| `src/commands/dashboardCommand.js` | Open or reveal the dashboard panel |
-| `src/commands/utilityCommands.js` | Show status and show logs |
-| `src/api/securityEngineService.js` | Service contract, HTTP implementation, request mapping, unavailable fallback |
-| `src/api/apiClient.js` | Fetch transport, timeouts, cancellation, problem details, bounded responses |
-| `src/api/configurationService.js` | Backend URL/timeout validation, environment token, source-sharing setting |
-| `src/api/securityResultService.js` | Health, envelope, scan, detection, and analysis response validation |
-| `src/workspace/workspaceService.js` | Editor/workspace request builders, source consent, workspace metadata limits |
-| `src/diagnostics/findingModel.js` | Backend finding validation, severity/CWE mapping, and range helpers |
-| `src/diagnostics/diagnosticController.js` | DiagnosticCollection, finding store, scope clearing, and Problems panel publication |
-| `src/diagnostics/hoverProvider.js` | Hover explanations built only from backend finding fields |
-| `src/diagnostics/codeActionProvider.js` | Repair Quick Fixes for backend-eligible findings |
-| `src/diagnostics/index.js` | Diagnostic provider registration and disposal |
-| `src/recommendations/secureCodeGeneration.js` | Prompt retrieval, provider B/C validation, candidate extraction, and backend verification |
-| `src/feedback/` | Finding lifecycle, applied-patch provenance, and bounded feedback controller |
-| `src/integrations/` | Provider registry, capabilities A–F, hooks, and official manifest validation |
-| `src/monitoring/workspaceMonitor.js` | Sole owner of official document and workspace event registration |
-| `src/monitoring/settings.js` | Normalized monitoring defaults and single source of truth |
-| `src/monitoring/fileFilter.js` | Pure workspace, glob, binary, generated, language, and size eligibility |
-| `src/monitoring/scanScheduler.js` | Debounce, dedupe, cancellation, generation checks, and bounded concurrency |
-| `src/monitoring/providerMatrix.js` | Provider/workflow matrix with `attribution: 'none'` |
-| `src/monitoring/realtimeMonitor.js` | Debounced change analysis, suppression, bounded rescan, and cancellation |
-| `src/security/paths.js` | Workspace containment checks for backend-supplied paths |
-| `src/logging/output.js` | Log output channel and level filtering |
-| `src/views/statusBar.js` | Status bar item and visibility setting |
-| `src/webviews/sidebarView.js` | Activity Bar launcher provider and `openDashboard` validation |
-| `src/webviews/sidebarHtml.js` | Nonce-CSP launcher markup |
-| `src/webviews/dashboardPanel.js` | Singleton panel controller, message validation, and command allowlist |
-| `src/webviews/dashboardModel.js` | 11-section navigation, actions, empty state, and labeled demo state |
-| `src/webviews/dashboardHtml.js` | Accessible dashboard shell with nonce CSP and embedded state |
-| `src/webviews/csp.js` | Nonce and Content Security Policy construction |
-| `src/webviews/html.js` | Attribute/text escaping and safe inline JSON serialization |
-| `src/backend/` | Engine process manager and handshake (future; the extension connects to an already-running backend) |
-| `src/jobs/` | Job lifecycle and progress routing (future) |
-| `src/workspace/` | Request builders now; snapshots and patch approval (future) |
-| `src/security/` | Workspace path containment; shared webview helpers (future) |
-| `media/` | Icons, dashboard CSS/JS, and sidebar launcher CSS/JS |
-| `test/` | Unit and Extension Host integration tests |
+No verified screenshots are available in the repository at this time, so none are included. This
+section is intentionally left without image links rather than showing illustrative or synthetic
+application output.
 
-See `docs/architecture.md` for the full design and
-`docs/secure-recommendation-and-feedback.md` for the proposal-only recommendation
-workflow, verification gates, and feedback lifecycle.
+## License
+
+No license has been selected or added. Do not redistribute this repository or treat the VSIX as
+licensed software until the repository owner chooses and adds a license. Packaging intentionally
+leaves the `vsce` missing-license warning visible.
+
+## GitHub repository
+
+- Repository: https://github.com/sajib91/Bug-Dhor
+- Issues: https://github.com/sajib91/Bug-Dhor/issues
+- Documentation: https://github.com/sajib91/Bug-Dhor/tree/main/docs
+- Reports: https://github.com/sajib91/Bug-Dhor/tree/main/reports

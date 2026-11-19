@@ -1,7 +1,7 @@
 {
   "name": "bug-dhor",
   "displayName": "Bug-Dhor: AI Code Security Analyzer",
-  "description": "Explainable vulnerability analysis, counterfactual feature inspection, and verified repair for VS Code.",
+  "description": "Local-first security diagnostics, evidence-grounded explanations, and proposal-only repair backed by a separate Python engine.",
   "version": "0.1.0",
   "publisher": "sajib91",
   "repository": {
@@ -17,14 +17,14 @@
   },
   "categories": [
     "Linters",
-    "Machine Learning",
     "Other"
   ],
   "keywords": [
     "security",
     "vulnerability",
-    "sae",
-    "counterfactual",
+    "static-analysis",
+    "ast",
+    "diagnostics",
     "repair"
   ],
   "extensionKind": [
@@ -728,6 +728,7 @@
     "format:check": "prettier --ignore-path ../.prettierignore --check \"**/*.{js,json,css,html,yml,yaml}\"",
     "test": "node --test test/unit/*.test.js",
     "test:integration": "node test/integration/runTest.js",
+    "test:integration:vsix": "node test/integration/runVsixTest.js",
     "package": "npm run package:vsix",
     "package:prepare": "node scripts/stageRuntimeDeps.js",
     "package:vsix": "node scripts/packageVsix.js package",
@@ -738,7 +739,7 @@
   },
   "devDependencies": {
     "@vscode/test-electron": "^3.1.0",
-    "@vscode/vsce": "^3.9.1",
+    "@vscode/vsce": "^4.1.1",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",

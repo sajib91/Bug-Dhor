@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { runTests } = require('@vscode/test-electron');
+const { resolvePython } = require('./pythonDiscovery');
 
 const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
 const extensionTestsPath = path.join(__dirname, 'index.js');
@@ -60,23 +61,6 @@ function findLocalVSCode() {
   }
 
   return candidates.find((candidate) => fs.existsSync(candidate));
-}
-
-/**
- * @returns {string}
- */
-function resolvePython() {
-  if (process.env.BUGDHOR_PYTHON) {
-    return process.env.BUGDHOR_PYTHON;
-  }
-  const candidate =
-    process.platform === 'win32'
-      ? path.join(repositoryRoot, '.venv', 'Scripts', 'python.exe')
-      : path.join(repositoryRoot, '.venv', 'bin', 'python');
-  if (fs.existsSync(candidate)) {
-    return candidate;
-  }
-  return process.platform === 'win32' ? 'python' : 'python3';
 }
 
 /**
@@ -189,7 +173,9 @@ async function main() {
   // the VS Code workspace URI, backend file URI, and diagnostic containment
   // checks all refer to the same absolute path.
   const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-e2e-')));
-  const workspacePath = path.join(temporaryRoot, 'workspace');
+  // Deliberately include spaces and non-ASCII characters in the real workspace
+  // path exercised by VS Code and the Python backend.
+  const workspacePath = path.join(temporaryRoot, 'workspace with spaces — ünïcøde 🚀');
   const userDataDir = path.join(temporaryRoot, 'user-data');
   const extensionsDir = path.join(temporaryRoot, 'extensions');
   const dataDir = path.join(temporaryRoot, 'data');
@@ -197,7 +183,7 @@ async function main() {
   for (const directory of [workspacePath, userDataDir, extensionsDir, dataDir, logDir]) {
     fs.mkdirSync(directory, { recursive: true });
   }
-  const sourcePath = path.join(workspacePath, 'app.py');
+  const sourcePath = path.join(workspacePath, 'café — 日本語.py');
   fs.writeFileSync(sourcePath, DISK_SOURCE, 'utf8');
 
   /** @type {import('node:child_process').ChildProcess | undefined} */
@@ -219,7 +205,7 @@ async function main() {
   try {
     const port = await findFreePort();
     const backendUrl = `http://127.0.0.1:${port}`;
-    const python = resolvePython();
+    const python = resolvePython({ repositoryRoot, env: process.env });
     const backendEnvironment = { ...process.env };
     delete backendEnvironment.BUGDHOR_API_TOKEN;
     delete backendEnvironment.BUGDHOR_ENGINE_TOKEN;

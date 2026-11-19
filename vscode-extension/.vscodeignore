@@ -13,6 +13,8 @@
 .vscode-test/**
 .idea/**
 .DS_Store
+**/.DS_Store
+**/.gitkeep
 *.swp
 
 # Node dependencies. Only the staged production closure created by

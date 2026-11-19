@@ -477,7 +477,7 @@ No benchmark results are included in this guide; any future results must be trac
 ### 16.4 Extension development/runtime
 
 - Use **Run and Debug → Run Bug Dhor Extension** in VS Code for Extension Development Host.
-- Packaging with `--no-dependencies` is intentional in this repo layout; do not change without bundling strategy.
+- Packaging uses `npm run package:vsix`, which builds from a clean staging copy and stages the declared production dependency closure; do not run `vsce` directly from the npm workspace.
 - See `vscode-extension/README.md` and `docs/development-setup.md` for known issues (Node version, venv, Semgrep PATH, Docker availability, Windows notes).
 
 ## 17. Privacy and security considerations

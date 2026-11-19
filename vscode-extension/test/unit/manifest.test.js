@@ -33,12 +33,34 @@ test('marketplace metadata points at the public repository', () => {
   });
 });
 
+test('marketplace documentation uses HTTPS images and ships a versioned changelog', () => {
+  const readme = fs.readFileSync(path.join(extensionRoot, 'README.md'), 'utf8');
+  const changelog = fs.readFileSync(path.join(extensionRoot, 'CHANGELOG.md'), 'utf8');
+  const imageLinks = [...readme.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map((match) => match[1]);
+  assert.ok(imageLinks.length > 0, 'README must document the icon');
+  for (const link of imageLinks) {
+    assert.match(link, /^https:\/\//, `image link must use HTTPS: ${link}`);
+  }
+  assert.match(readme, /media\/icon\.png/);
+  assert.doesNotMatch(readme, /media\/icon\.svg/);
+  assert.match(changelog, /## \[0\.1\.0\]/);
+});
+
+test('vsce dev dependency supports OIDC trusted publishing', () => {
+  const version = manifest.devDependencies['@vscode/vsce'];
+  assert.match(version, /^\^?\d+\.\d+\.\d+$/);
+  const [major, minor] = version.replace(/^\^/, '').split('.').map(Number);
+  assert.ok(major > 4 || (major === 4 && minor >= 0), `@vscode/vsce ${version} is too old`);
+});
+
 test('packaging scripts stage runtime dependencies without workspace traversal', () => {
   assert.match(manifest.scripts['package:prepare'], /stageRuntimeDeps/);
   assert.match(manifest.scripts['package:vsix'], /packageVsix\.js package/);
   assert.match(manifest.scripts['package:list'], /packageVsix\.js list/);
   assert.doesNotMatch(manifest.scripts['package:vsix'], /--no-dependencies/);
   assert.doesNotMatch(manifest.scripts['package:list'], /--no-dependencies/);
+  assert.doesNotMatch(manifest.scripts['package:vsix'], /--skip-license/);
+  assert.doesNotMatch(manifest.scripts['package:list'], /--skip-license/);
 });
 
 test('manifest entry point exists and is JavaScript', () => {
@@ -49,7 +71,15 @@ test('manifest entry point exists and is JavaScript', () => {
 
 test('manifest targets the selected VS Code API baseline', () => {
   assert.equal(manifest.engines.vscode, '^1.90.0');
-  assert.deepEqual(manifest.categories, ['Linters', 'Machine Learning', 'Other']);
+  assert.deepEqual(manifest.categories, ['Linters', 'Other']);
+  assert.deepEqual(manifest.keywords, [
+    'security',
+    'vulnerability',
+    'static-analysis',
+    'ast',
+    'diagnostics',
+    'repair'
+  ]);
 });
 
 test('activation events cover startup, commands, and the sidebar view', () => {

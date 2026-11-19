@@ -1,0 +1,208 @@
+name: Publish extension (OIDC Trusted Publishing)
+
+# Manual, intentional release only. This workflow never runs on push, pull_request,
+# or release events, and it does not read or print any credential or secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: 'Exact version to publish; must match package.json'
+        type: string
+        required: true
+      confirm_publish:
+        description: 'Type or select YES to confirm a Marketplace publication'
+        type: choice
+        required: true
+        default: 'NO'
+        options:
+          - 'NO'
+          - 'YES'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketplace-release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  NODE_VERSION: '22.13.0'
+  EXTENSION_ID: sajib91.bug-dhor
+  EXPECTED_VERSION: ${{ inputs.expected_version }}
+  CONFIRM_PUBLISH: ${{ inputs.confirm_publish }}
+
+jobs:
+  validate-release:
+    name: Validate intentional release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.manifest.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Validate approval, publisher, version, and duplicate guards
+        id: manifest
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM_PUBLISH" != 'YES' ]; then
+            echo 'Release was not confirmed. Select YES in confirm_publish.' >&2
+            exit 1
+          fi
+
+          license_found=0
+          for candidate in LICENSE LICENSE.md LICENSE.txt; do
+            if [ -f "$candidate" ]; then
+              license_found=1
+              break
+            fi
+          done
+          if [ "$license_found" -ne 1 ]; then
+            echo 'No LICENSE, LICENSE.md, or LICENSE.txt found. Add a license before publishing.' >&2
+            exit 1
+          fi
+
+          if grep -Fq '**Decision:** **NO-GO for publication**' reports/PHASE_04_SECURITY_AUDIT.md; then
+            echo 'Phase 04 still records a NO-GO publication decision.' >&2
+            exit 1
+          fi
+
+          VERSION="$(node -p "require('./vscode-extension/package.json').version")"
+          ROOT_VERSION="$(node -p "require('./package.json').version")"
+          PUBLISHER="$(node -p "require('./vscode-extension/package.json').publisher")"
+          NAME="$(node -p "require('./vscode-extension/package.json').name")"
+
+          node - "$VERSION" "$EXPECTED_VERSION" "$ROOT_VERSION" "$PUBLISHER" "$NAME" <<'NODE'
+          const [version, expected, rootVersion, publisher, name] = process.argv.slice(2);
+          if (!/^\d+\.\d+\.\d+$/.test(version)) {
+            throw new Error(`manifest version is not release-grade semver: ${version}`);
+          }
+          if (version !== expected) {
+            throw new Error(`expected_version ${expected} does not match manifest ${version}`);
+          }
+          if (version !== rootVersion) {
+            throw new Error(`extension ${version} does not match monorepo ${rootVersion}`);
+          }
+          if (publisher !== 'sajib91' || name !== 'bug-dhor') {
+            throw new Error(`unexpected extension identity: ${publisher}.${name}`);
+          }
+          NODE
+
+          if ! grep -Fq "## [${VERSION}]" vscode-extension/CHANGELOG.md; then
+            echo "CHANGELOG.md has no section for ${VERSION}." >&2
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "Local tag v${VERSION} already exists." >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "Remote tag v${VERSION} already exists." >&2
+            exit 1
+          fi
+
+          if ! npx @vscode/vsce show "$EXTENSION_ID" --json > marketplace-show.json; then
+            echo "Could not query Marketplace metadata for $EXTENSION_ID; refusing to publish." >&2
+            exit 1
+          fi
+          node - "$VERSION" marketplace-show.json <<'NODE'
+          const fs = require('node:fs');
+          const [version, file] = process.argv.slice(2);
+          const raw = fs.readFileSync(file, 'utf8').trim();
+          let listing = null;
+          if (raw && raw !== 'undefined') {
+            try {
+              listing = JSON.parse(raw);
+            } catch {
+              throw new Error('Could not parse Marketplace metadata; refusing to publish.');
+            }
+          }
+          const versions = Array.isArray(listing?.versions) ? listing.versions : [];
+          if (versions.some((entry) => entry?.version === version)) {
+            throw new Error(`Marketplace already has ${version}; do not republish a version.`);
+          }
+          console.log(`Version ${version} is not present in Marketplace metadata.`);
+          NODE
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish with OIDC
+    needs: validate-release
+    runs-on: ubuntu-latest
+    environment:
+      name: marketplace-release
+      url: https://marketplace.visualstudio.com/items?itemName=sajib91.bug-dhor
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm --workspace vscode-extension run lint
+
+      - name: Unit tests
+        run: npm --workspace vscode-extension test
+
+      - name: Package VSIX
+        run: npm --workspace vscode-extension run package:vsix
+
+      - name: Verify packaged artifact
+        env:
+          VERSION: ${{ needs.validate-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          VSIX="vscode-extension/bug-dhor-${VERSION}.vsix"
+          test -s "$VSIX"
+          unzip -p "$VSIX" extension/package.json > packaged-package.json
+          node - "$VERSION" packaged-package.json <<'NODE'
+          const fs = require('node:fs');
+          const [version, file] = process.argv.slice(2);
+          const packaged = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (packaged.publisher !== 'sajib91' || packaged.name !== 'bug-dhor') {
+            throw new Error('packaged identity is not sajib91.bug-dhor');
+          }
+          if (packaged.version !== version) {
+            throw new Error(`packaged version ${packaged.version} is not ${version}`);
+          }
+          NODE
+
+      - name: Publish to Marketplace using OIDC
+        env:
+          VERSION: ${{ needs.validate-release.outputs.version }}
+          VSCE_PAT: ''
+        run: |
+          set -euo pipefail
+          VSIX="vscode-extension/bug-dhor-${VERSION}.vsix"
+          npx @vscode/vsce publish --oidc --packagePath "$VSIX"

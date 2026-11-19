@@ -475,7 +475,7 @@ async function run() {
   };
   const backendRequest = {
     workspaceFolder: workspacePath,
-    workspaceFolderName: 'workspace',
+    workspaceFolderName: path.basename(workspacePath),
     filePath: vulnerablePath,
     documentUri: vulnerableDocument.uri.toString(),
     languageId: 'python',
@@ -562,6 +562,27 @@ async function run() {
     api.feedback.getSnapshot().findings.find((entry) => entry.findingId === finding.id)?.state,
     'resolved',
     'verification alone must not resolve a finding without an approved applied patch'
+  );
+
+  // Explicit JavaScript scan through the same loopback backend. This runs last
+  // so it does not change the active editor used by the Python checks above.
+  const javaScriptPath = path.join(workspacePath, 'javascript scan — café.js');
+  const javaScriptSource = 'const start = 0;\n';
+  fs.writeFileSync(javaScriptPath, javaScriptSource, 'utf8');
+  const javaScriptDocument = await vscode.workspace.openTextDocument(javaScriptPath);
+  await vscode.window.showTextDocument(javaScriptDocument, { preview: false });
+  const javaScriptScan = await vscode.commands.executeCommand(COMMANDS.scanCurrentFile);
+  assert.ok(javaScriptScan, 'a JavaScript file must produce a validated backend scan');
+  assert.equal(javaScriptScan.operation, 'scan_file');
+  assert.equal(javaScriptScan.apiVersion, 'v1');
+  assert.equal(javaScriptScan.analysisAvailable, true);
+  assert.deepEqual(javaScriptScan.findings, [], 'benign JavaScript must not produce findings');
+  assert.equal(javaScriptScan.filesScanned, 1);
+  assert.equal(javaScriptScan.file.path, fs.realpathSync(javaScriptPath));
+  assert.equal(
+    javaScriptScan.file.sha256,
+    sha256(javaScriptSource),
+    'the JavaScript scan must hash the saved UTF-8 source'
   );
 
   console.log('Bug Dhor Extension Host checks passed.');

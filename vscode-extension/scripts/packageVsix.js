@@ -30,9 +30,21 @@ function cleanup() {
 function prepareStaging() {
   fs.mkdirSync(stagingDir, { recursive: true });
 
-  for (const file of ['package.json', 'README.md', '.vscodeignore']) {
+  for (const file of ['package.json', 'README.md', 'CHANGELOG.md', '.vscodeignore']) {
     fs.copyFileSync(path.join(extensionRoot, file), path.join(stagingDir, file));
   }
+
+  const repositoryRoot = path.resolve(extensionRoot, '..');
+  for (const file of ['LICENSE', 'LICENSE.md', 'LICENSE.txt']) {
+    const source = [path.join(extensionRoot, file), path.join(repositoryRoot, file)].find(
+      (candidate) => fs.existsSync(candidate)
+    );
+    if (source) {
+      fs.copyFileSync(source, path.join(stagingDir, file));
+      break;
+    }
+  }
+
   for (const directory of ['src', 'media']) {
     fs.cpSync(path.join(extensionRoot, directory), path.join(stagingDir, directory), {
       recursive: true
@@ -49,12 +61,28 @@ function prepareStaging() {
   }
 }
 
-function runVsce() {
-  const executable = path.join(extensionRoot, 'node_modules', '@vscode', 'vsce', 'vsce');
-  if (!fs.existsSync(executable)) {
-    throw new Error('vsce is not installed. Run `npm install` at the repository root first.');
+function resolveVsce() {
+  try {
+    const packagePath = require.resolve('@vscode/vsce/package.json', { paths: [extensionRoot] });
+    const manifest = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    const bin = typeof manifest.bin === 'string' ? manifest.bin : manifest.bin?.vsce;
+    if (!bin) {
+      throw new Error('@vscode/vsce does not declare a CLI binary.');
+    }
+    return path.join(path.dirname(packagePath), bin);
+  } catch (error) {
+    throw new Error('vsce is not installed. Run `npm ci` at the repository root first.', {
+      cause: error
+    });
   }
-  const args = mode === 'list' ? ['ls'] : ['package', '--skip-license'];
+}
+
+function runVsce() {
+  const executable = resolveVsce();
+  if (!fs.existsSync(executable)) {
+    throw new Error('vsce is not installed. Run `npm ci` at the repository root first.');
+  }
+  const args = mode === 'list' ? ['ls', '--tree'] : ['package'];
   return spawnSync(process.execPath, [executable, ...args], {
     cwd: stagingDir,
     encoding: 'utf8',
