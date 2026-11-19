@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 
 const {
   CAPABILITIES,
@@ -26,20 +27,39 @@ const {
   createRawFinding
 } = require('./diagnosticsFake');
 
-/** @param {Record<string, string>} files */
+/**
+ * Build a read-only fake filesystem. Keys and lookups use the host path rules
+ * so fixtures declared as POSIX paths still match the native path production
+ * code builds (for example `D:\models\tiny\config.json` on Windows).
+ *
+ * @param {Record<string, string>} files
+ */
 function fakeFileSystem(files) {
+  const entries = new Map(
+    Object.entries(files).map(([filePath, contents]) => [path.resolve(filePath), contents])
+  );
   return {
     readFileSync(filePath) {
-      const key = String(filePath);
-      if (!(key in files)) {
+      const key = path.resolve(String(filePath));
+      if (!entries.has(key)) {
         const error = new Error(`ENOENT: ${key}`);
         error.code = 'ENOENT';
         throw error;
       }
-      return files[key];
+      return entries.get(key);
     }
   };
 }
+
+test('fake filesystem resolves fixture keys with host path rules', () => {
+  const fileSystem = fakeFileSystem({ '/models/tiny/config.json': '{"model_type":"gpt2"}' });
+
+  assert.equal(
+    fileSystem.readFileSync(path.join(path.resolve('/models/tiny'), 'config.json')),
+    '{"model_type":"gpt2"}'
+  );
+  assert.throws(() => fileSystem.readFileSync('/models/missing/config.json'), /ENOENT/);
+});
 
 function createFakeFetch(response) {
   const calls = [];

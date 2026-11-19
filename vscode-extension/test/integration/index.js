@@ -8,6 +8,7 @@ const vscode = require('vscode');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { DASHBOARD_TITLE } = require('../../src/webviews/dashboardPanel');
 const { DIAGNOSTIC_SOURCE } = require('../../src/diagnostics/findingModel');
+const { canonicalPath } = require('./pathUtils');
 
 const VULNERABLE_FILE = 'vulnerable.py';
 const VULNERABLE_SOURCE = [
@@ -155,7 +156,7 @@ async function run() {
   assert.equal(scan.filesScanned, 1);
   assert.equal(
     scan.file.path,
-    fs.realpathSync(sourcePath),
+    canonicalPath(sourcePath),
     'the backend must report the resolved path of the scanned file'
   );
   assert.ok(scan.file.uri.startsWith('file:'), 'the scanned file must be a file URI');
@@ -578,7 +579,7 @@ async function run() {
   assert.equal(javaScriptScan.analysisAvailable, true);
   assert.deepEqual(javaScriptScan.findings, [], 'benign JavaScript must not produce findings');
   assert.equal(javaScriptScan.filesScanned, 1);
-  assert.equal(javaScriptScan.file.path, fs.realpathSync(javaScriptPath));
+  assert.equal(javaScriptScan.file.path, canonicalPath(javaScriptPath));
   assert.equal(
     javaScriptScan.file.sha256,
     sha256(javaScriptSource),

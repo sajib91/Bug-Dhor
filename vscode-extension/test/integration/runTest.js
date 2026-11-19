@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { runTests } = require('@vscode/test-electron');
+const { canonicalPath } = require('./pathUtils');
 const { resolvePython } = require('./pythonDiscovery');
 
 const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
@@ -169,10 +170,12 @@ async function waitForBackend(backendUrl, child, readLogs, timeoutMs = 30_000) {
 }
 
 async function main() {
-  // Resolve symlinked temp roots (notably /var -> /private/var on macOS) so
-  // the VS Code workspace URI, backend file URI, and diagnostic containment
-  // checks all refer to the same absolute path.
-  const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-e2e-')));
+  // Resolve symlinked temp roots (notably /var -> /private/var on macOS) and
+  // Windows 8.3 short names (RUNNER~1) so the VS Code workspace URI, backend
+  // file URI, and diagnostic containment checks all refer to the same path.
+  const temporaryRoot = canonicalPath(
+    fs.mkdtempSync(path.join(canonicalPath(os.tmpdir()), 'bugdhor-e2e-'))
+  );
   // Deliberately include spaces and non-ASCII characters in the real workspace
   // path exercised by VS Code and the Python backend.
   const workspacePath = path.join(temporaryRoot, 'workspace with spaces — ünïcøde 🚀');

@@ -13,6 +13,7 @@ const {
   runTests
 } = require('@vscode/test-electron');
 
+const { canonicalPath } = require('./pathUtils');
 const { resolvePython } = require('./pythonDiscovery');
 
 const extensionRoot = path.resolve(__dirname, '..', '..');
@@ -184,7 +185,9 @@ async function main() {
   );
   assert.ok(fs.existsSync(vsixPath), `VSIX not found: ${vsixPath}`);
 
-  const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-vsix-')));
+  const temporaryRoot = canonicalPath(
+    fs.mkdtempSync(path.join(canonicalPath(os.tmpdir()), 'bugdhor-vsix-'))
+  );
   const workspacePath = path.join(temporaryRoot, 'workspace with spaces — ünïcøde 🚀');
   const userDataDir = path.join(temporaryRoot, 'user-data');
   const extensionsDir = path.join(temporaryRoot, 'extensions');

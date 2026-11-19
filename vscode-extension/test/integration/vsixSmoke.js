@@ -8,6 +8,7 @@ const vscode = require('vscode');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { DASHBOARD_TITLE } = require('../../src/webviews/dashboardPanel');
 const manifest = require('../../package.json');
+const { canonicalPath } = require('./pathUtils');
 
 /** @param {string} label @param {number} [timeoutMs] */
 async function waitForTab(label, timeoutMs = 5000) {
@@ -86,7 +87,7 @@ async function run() {
   assert.equal(scan.analysisAvailable, true);
   assert.deepEqual(scan.findings, [], 'benign code must not produce fabricated findings');
   assert.equal(scan.filesScanned, 1);
-  assert.equal(scan.file.path, fs.realpathSync(sourcePath));
+  assert.equal(scan.file.path, canonicalPath(sourcePath));
   assert.equal(
     scan.file.sha256,
     crypto
