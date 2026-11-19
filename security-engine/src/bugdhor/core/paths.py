@@ -222,6 +222,8 @@ def inspect_source_file(
 ) -> FileSnapshot:
     """Read, hash, decode, and validate one source file."""
     path = resolve_file(root, value, settings)
+    if not is_source_file(path):
+        raise UnsupportedMediaAppError("Only recognized source files can be analyzed.")
     try:
         size = path.stat().st_size
     except OSError:
@@ -262,6 +264,8 @@ def inspect_source_text(
     scan its current buffer without silently accepting a different file.
     """
     path = resolve_file(root, value, settings)
+    if not is_source_file(path):
+        raise UnsupportedMediaAppError("Only recognized source files can be analyzed.")
     try:
         data = source_text.encode("utf-8")
     except UnicodeEncodeError:

@@ -69,6 +69,7 @@ function assertCompleteRegistry(registry) {
  *   feedback?: import('../feedback/feedbackController').FeedbackController,
  *   getRecommendationSettings?: () => object,
  *   getRepositorySettings?: () => object,
+ *   trustGate?: { assertCapability: (operation?: string) => void },
  *   gitRunner?: (cwd: string, args: string[], timeoutMs: number) => Promise<string>,
  *   phase6Runner?: (command: string, args: string[], options: object) => Promise<{ stdout: string, stderr: string }>
  * }} dependencies
@@ -85,6 +86,7 @@ function registerCommands({
   feedback,
   getRecommendationSettings,
   getRepositorySettings,
+  trustGate,
   gitRunner,
   phase6Runner
 }) {
@@ -119,7 +121,9 @@ function registerCommands({
     assistantHooks,
     feedback,
     getSettings: getRecommendationSettings,
-    getRepositorySettings: getRepositorySettings ?? (() => ({ backendUrl: 'http://127.0.0.1:8765' })),
+    getRepositorySettings:
+      getRepositorySettings ?? (() => ({ backendUrl: 'http://127.0.0.1:8765' })),
+    trustGate,
     gitRunner,
     phase6Runner
   };

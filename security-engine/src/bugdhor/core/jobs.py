@@ -8,6 +8,7 @@ operation results as JSON artifacts under the configured data directory.
 from __future__ import annotations
 
 import json
+import stat
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from bugdhor.core.errors import ConflictAppError, NotFoundAppError
+from bugdhor.core.persistence import sanitize_for_persistence, write_json_private
 
 
 def _now() -> str:
@@ -80,12 +82,24 @@ class CancellationToken:
 
 
 class JobStore:
-    def __init__(self, data_dir: str | Path) -> None:
+    def __init__(
+        self,
+        data_dir: str | Path,
+        *,
+        retention_days: int = 7,
+        persist_full_payloads: bool = False,
+    ) -> None:
         self.data_dir = Path(data_dir)
         self.jobs_dir = self.data_dir / "jobs"
         self.results_dir = self.data_dir / "results"
-        self.jobs_dir.mkdir(parents=True, exist_ok=True)
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.retention_days = retention_days
+        self.persist_full_payloads = persist_full_payloads
+        for directory in (self.data_dir, self.jobs_dir, self.results_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+            try:
+                directory.chmod(stat.S_IRWXU)
+            except OSError:
+                pass
         self._lock = threading.Lock()
         self._jobs: dict[str, JobRecord] = {}
         self._tokens: dict[str, CancellationToken] = {}
@@ -202,11 +216,15 @@ class JobStore:
 
     def _persist(self, rec: JobRecord) -> None:
         path = self.jobs_dir / f"{rec.job_id}.json"
-        path.write_text(json.dumps(rec.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        payload = sanitize_for_persistence(
+            rec.to_dict(), full_payloads=self.persist_full_payloads
+        )
+        write_json_private(path, payload, retention_days=self.retention_days)
 
     def _persist_result(self, job_id: str, result: Mapping[str, Any]) -> None:
         path = self.results_dir / f"{job_id}.json"
-        path.write_text(json.dumps(dict(result), ensure_ascii=False, indent=2), encoding="utf-8")
+        payload = sanitize_for_persistence(dict(result), full_payloads=self.persist_full_payloads)
+        write_json_private(path, payload, retention_days=self.retention_days)
 
 
 __all__ = ["CancellationToken", "JobRecord", "JobStore", "ProgressEvent"]

@@ -4,6 +4,7 @@ const { execFile } = require('node:child_process');
 const path = require('node:path');
 
 const { selectFinding } = require('../recommendations/secureCodeGeneration');
+const { redactProcessDetail, redactText } = require('../security/redaction');
 
 const SETTINGS_SECTION = 'bugdhor';
 const DEFAULT_PYTHON_PATH = 'python';
@@ -45,11 +46,18 @@ function readLocalSettings(vscode) {
   const configuration = vscode.workspace.getConfiguration(SETTINGS_SECTION);
   const pythonPath = configuration.get('localEngine.pythonPath', DEFAULT_PYTHON_PATH);
   const sessionPath = configuration.get('localEngine.sessionPath', DEFAULT_SESSION_PATH);
+  if (typeof sessionPath === 'string' && path.isAbsolute(sessionPath.trim())) {
+    throw new LocalPhase6Error(
+      'bugdhor.localEngine.sessionPath must be relative to the workspace root.'
+    );
+  }
   return Object.freeze({
     enabled: configuration.get('localEngine.enabled', false) === true,
     pythonPath:
       typeof pythonPath === 'string' && pythonPath.trim() ? pythonPath.trim() : DEFAULT_PYTHON_PATH,
-    requestTimeoutMs: clampTimeout(configuration.get('localEngine.requestTimeoutMs', DEFAULT_TIMEOUT_MS)),
+    requestTimeoutMs: clampTimeout(
+      configuration.get('localEngine.requestTimeoutMs', DEFAULT_TIMEOUT_MS)
+    ),
     allowSourceWrite: configuration.get('localEngine.allowSourceWrite', false) === true,
     sessionPath:
       typeof sessionPath === 'string' && sessionPath.trim()
@@ -79,9 +87,9 @@ function createDefaultRunner() {
         },
         (error, stdout, stderr) => {
           if (error) {
-            const failure = new Error(`Local Phase 6 command failed: ${error.message}`);
-            failure.stdout = stdout;
-            failure.stderr = stderr;
+            const failure = new Error(`Local Phase 6 command failed: ${redactText(error.message)}`);
+            failure.stdout = redactText(stdout);
+            failure.stderr = redactText(stderr);
             failure.exitCode = error.code ?? null;
             reject(failure);
             return;
@@ -185,10 +193,11 @@ function createLocalPhase6Engine({ vscode, logger, diagnostics, runCommand }) {
       stderr = error?.stderr ?? '';
       exitCode = error?.exitCode ?? 1;
       if (!stdout) {
-        throw new LocalPhase6Error(
-          `Local Phase 6 ${action} failed: ${error?.message ?? String(error)}`,
-          { action, exitCode }
-        );
+        const detail = redactProcessDetail(error) ?? redactText(error?.message ?? error);
+        throw new LocalPhase6Error(`Local Phase 6 ${action} failed: ${detail}`, {
+          action,
+          exitCode
+        });
       }
     }
 
@@ -196,10 +205,11 @@ function createLocalPhase6Engine({ vscode, logger, diagnostics, runCommand }) {
     try {
       envelope = JSON.parse(stdout);
     } catch {
-      throw new LocalPhase6Error(
-        `Local Phase 6 ${action} returned non-JSON output: ${stderr || stdout.slice(0, 200)}`,
-        { action, exitCode }
-      );
+      const detail = redactText(stderr || stdout.slice(0, 200));
+      throw new LocalPhase6Error(`Local Phase 6 ${action} returned non-JSON output: ${detail}`, {
+        action,
+        exitCode
+      });
     }
     if (!envelope || typeof envelope !== 'object' || typeof envelope.ok !== 'boolean') {
       throw new LocalPhase6Error(`Local Phase 6 ${action} returned an invalid envelope.`, {
@@ -208,11 +218,14 @@ function createLocalPhase6Engine({ vscode, logger, diagnostics, runCommand }) {
       });
     }
     if (!envelope.ok) {
-      throw new LocalPhase6Error(envelope.error?.message ?? `Local Phase 6 ${action} failed.`, {
-        action,
-        type: envelope.error?.type,
-        exitCode
-      });
+      throw new LocalPhase6Error(
+        redactText(envelope.error?.message ?? `Local Phase 6 ${action} failed.`),
+        {
+          action,
+          type: envelope.error?.type,
+          exitCode
+        }
+      );
     }
     logger?.debug?.(`Local Phase 6 ${action} completed.`);
     return envelope.result;
@@ -250,7 +263,11 @@ function createLocalPhase6Engine({ vscode, logger, diagnostics, runCommand }) {
    * @param {any} [editor]
    */
   function currentFinding(document, editor) {
-    return selectFinding(diagnostics, document.uri.toString(), editor ?? vscode.window.activeTextEditor);
+    return selectFinding(
+      diagnostics,
+      document.uri.toString(),
+      editor ?? vscode.window.activeTextEditor
+    );
   }
 
   return {

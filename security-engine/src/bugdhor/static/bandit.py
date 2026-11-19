@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.base import StaticToolAdapter, validate_common_config
 from bugdhor.static.execution import DEFAULT_MAX_CAPTURE_BYTES, run_command
 from bugdhor.static.models import (
@@ -137,7 +138,7 @@ class BanditAdapter(StaticToolAdapter):
                     config_hash=availability.config_hash,
                 )
             except (json.JSONDecodeError, ValueError) as exc:
-                parse_error = f"Bandit output could not be parsed: {exc}"
+                parse_error = f"Bandit output could not be parsed: {redact_text(exc)}"
 
         successful_exit = execution.return_code in {0, 1}
         if parse_error is not None:

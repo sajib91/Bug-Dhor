@@ -12,6 +12,14 @@
 > stale. The security findings and the NO-GO decision below are unchanged and were rechecked at
 > current HEAD during Phase 09.
 
+> **Post-remediation update (2026-11-20):** All 19 findings have been addressed in code or given a
+> documented residual-risk statement. Detailed per-finding evidence, final test output, the
+> re-audit matrix, and the release-gate disposition are in
+> `reports/PHASE_04_SECURITY_REMEDIATION.md`. The historical findings below are retained for traceability.
+> The decision line above is intentionally unchanged: publisher/Marketplace Trusted Publishing,
+> OIDC publish receipts, Windows tests, and the GitHub Actions SCA run remain unverified, and no
+> commit, push, or publish was performed.
+
 ---
 
 ## 1. Executive summary
@@ -380,3 +388,38 @@ No publish, commit, or push was performed during this audit.
 ## 10. Closing statement
 
 This report documents an internal review against the 19 requested areas with the evidence actually collected. It does not claim any external certification, penetration-test result, CVE-free status, or validated SAE/model-internal capability. The strongest parts of the codebase — containment checks, contract validation, CSP, approval gates, and capability honesty — should be preserved while the identified write-before-consent and trust-boundary issues are fixed.
+
+---
+
+## 11. Post-remediation verification (2026-11-20)
+
+The original findings above are retained as the historical record. The code-level remediation was completed and re-audited across all 19 areas; full evidence is in `reports/PHASE_04_SECURITY_REMEDIATION.md`.
+
+### 11.1 Final local checks
+
+| Command | Result |
+|---|---|
+| `PYTHONPATH=src:security-engine/src .venv/bin/python -m pytest -q` | `1106 passed in 11.26s` |
+| `npm test` | `439 tests`, `439 pass`, `0 fail` |
+| `npm run extension:lint` | Pass — no findings |
+| `npm run extension:test:integration` | `Bug Dhor Extension Host checks passed.` |
+| `npm --workspace vscode-extension run test:integration:vsix` | `Bug Dhor VSIX smoke checks passed.` |
+| `npm audit --omit=dev --json` | `0` total vulnerabilities |
+| `.venv/bin/python -m pip check` | `No broken requirements found.` |
+| `.venv/bin/python -m compileall -q security-engine/src security-engine/tests` | Exit 0 |
+| `pip-compile --no-header --allow-unsafe --generate-hashes --extra ml --extra dev ...` | Empty lock diff |
+| `pip-audit --require-hashes -r requirements.lock.txt --strict` | `No known vulnerabilities found` |
+| Bandit (`-q -r src security-engine/src tests security-engine/tests`) | Undefined 0, Low 3536, Medium 11, **High 0** |
+| Repository Ruff | 486 style findings remain; new security modules and regression suite pass targeted Ruff |
+| `unzip -t vscode-extension/bug-dhor-0.1.0.vsix` | `No errors detected` |
+
+Final VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`, 240 entries, 492,783 bytes, SHA-256 `94ccd60ab553cab8d161339b29cdf0eaa54bd780827f7ef4a37282149534efd6`.
+
+### 11.2 Gate disposition
+
+- SEC-01 through SEC-06 and all MEDIUM/LOW findings are resolved in code or carry an explicit documented residual in the remediation report.
+- Local code gates, regression tests, production dependency audit, Python SCA, and artifact checks pass.
+- Publisher ownership, Marketplace Trusted Publishing/OIDC policy and receipts, Windows tests, the GitHub Actions SCA run, and a real VS Code untrusted-host test remain unverified.
+- The security-critical new files remain untracked because no commit was permitted; a tracked-only release would omit them.
+
+**Decision unchanged:** **NO-GO for publication** until every release gate, including publisher/Marketplace Trusted Publishing, is verified. No commit, push, or publish was performed.

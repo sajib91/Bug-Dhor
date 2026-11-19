@@ -35,6 +35,10 @@
     "profile": {
       "enum": ["static_only", "sandbox"]
     },
+    "executionExecuted": {
+      "type": "boolean",
+      "default": false
+    },
     "sandboxBackend": {
       "type": "string",
       "minLength": 1,

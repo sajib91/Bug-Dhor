@@ -16,7 +16,7 @@ const {
   normalizeCwe
 } = require('../diagnostics/findingModel');
 const { SECTION } = require('../api/configurationService');
-const { isPathWithinRoot } = require('../security/paths');
+const { isRealPathWithinRoot } = require('../security/paths');
 
 const MAX_WORKSPACE_FOLDERS = 50;
 const MAX_EXPLICIT_FILE_PATHS = 50_000;
@@ -336,7 +336,7 @@ function createWorkspaceRequest(vscode, options = {}) {
       );
     }
     const filePath = path.resolve(candidate);
-    if (!rootPaths.some((rootPath) => isPathWithinRoot(filePath, rootPath))) {
+    if (!rootPaths.some((rootPath) => isRealPathWithinRoot(filePath, rootPath))) {
       throw new CommandValidationError(
         `Explicit file path is outside every workspace folder: ${filePath}`,
         'E_PATH_OUTSIDE_WORKSPACE'

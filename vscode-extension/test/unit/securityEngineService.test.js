@@ -321,7 +321,7 @@ test('scanFile maps the file context and validated scan response', async () => {
   assert.equal(call.token, token);
   assert.deepEqual(call.body, {
     workspaceRoot: '/workspace',
-    filePath: '/workspace/src/app.js',
+    filePath: 'src/app.js',
     workspaceFolderName: 'workspace',
     documentUri: FILE_URI,
     languageId: 'javascript',
@@ -702,4 +702,15 @@ test('buildFileRequestBody rejects incomplete contexts', () => {
     /filePath/
   );
   assert.throws(() => buildFileRequestBody(null, { sendSourceText: true }), /must be an object/);
+});
+
+test('buildFileRequestBody rejects files outside the workspace root', () => {
+  assert.throws(
+    () =>
+      buildFileRequestBody(
+        { workspaceFolder: '/workspace', filePath: '/etc/passwd' },
+        { sendSourceText: true }
+      ),
+    { code: 'E_PATH_OUTSIDE_WORKSPACE' }
+  );
 });

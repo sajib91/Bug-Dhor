@@ -8,3 +8,11 @@
 #   python -m pip install -e ".[dev,ml,analyzers]"
 # For a lightweight static-only environment:
 #   python -m pip install -e ".[dev]"
+#
+# Reproducible, hash-verified installation of the runtime, dev, and ML
+# environments (used by CI and release validation):
+#   python -m pip install --require-hashes -r requirements.lock.txt
+#
+# Analyzer CLIs (Semgrep/Bandit) are deliberately excluded from this lock.
+# Install them separately in a disposable analyzer environment; mcp/Semgrep
+# transitive pins have known advisories and are not part of the runtime closure.

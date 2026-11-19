@@ -74,6 +74,8 @@ from bugdhor.core.paths import (
     inspect_source_text,
     validate_selection,
 )
+from bugdhor.core.persistence import sanitize_for_persistence, write_json_private
+from bugdhor.core.redaction import redact_text
 from bugdhor.core.pipeline import (
     Pipeline,
     PipelineExecution,
@@ -85,6 +87,7 @@ from bugdhor.core.pipeline import (
     UnavailableStage,
     combine_stage_results,
 )
+from bugdhor.core.safe_patch import canonical_relative_path
 from bugdhor.core.settings import Settings
 from bugdhor.recommendation.engine import SecureRecommendationEngine
 from bugdhor.repair.context import RepositoryContextBuilder
@@ -306,9 +309,7 @@ class Orchestrator:
         self._analysis_cache[key] = data
         try:
             cache_file = self._analysis_cache_dir / f"{key}.json"
-            tmp = cache_file.with_suffix(".tmp")
-            tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-            os.replace(tmp, cache_file)
+            write_json_private(cache_file, sanitize_for_persistence(data))
         except Exception:
             # Cache persistence is best-effort; analysis correctness does not depend on it.
             pass
@@ -367,7 +368,7 @@ class Orchestrator:
             return result
         except ConflictAppError as exc:
             if getattr(exc, "code", "") == "E_CANCELLED":
-                progress("operation", "cancelled", str(exc), None)
+                progress("operation", "cancelled", redact_text(exc), None)
             job_store.fail(
                 job_id, {"code": exc.code, "detail": exc.detail, "statusCode": exc.status_code}
             )
@@ -398,15 +399,15 @@ class Orchestrator:
             return
         try:
             payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-            job_store.results_dir.mkdir(parents=True, exist_ok=True)
+            safe_payload = sanitize_for_persistence(
+                payload if isinstance(payload, dict) else {"value": payload},
+                full_payloads=getattr(job_store, "persist_full_payloads", False),
+            )
             path = job_store.results_dir / f"{operation}-{request_id}.json"
-            path.write_text(
-                json.dumps(
-                    payload if isinstance(payload, dict) else {"value": payload},
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
+            write_json_private(
+                path,
+                safe_payload,
+                retention_days=getattr(job_store, "retention_days", 7),
             )
         except Exception:
             self.logger.warning(
@@ -439,7 +440,20 @@ class Orchestrator:
         adapters = []
         for cls in (SemgrepAdapter, BanditAdapter):
             try:
-                adapters.append(cls())
+                if cls is SemgrepAdapter:
+                    from bugdhor.static.semgrep import SemgrepConfig
+
+                    adapters.append(
+                        cls(
+                            SemgrepConfig(
+                                executable=self.settings.semgrep_path,
+                                configs=tuple(self.settings.semgrep_configs),
+                                require_local_rules=self.settings.semgrep_require_local_rules,
+                            )
+                        )
+                    )
+                else:
+                    adapters.append(cls())
             except Exception:
                 continue
         if not adapters:
@@ -543,7 +557,7 @@ class Orchestrator:
             )
             fa.parsed_ok = True
         except Exception as exc:
-            fa.parse_error = f"{type(exc).__name__}: {exc}"
+            fa.parse_error = f"{type(exc).__name__}: {redact_text(exc)}"
             self._store_analysis_cache(
                 cache_key,
                 {
@@ -574,7 +588,9 @@ class Orchestrator:
             except Exception as exc:
                 fa.analysis_error = f"taint analysis error: {type(exc).__name__}"
         except Exception as exc:
-            fa.analysis_error = f"program analysis error: {type(exc).__name__}: {exc}"
+            fa.analysis_error = (
+                f"program analysis error: {type(exc).__name__}: {redact_text(exc)}"
+            )
         # Cache in-memory only for complex objects; avoid non-serializable disk persistence.
         self._analysis_cache[cache_key] = {
             "_kind": "analysis-v1",
@@ -778,7 +794,7 @@ class Orchestrator:
                     stage="detection",
                     status=StageStatus.PARTIAL,
                     reason_code="E_DETECTOR_ERROR",
-                    detail=f"{type(exc).__name__}: {exc}",
+                    detail=f"{type(exc).__name__}: {redact_text(exc)}",
                 )
             )
             warnings.append(f"detection error: {type(exc).__name__}")
@@ -1234,7 +1250,7 @@ class Orchestrator:
                 except Exception as exc:
                     exp_status = StageStatus.PARTIAL
                     exp_reason = "E_EXPLANATION_ERROR"
-                    exp_detail = f"{type(exc).__name__}: {exc}"
+                    exp_detail = f"{type(exc).__name__}: {redact_text(exc)}"
                     limitations.append(exp_detail)
                     graph = None
                     claim_kinds = []
@@ -1721,6 +1737,10 @@ class Orchestrator:
 
     def _inspect(self, request: Any) -> FileSnapshot:
         root = ensure_allowed_root(request.workspace_root, self.settings)
+        # Normalize once at the orchestrator boundary. Every downstream stage
+        # receives a canonical relative path, never a caller-supplied path.
+        canonical = canonical_relative_path(root, request.file_path, must_exist=True)
+        request.file_path = str(canonical)
         snapshot = self._snapshot(root, request)
         if request.selection is not None:
             validate_selection(

@@ -5,6 +5,7 @@ const path = require('node:path');
 const { COMMAND_DEFINITIONS } = require('../commands/definitions');
 const { COMMANDS } = require('../constants');
 const { isFileUriWithinFolders } = require('../security/paths');
+const { redactError, redactText } = require('../security/redaction');
 const { applyUnifiedPatch, patchFiles } = require('../repair/patchApplication');
 const { createNonce } = require('./csp');
 const { createDashboardHtml } = require('./dashboardHtml');
@@ -14,9 +15,81 @@ const DASHBOARD_VIEW_TYPE = 'bugdhor.dashboard';
 const DASHBOARD_TITLE = 'Bug Dhor Security Dashboard';
 const SETTINGS_QUERY = 'bugdhor';
 const FINDING_REVIEWS_KEY = 'bugdhor.dashboard.findingReviews';
+const MAX_REPLACEMENT_BYTES = 2 * 1024 * 1024;
 
 function hashText(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/**
+ * @param {unknown} verification
+ * @returns {boolean}
+ */
+function verificationPassed(verification) {
+  if (!verification || typeof verification !== 'object') {
+    return false;
+  }
+  return (
+    verification.verdict === 'passed' ||
+    verification.status === 'passed' ||
+    verification.classification === 'verified_security_improvement'
+  );
+}
+
+/**
+ * Only a backend-accepted or independently verified candidate may be applied.
+ * Explicit rejection and failed/inconclusive verification always win.
+ *
+ * @param {unknown} candidate
+ * @returns {boolean}
+ */
+function isApplicableRepairCandidate(candidate) {
+  if (
+    !candidate ||
+    typeof candidate !== 'object' ||
+    typeof candidate.patch !== 'string' ||
+    candidate.patch.length === 0
+  ) {
+    return false;
+  }
+  if (candidate.rejectionReason) {
+    return false;
+  }
+  const verification = candidate.verification;
+  const verdict =
+    verification && typeof verification === 'object'
+      ? (verification.verdict ?? verification.classification ?? verification.status)
+      : undefined;
+  if (verdict === 'failed' || verdict === 'inconclusive') {
+    return false;
+  }
+  return candidate.accepted === true || verificationPassed(verification);
+}
+
+/**
+ * @param {Record<string, any>} record
+ * @param {unknown} candidateId
+ * @returns {Record<string, any> | null}
+ */
+function selectRepairCandidate(record, candidateId) {
+  const candidates = Array.isArray(record.candidates) ? record.candidates : [];
+  const applicable = candidates.filter(isApplicableRepairCandidate);
+  if (typeof candidateId === 'string' && candidateId.length > 0) {
+    return applicable.find((item) => item.candidateId === candidateId) ?? null;
+  }
+  return applicable[0] ?? null;
+}
+
+/**
+ * @param {Record<string, any>} record
+ * @returns {boolean}
+ */
+function fullTextRepairAllowed(record) {
+  return (
+    record.status === 'proposed' &&
+    record.state !== 'rejected' &&
+    record.verificationStatus !== 'failed'
+  );
 }
 
 /**
@@ -95,11 +168,7 @@ class DashboardPanelController {
         }
       }
     } catch (error) {
-      this.logger.warn(
-        `Unable to restore reviewed finding state: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      this.logger.warn(`Unable to restore reviewed finding state: ${redactError(error)}`);
     }
     return reviews;
   }
@@ -120,11 +189,7 @@ class DashboardPanelController {
       try {
         await this.memento.update(FINDING_REVIEWS_KEY, Object.fromEntries(this.findingReviews));
       } catch (error) {
-        this.logger.warn(
-          `Unable to persist reviewed finding state: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        );
+        this.logger.warn(`Unable to persist reviewed finding state: ${redactError(error)}`);
       }
     }
     this.postNotice(
@@ -291,7 +356,7 @@ class DashboardPanelController {
       });
       return true;
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = redactError(error);
       this.logger.error(`Unable to open dashboard source location: ${detail}`, error);
       this.postNotice('error', 'Unable to open the requested source location. See Bug Dhor logs.');
       return false;
@@ -392,7 +457,7 @@ class DashboardPanelController {
     const workflow = result.workflow && typeof result.workflow === 'object' ? result.workflow : {};
     const candidates = Array.isArray(result.metadata?.candidates)
       ? result.metadata.candidates
-      : [{ candidateId: 'selected', patch: result.patch }];
+      : [{ candidateId: 'selected', patch: result.patch, accepted: true }];
     const record = {
       id: repairId,
       uri: request.documentUri,
@@ -465,7 +530,9 @@ class DashboardPanelController {
       record.verifiedAt = new Date().toISOString();
     } else {
       const verdict =
-        typeof result.verdict === 'string' && result.verdict.length > 0 ? result.verdict : 'unavailable';
+        typeof result.verdict === 'string' && result.verdict.length > 0
+          ? result.verdict
+          : 'unavailable';
       record.verificationStatus = verdict === 'not_run' ? 'not-run' : verdict;
       record.verification = result;
       record.verifiedAt = new Date().toISOString();
@@ -614,21 +681,19 @@ class DashboardPanelController {
       this.postNotice('warning', 'The requested repair proposal is no longer available.');
       return;
     }
-    const candidate =
-      record.candidates.find((item) => item.candidateId === message.candidateId) ??
-      record.candidates[0];
+    const candidate = selectRepairCandidate(record, message?.candidateId);
     const hasFullText = typeof record.repairedText === 'string' && record.repairedText.length > 0;
-    if (!hasFullText && (!candidate || typeof candidate.patch !== 'string' || !candidate.patch)) {
-      this.postNotice('warning', 'The selected repair candidate has no patch.');
+    if (!candidate && !(hasFullText && fullTextRepairAllowed(record))) {
+      this.postNotice('warning', 'The selected repair candidate is not accepted for application.');
       return;
     }
     try {
       const document = await this.vscode.workspace.openTextDocument(
         this.vscode.Uri.parse(record.uri)
       );
-      const patchedText = hasFullText
-        ? record.repairedText
-        : applyUnifiedPatch(document.getText(), candidate.patch);
+      const patchedText = candidate
+        ? applyUnifiedPatch(document.getText(), candidate.patch)
+        : record.repairedText;
       const preview = await this.vscode.workspace.openTextDocument({
         content: patchedText,
         language: record.languageId
@@ -640,10 +705,7 @@ class DashboardPanelController {
         `Bug Dhor Repair Preview: ${record.id}`
       );
     } catch (error) {
-      this.postNotice(
-        'warning',
-        `The inline diff is unavailable: ${error instanceof Error ? error.message : String(error)}`
-      );
+      this.postNotice('warning', `The inline diff is unavailable: ${redactError(error)}`);
     }
   }
 
@@ -653,12 +715,21 @@ class DashboardPanelController {
       this.postNotice('warning', 'The requested repair proposal is no longer available.');
       return;
     }
-    const candidate =
-      record.candidates.find((item) => item.candidateId === message.candidateId) ??
-      record.candidates[0];
+    if (
+      record.status !== 'proposed' ||
+      record.state === 'rejected' ||
+      record.verificationStatus === 'failed'
+    ) {
+      this.postNotice('warning', 'This repair proposal was not accepted for application.');
+      return;
+    }
+    const explicitSelection =
+      typeof message?.candidateId === 'string' && message.candidateId.length > 0;
+    const candidate = selectRepairCandidate(record, message?.candidateId);
     const hasFullText = typeof record.repairedText === 'string' && record.repairedText.length > 0;
-    if (!hasFullText && (!candidate || typeof candidate.patch !== 'string' || !candidate.patch)) {
-      this.postNotice('warning', 'The selected repair candidate has no patch.');
+    const canUseFullText = hasFullText && fullTextRepairAllowed(record);
+    if (!candidate && (explicitSelection || !canUseFullText)) {
+      this.postNotice('warning', 'The selected repair candidate is not accepted for application.');
       return;
     }
     const approval = await this.vscode.window.showWarningMessage(
@@ -672,10 +743,9 @@ class DashboardPanelController {
     const document = await this.vscode.workspace.openTextDocument(
       this.vscode.Uri.parse(record.uri)
     );
-    if (
-      document.version !== record.baseVersion ||
-      hashText(document.getText()) !== record.baseHash
-    ) {
+    const baseStillMatches = () =>
+      document.version === record.baseVersion && hashText(document.getText()) === record.baseHash;
+    if (!baseStillMatches()) {
       this.postNotice(
         'warning',
         'The source changed after repair generation. The patch was not applied.'
@@ -684,11 +754,9 @@ class DashboardPanelController {
       return;
     }
     let patchedText;
-    if (hasFullText) {
-      // Secure recommendations carry the verified full-file result. The base
-      // hash check above still guarantees the document matches that result.
-      patchedText = record.repairedText;
-    } else {
+    if (candidate) {
+      // Prefer the bounded, single-file unified diff. Full-file replacement is
+      // only a fallback for proposals that did not provide a reviewable patch.
       const files = patchFiles(candidate.patch);
       if (files.length !== 1 || files[0] !== record.targetPatchPath) {
         this.postNotice('warning', 'Only single-file repair patches can be applied safely.');
@@ -697,9 +765,25 @@ class DashboardPanelController {
       try {
         patchedText = applyUnifiedPatch(document.getText(), candidate.patch);
       } catch (error) {
-        this.postNotice('error', `Repair patch could not be applied: ${error.message}`);
+        this.postNotice('error', `Repair patch could not be applied: ${redactError(error)}`);
         return;
       }
+    } else {
+      patchedText = record.repairedText;
+    }
+    if (Buffer.byteLength(patchedText, 'utf8') > MAX_REPLACEMENT_BYTES) {
+      this.postNotice('warning', 'The repaired file exceeds the 2 MiB replacement limit.');
+      return;
+    }
+    // Re-check immediately before the edit: another edit may have landed while
+    // the patch was being prepared.
+    if (!baseStillMatches()) {
+      this.postNotice(
+        'warning',
+        'The source changed while the patch was prepared. The patch was not applied.'
+      );
+      this.updateRepairStatus(record.id, 'stale');
+      return;
     }
     const edit = new this.vscode.WorkspaceEdit();
     const end = document.positionAt(document.getText().length);
@@ -716,7 +800,7 @@ class DashboardPanelController {
     record.appliedVersion = document.version + 1;
     record.appliedText = patchedText;
     record.status = 'accepted';
-    record.selectedCandidateId = candidate?.candidateId ?? 'selected';
+    record.selectedCandidateId = candidate?.candidateId ?? 'full-text';
     // Only this explicit, approved application path is recorded as an
     // extension-authored patch. Editor events are never treated as evidence.
     this.feedback?.recordAppliedPatch?.({
@@ -727,7 +811,6 @@ class DashboardPanelController {
       source: 'dashboard.explicit-approval'
     });
     this.updateRepairState(record);
-    this.postNotice('info', 'Patch applied with approval. Requesting a fresh verification run.');
 
     // A backend-issued repairId lets verification resolve the stored proposal
     // snapshot instead of trusting client-supplied source. The command runs
@@ -743,16 +826,40 @@ class DashboardPanelController {
       if (typeof record.findingId === 'string' && record.findingId.length > 0) {
         target.findingId = record.findingId;
       }
+      if (!record.verificationStatus) {
+        record.verificationStatus = 'requested';
+        this.updateRepairState(record);
+      }
       try {
         await this.vscode.commands.executeCommand(COMMANDS.verifyRepair, target);
+        const status = record.verificationStatus;
+        if (status === 'passed') {
+          this.postNotice('info', 'Patch applied with approval. Verification passed.');
+        } else if (status === 'failed') {
+          this.postNotice('warning', 'Patch applied with approval. Verification failed.');
+        } else if (status === 'not-run' || status === 'unavailable') {
+          this.postNotice(
+            'warning',
+            'Patch applied with approval. Execution verification was not run for this static result.'
+          );
+        } else {
+          this.postNotice('info', 'Patch applied with approval. Verification was requested.');
+        }
       } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
+        record.verificationStatus = 'unavailable';
+        this.updateRepairState(record);
+        const detail = redactError(error);
         this.logger.error(`Unable to start post-repair verification: ${detail}`, error);
         this.postNotice(
           'warning',
           'The patch was applied, but post-repair verification could not be started. See Bug Dhor logs.'
         );
       }
+    } else {
+      this.postNotice(
+        'info',
+        'Patch applied with approval. No backend verification was requested.'
+      );
     }
   }
 
@@ -917,14 +1024,16 @@ class DashboardPanelController {
    */
   async executeDashboardCommand(command) {
     if (typeof command !== 'string' || !EXECUTABLE_COMMANDS.has(command)) {
-      this.logger.warn(`Ignored a dashboard request for a disallowed command: ${String(command)}`);
+      this.logger.warn(
+        `Ignored a dashboard request for a disallowed command: ${redactText(command)}`
+      );
       return;
     }
 
     try {
       await this.vscode.commands.executeCommand(command);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = redactError(error);
       this.logger.error(`Failed to start dashboard command ${command}: ${message}`, error);
       this.postNotice('error', `Unable to run the requested command. See Bug Dhor logs.`);
     }
@@ -934,7 +1043,7 @@ class DashboardPanelController {
     try {
       await this.vscode.commands.executeCommand('workbench.action.openSettings', SETTINGS_QUERY);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = redactError(error);
       this.logger.error(`Unable to open Bug Dhor settings: ${message}`, error);
       this.postNotice('error', 'Unable to open VS Code settings. See Bug Dhor logs.');
     }

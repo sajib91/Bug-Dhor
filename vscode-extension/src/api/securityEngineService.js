@@ -16,7 +16,7 @@ const { pathToFileURL } = require('node:url');
 
 const { createApiClient } = require('./apiClient');
 const { createConfigurationService } = require('./configurationService');
-const { isPathWithinRoot } = require('../security/paths');
+const { isRealPathWithinRoot } = require('../security/paths');
 const {
   validateAnalysisResponse,
   validateDetectionResponse,
@@ -207,6 +207,41 @@ function resolveDocumentUri(request, filePath) {
 }
 
 /**
+ * Convert an absolute workspace file path to the canonical relative path
+ * required by the backend API boundary. Symlinked paths that escape the
+ * workspace are rejected locally as well as by the backend.
+ *
+ * @param {string} workspaceRoot
+ * @param {string} filePath
+ * @returns {string}
+ */
+function relativeFilePathForApi(workspaceRoot, filePath) {
+  if (!isRealPathWithinRoot(filePath, workspaceRoot)) {
+    throw new SecurityEngineRequestError(
+      'The file is outside every approved workspace root.',
+      'E_PATH_OUTSIDE_WORKSPACE'
+    );
+  }
+  const relative = path
+    .relative(path.resolve(workspaceRoot), path.resolve(filePath))
+    .split(path.sep)
+    .join('/');
+  if (
+    relative.length === 0 ||
+    relative === '..' ||
+    relative.startsWith('../') ||
+    path.isAbsolute(relative) ||
+    relative.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+  ) {
+    throw new SecurityEngineRequestError(
+      'The file path is not a canonical path inside the workspace.',
+      'E_INVALID_FILE_PATH'
+    );
+  }
+  return relative;
+}
+
+/**
  * Build the common file context sent to the backend. Unknown fields are never
  * forwarded. Source text and selected text are included only when the current
  * configuration explicitly permits source sharing.
@@ -233,7 +268,7 @@ function buildFileRequestBody(request, configuration) {
   /** @type {Record<string, unknown>} */
   const body = {
     workspaceRoot,
-    filePath
+    filePath: relativeFilePathForApi(workspaceRoot, filePath)
   };
 
   if (typeof request.workspaceFolderName === 'string') {
@@ -630,7 +665,7 @@ class HttpSecurityEngineService {
             'E_INVALID_FILE_PATH'
           );
         }
-        if (!roots.some((root) => isPathWithinRoot(candidate, root))) {
+        if (!roots.some((root) => isRealPathWithinRoot(candidate, root))) {
           throw new SecurityEngineRequestError(
             `Explicit file path is outside every workspace folder: ${candidate}`,
             'E_PATH_OUTSIDE_WORKSPACE'

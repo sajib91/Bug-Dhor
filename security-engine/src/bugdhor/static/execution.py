@@ -17,6 +17,7 @@ import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.models import ToolExecution
 
 _SECRET_ENV_RE = re.compile(
@@ -126,7 +127,7 @@ def run_command(
             argv=arguments,
             return_code=None,
             duration_seconds=time.monotonic() - started,
-            launch_error=f"{type(exc).__name__}: {exc}",
+            launch_error=f"{type(exc).__name__}: {redact_text(exc)}",
         )
 
     timed_out = False

@@ -405,6 +405,61 @@ test('repair approval applies a single-file patch and keeps verification separat
   assert.equal(harness.controller.repairRecords.get('repair-1').verificationStatus, 'not-run');
 });
 
+test('a rejected repair candidate cannot be applied', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  const response = repairResponse();
+  response.result.metadata.candidates = [
+    {
+      candidateId: 'rejected',
+      patch: REPAIR_PATCH,
+      accepted: false,
+      rejectionReason: 'mandatory verification gate failed'
+    }
+  ];
+  await harness.controller.recordRepairResult(response, repairRequest());
+
+  await harness.controller.acceptRepair({ repairId: 'repair-1', candidateId: 'rejected' });
+
+  assert.equal(harness.appliedEdits.length, 0);
+  assert.equal(harness.document.getText(), 'const value = 1;\n');
+});
+
+test('a verified full-text proposal applies when no candidate patch exists', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  const response = recommendationResponse();
+  response.result.selected.patch = '';
+  response.result.candidates = [];
+  await harness.controller.recordRecommendationResult(response, repairRequest());
+
+  await harness.controller.acceptRepair({ repairId: 'recommendation-1' });
+
+  assert.equal(harness.appliedEdits.length, 1);
+  assert.equal(harness.document.getText(), 'const value = 2;\n');
+});
+
+test('a full-text proposal larger than 2 MiB is rejected', async () => {
+  const harness = createHarness({
+    documentText: 'const value = 1;\n',
+    approval: 'Apply Patch'
+  });
+  const response = recommendationResponse();
+  response.result.selected.patch = '';
+  response.result.candidates = [];
+  response.result.repairedCode = 'x'.repeat(2 * 1024 * 1024 + 1);
+  await harness.controller.recordRecommendationResult(response, repairRequest());
+
+  await harness.controller.acceptRepair({ repairId: 'recommendation-1' });
+
+  assert.equal(harness.appliedEdits.length, 0);
+  assert.equal(harness.document.getText(), 'const value = 1;\n');
+});
+
 test('repair approval starts verification with the stored repair identity', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',

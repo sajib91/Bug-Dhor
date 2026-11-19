@@ -58,8 +58,8 @@ async function run() {
   assert.equal(typeof api.service.health, 'function');
 
   const configuration = vscode.workspace.getConfiguration('bugdhor');
-  await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Workspace);
-  await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Global);
+  await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Global);
 
   const health = await api.checkBackendHealth();
   assert.ok(health, `the installed extension must reach the backend at ${backendUrl}`);

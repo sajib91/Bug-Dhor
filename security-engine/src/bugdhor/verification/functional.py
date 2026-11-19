@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from bugdhor.core.redaction import redact_text
+from bugdhor.core.safe_patch import canonical_relative_path
 from bugdhor.parsing.languages import detect_language
 from bugdhor.parsing.models import SupportedLanguage
 from bugdhor.program_analysis.analysis import analyze_source
@@ -113,43 +115,67 @@ class FunctionalVerifier:
         checks: list[dict[str, Any]] = []
         limitations: list[str] = []
         root = Path(workspace_root)
-        language = self._detect_language(file_path, language_id, original_source)
+        # Reject absolute/traversing targets before any filesystem operation.
+        relative_path = canonical_relative_path(root, file_path, must_exist=False)
+        language = self._detect_language(str(relative_path), language_id, original_source)
+
+        # Decide execution consent before creating or writing any candidate
+        # tree. All later writes stay inside temporary directories, but the
+        # permission decision must still precede filesystem work.
+        if not consent.granted:
+            consent_message = (
+                "Project test execution was not run because explicit user consent was not provided."
+            )
+            consent_status = "skipped"
+            consent_reason = "E_EXECUTION_CONSENT_REQUIRED"
+            needs_execution = False
+        elif consent.allow_privileged or consent.allow_destructive:
+            consent_message = (
+                "Potentially destructive or privileged test execution requires explicit safe "
+                "consent and is blocked."
+            )
+            consent_status = "failed"
+            consent_reason = "E_EXECUTION_CONSENT_UNSAFE"
+            needs_execution = False
+        else:
+            consent_message = None
+            consent_status = "passed"
+            consent_reason = None
+            needs_execution = True
 
         with tempfile.TemporaryDirectory(prefix="bugdhor-func-before-") as before_dir, tempfile.TemporaryDirectory(
             prefix="bugdhor-func-after-"
         ) as after_dir:
-            before_root = Path(before_dir)
-            after_root = Path(after_dir)
+            before_root = Path(before_dir).resolve()
+            after_root = Path(after_dir).resolve()
             self._copy_workspace_snapshot(root, before_root)
             self._copy_workspace_snapshot(root, after_root)
-            self._write_target(before_root, file_path, original_source)
-            self._write_target(after_root, file_path, patched_source)
+            self._write_target(before_root, str(relative_path), original_source)
+            self._write_target(after_root, str(relative_path), patched_source)
 
-            syntax = self._syntax_checks(before_root, after_root, file_path, language)
+            syntax = self._syntax_checks(before_root, after_root, str(relative_path), language)
             checks.append(self._check("check-syntax", "security", "Syntax and parse checks", syntax["status"], syntax["detail"], syntax))
             compilation = self._compilation_checks(after_root, language)
             checks.append(self._check("check-compilation", "build", "Compilation checks", compilation["status"], compilation["detail"], compilation))
             if compilation["status"] == "skipped":
                 limitations.append("Compilation checks are not applicable or were not configured for this project/language.")
 
-            needs_execution = True
             before_tests: list[TestRunSummary] = []
             after_tests: list[TestRunSummary] = []
             executed = False
-            if not consent.granted:
-                msg = "Project test execution was not run because explicit user consent was not provided."
-                limitations.append(msg)
-                checks.append(self._check("check-consent", "functional", "Test execution consent", "skipped", msg, {"consentGranted": False}))
-                before_tests = [self._skipped_run("project-tests", reason="E_EXECUTION_CONSENT_REQUIRED", detail=msg)]
-                after_tests = [self._skipped_run("project-tests", reason="E_EXECUTION_CONSENT_REQUIRED", detail=msg)]
-                needs_execution = False
-            elif consent.allow_privileged or consent.allow_destructive:
-                msg = "Potentially destructive or privileged test execution requires explicit safe consent and is blocked."
-                limitations.append(msg)
-                checks.append(self._check("check-consent", "functional", "Test execution consent", "failed", msg, {"consentGranted": consent.granted}))
-                before_tests = [self._skipped_run("project-tests", status="denied", reason="E_EXECUTION_CONSENT_UNSAFE", detail=msg)]
-                after_tests = [self._skipped_run("project-tests", status="denied", reason="E_EXECUTION_CONSENT_UNSAFE", detail=msg)]
-                needs_execution = False
+            if consent_message is not None:
+                limitations.append(consent_message)
+                checks.append(self._check(
+                    "check-consent",
+                    "functional",
+                    "Test execution consent",
+                    consent_status,
+                    consent_message,
+                    {"consentGranted": consent.granted, "reasonCode": consent_reason},
+                ))
+                skipped_status = "denied" if consent_status == "failed" else "skipped"
+                before_tests = [self._skipped_run("project-tests", status=skipped_status, reason=consent_reason, detail=consent_message)]
+                after_tests = [self._skipped_run("project-tests", status=skipped_status, reason=consent_reason, detail=consent_message)]
 
             if needs_execution:
                 available, reason, detail = self.executor.available()
@@ -223,29 +249,62 @@ class FunctionalVerifier:
             return None
 
     def _copy_workspace_snapshot(self, src: Path, dst: Path) -> None:
-        if not src.exists():
+        """Copy workspace files into a temp root without following symlinks."""
+        if not src.exists() or src.is_symlink():
             return
-        ignore_names = {".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build"}
+        ignore_names = {
+            ".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache",
+            ".pytest_cache", "dist", "build",
+        }
+
+        def ignore(directory: str, names: list[str]) -> set[str]:
+            current = Path(directory)
+            return {
+                name
+                for name in names
+                if name in ignore_names or (current / name).is_symlink()
+            }
+
         for item in src.iterdir():
-            if item.name in ignore_names:
+            if item.name in ignore_names or item.is_symlink():
                 continue
             target = dst / item.name
             try:
                 if item.is_dir():
-                    shutil.copytree(item, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*ignore_names))
+                    shutil.copytree(
+                        item,
+                        target,
+                        dirs_exist_ok=True,
+                        symlinks=True,
+                        ignore=ignore,
+                    )
                 else:
-                    shutil.copy2(item, target)
-            except Exception:
+                    shutil.copy2(item, target, follow_symlinks=False)
+                resolved = target.resolve()
+                if not resolved.is_relative_to(dst.resolve()):
+                    if resolved.is_dir():
+                        shutil.rmtree(target, ignore_errors=True)
+                    else:
+                        target.unlink(missing_ok=True)
+            except (OSError, shutil.Error):
                 continue
 
     def _write_target(self, root: Path, file_path: str, source: str) -> None:
-        target = root / file_path
+        relative = canonical_relative_path(root, file_path, must_exist=False)
+        target = root / relative
+        if target.is_symlink():
+            raise ValueError("symbolic links are not allowed as verification targets")
+        resolved_parent = target.parent.resolve()
+        if not resolved_parent.is_relative_to(root.resolve()):
+            raise ValueError("verification target escapes the temporary root")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(source, encoding="utf-8")
 
     def _syntax_checks(self, before_root: Path, after_root: Path, file_path: str, language: SupportedLanguage | None) -> dict[str, Any]:
-        before_ok, before_detail = self._syntax_ok(before_root / file_path, language)
-        after_ok, after_detail = self._syntax_ok(after_root / file_path, language)
+        before_path = canonical_relative_path(before_root, file_path, must_exist=False)
+        after_path = canonical_relative_path(after_root, file_path, must_exist=False)
+        before_ok, before_detail = self._syntax_ok(before_root / before_path, language)
+        after_ok, after_detail = self._syntax_ok(after_root / after_path, language)
         status = "passed" if before_ok and after_ok else "failed"
         detail = f"before={'ok' if before_ok else 'error'} after={'ok' if after_ok else 'error'}"
         if not after_ok:
@@ -261,14 +320,14 @@ class FunctionalVerifier:
         try:
             text = path.read_text(encoding="utf-8")
         except Exception as exc:
-            return False, str(exc)
+            return False, redact_text(exc)
         suffix = path.suffix.lower()
         if language is SupportedLanguage.PYTHON or suffix == ".py":
             try:
                 ast.parse(text)
                 return True, None
             except SyntaxError as exc:
-                return False, f"SyntaxError: {exc}"
+                return False, f"SyntaxError: {redact_text(exc)}"
         if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"} or language in {SupportedLanguage.JAVASCRIPT, SupportedLanguage.TYPESCRIPT}:
             try:
                 parsed = analyze_source(text, path=path)
@@ -276,7 +335,7 @@ class FunctionalVerifier:
                     return False, "parse reported syntax errors"
                 return True, None
             except Exception as exc:
-                return False, str(exc)
+                return False, redact_text(exc)
         return True, "syntax check not applicable"
 
     def _compilation_checks(self, after_root: Path, language: SupportedLanguage | None) -> dict[str, Any]:
@@ -289,7 +348,7 @@ class FunctionalVerifier:
                     source = p.read_text(encoding="utf-8")
                     compile(source, str(p), "exec")
                 except Exception as exc:  # noqa: BLE001
-                    errors.append(f"{p.relative_to(after_root)}: {exc}")
+                    errors.append(f"{p.relative_to(after_root)}: {redact_text(exc)}")
             status = "passed" if not errors else "failed"
             return {"status": status, "detail": f"compiled_files={len(py_files)} errors={len(errors)}", "errors": errors[:20]}
         # JS/TS compilation (tsc/build) is project-specific; report as not configured unless explicit.
@@ -370,7 +429,10 @@ class FunctionalVerifier:
         return self._summary_from_result(plan["framework"], list(req.argv), result)
 
     def _summary_from_result(self, framework: str, argv: list[str], result: ExecutionResult) -> TestRunSummary:
-        logs = {"stdout": result.stdout, "stderr": result.stderr}
+        logs = {
+            "stdout": redact_text(result.stdout),
+            "stderr": redact_text(result.stderr),
+        }
         parsed = self._parse_counts(framework, result.stdout + "\n" + result.stderr)
         status = result.status
         if status == "ok" and result.exit_code == 0:
@@ -405,7 +467,7 @@ class FunctionalVerifier:
             duration_seconds=result.duration_seconds,
             logs=logs,
             reason_code=result.reason_code,
-            detail=result.detail,
+            detail=redact_text(result.detail),
         )
 
     def _parse_counts(self, framework: str, output: str) -> dict[str, int | None]:

@@ -9,8 +9,12 @@
  * transport failure to a typed error that a command can show to the user.
  */
 
+const { redactObject, redactText } = require('../security/redaction');
+
 const API_PREFIX = '/api/v1';
 const DEFAULT_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
+const UTF8_ENCODER = new TextEncoder();
+const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 class ApiClientError extends Error {
   /**
@@ -109,13 +113,13 @@ class ApiProblemError extends ApiClientError {
       code: typeof problem.code === 'string' ? problem.code : 'E_PROBLEM',
       status,
       requestId: resolvedRequestId,
-      details: problem.details,
+      details: redactObject(problem.details),
       retryable: problem.retryable === true
     });
     this.name = 'ApiProblemError';
-    this.title = typeof problem.title === 'string' ? problem.title : 'Request failed';
-    this.type = typeof problem.type === 'string' ? problem.type : undefined;
-    this.problem = problem;
+    this.title = typeof problem.title === 'string' ? redactText(problem.title) : 'Request failed';
+    this.type = typeof problem.type === 'string' ? redactText(problem.type) : undefined;
+    this.problem = redactObject(problem);
   }
 }
 
@@ -145,12 +149,13 @@ function isPlainObject(value) {
  * @returns {string}
  */
 function formatProblemMessage(problem, status, requestId) {
-  const detail =
+  const detail = redactText(
     typeof problem.detail === 'string' && problem.detail.trim().length > 0
       ? problem.detail.trim()
       : typeof problem.title === 'string' && problem.title.trim().length > 0
         ? problem.title.trim()
-        : `The Bug Dhor backend rejected the request with HTTP ${status}.`;
+        : `The Bug Dhor backend rejected the request with HTTP ${status}.`
+  );
   const parts = [detail];
   if (typeof problem.code === 'string' && problem.code.length > 0) {
     parts.push(`(${problem.code})`);
@@ -165,7 +170,7 @@ function formatProblemMessage(problem, status, requestId) {
           return undefined;
         }
         const location = Array.isArray(error.location) ? error.location.join('.') : 'request';
-        const message = typeof error.message === 'string' ? error.message : 'is invalid';
+        const message = redactText(error.message, { limit: 200 });
         return `${location}: ${message}`;
       })
       .filter(Boolean)
@@ -197,6 +202,95 @@ function isProblemDetail(value) {
     (typeof value.title === 'string' || typeof value.detail === 'string') &&
     (typeof value.code === 'string' || Number.isInteger(value.status))
   );
+}
+
+/**
+ * @param {number} maxResponseBytes
+ * @param {string | undefined} requestId
+ * @returns {ApiResponseError}
+ */
+function responseTooLargeError(maxResponseBytes, requestId) {
+  return new ApiResponseError(
+    `The Bug Dhor backend response exceeded ${maxResponseBytes} bytes.`,
+    requestId
+  );
+}
+
+/**
+ * Read a response incrementally so the byte limit is enforced on the wire,
+ * including multi-byte UTF-8 sequences split across chunks. Test doubles that
+ * only expose `text()` are supported without losing the byte check.
+ *
+ * @param {Response} response
+ * @param {{
+ *   maxBytes: number,
+ *   requestId?: string,
+ *   controller: AbortController
+ * }} options
+ * @returns {Promise<string>}
+ */
+async function readResponseText(response, { maxBytes, requestId, controller }) {
+  const contentLength = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    controller.abort();
+    throw responseTooLargeError(maxBytes, requestId);
+  }
+
+  const body = /** @type {any} */ (response).body;
+  if (!body || typeof body.getReader !== 'function') {
+    const text = await response.text();
+    if (UTF8_ENCODER.encode(text).byteLength > maxBytes) {
+      controller.abort();
+      throw responseTooLargeError(maxBytes, requestId);
+    }
+    return text;
+  }
+
+  const reader = body.getReader();
+  /** @type {Uint8Array[]} */
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value === undefined || value === null) {
+        continue;
+      }
+      /** @type {Uint8Array} */
+      let bytes;
+      if (value instanceof Uint8Array) {
+        bytes = value;
+      } else if (typeof value === 'string') {
+        bytes = UTF8_ENCODER.encode(value);
+      } else {
+        bytes = new Uint8Array(value);
+      }
+      total += bytes.byteLength;
+      if (total > maxBytes) {
+        controller.abort();
+        try {
+          await reader.cancel();
+        } catch {
+          // A cancelled stream may already be closed; the size error wins.
+        }
+        throw responseTooLargeError(maxBytes, requestId);
+      }
+      chunks.push(bytes);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return UTF8_DECODER.decode(joined);
 }
 
 class ApiClient {
@@ -328,11 +422,23 @@ class ApiClient {
     }
 
     let response;
+    let responseText;
     try {
       if (cancelled) {
         throw new RequestCancelledError();
       }
       response = await this.fetchImpl(url, init);
+      responseText = await readResponseText(response, {
+        maxBytes: this.maxResponseBytes,
+        requestId: response.headers?.get?.('x-request-id') ?? undefined,
+        controller
+      });
+      if (timedOut) {
+        throw new RequestTimeoutError(this.baseUrl, timeoutMs);
+      }
+      if (cancelled) {
+        throw new RequestCancelledError();
+      }
     } catch (error) {
       if (error instanceof ApiClientError) {
         throw error;
@@ -347,14 +453,6 @@ class ApiClient {
     } finally {
       clearTimeout(timer);
       cancellationSubscription?.dispose?.();
-    }
-
-    const responseText = await response.text();
-    if (responseText.length > this.maxResponseBytes) {
-      throw new ApiResponseError(
-        `The Bug Dhor backend response exceeded ${this.maxResponseBytes} bytes.`,
-        response.headers?.get?.('x-request-id') ?? undefined
-      );
     }
 
     let data;

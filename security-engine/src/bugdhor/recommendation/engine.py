@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.recommendation.models import (
     CandidateEvaluation,
     RecommendationExplanation,
@@ -34,13 +35,14 @@ from bugdhor.recommendation.requirements import (
     requirement_for_cwe,
     requirement_is_supported,
 )
-from bugdhor.repair.engine import (
-    CandidatePatch,
-    apply_patch,
+from bugdhor.core.safe_patch import (
+    apply_patch_in_temp,
     normalize_patch,
     patch_paths,
-    validate_patch_tree,
+    validate_patch_scope,
+    validate_patched_source,
 )
+from bugdhor.repair.engine import CandidatePatch
 from bugdhor.repair.ranking import MandatoryConstraints, PatchRanker, RankingPolicy
 from bugdhor.sandbox.executor import ExecutionConsent
 from bugdhor.verification.engine import IndependentVerificationEngine
@@ -556,7 +558,7 @@ class SecureRecommendationEngine:
                 verification={"verdict": "inconclusive", "classification": "patch_apply_failed"},
                 functional=empty,
                 cwe_requirements_met=False,
-                requirement_reasons=(f"patch could not be applied: {exc}",),
+                requirement_reasons=(f"patch could not be applied: {redact_text(exc)}",),
                 evidence={"securityImprovement": False, "cweRequirementsMet": False},
                 rejection_reason="patch_apply_failed",
             )
@@ -844,16 +846,11 @@ class SecureRecommendationEngine:
 
 
 def _apply_and_validate(patch: str, source_text: str, file_path: str) -> tuple[str, bool]:
-    import tempfile
-
-    with tempfile.TemporaryDirectory(prefix="bugdhor-recommendation-") as directory:
-        root = Path(directory)
-        target = root / file_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(source_text, encoding="utf-8")
-        apply_patch(root, patch)
-        patched_source = target.read_text(encoding="utf-8")
-        return patched_source, validate_patch_tree(root, patch_paths(patch))
+    """Validate a candidate only inside an isolated temporary directory."""
+    touched = validate_patch_scope(patch, file_path)
+    patched = apply_patch_in_temp(Path.cwd(), file_path, source_text, patch)
+    patched_source = patched[str(touched[0])]
+    return patched_source, validate_patched_source(patched_source, str(touched[0]))
 
 
 def _change_ratio(before: str, after: str) -> float:

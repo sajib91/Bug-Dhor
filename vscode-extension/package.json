@@ -31,6 +31,12 @@
   "extensionKind": [
     "workspace"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "restrictedDescription": "In an untrusted workspace Bug Dhor only checks backend health. Source analysis, background monitoring, automatic scans, assistant integrations, and local/Phase 6 execution remain disabled until the workspace is trusted."
+    }
+  },
   "activationEvents": [
     "onStartupFinished",
     "onCommand:bugdhor.showStatus",
@@ -278,7 +284,7 @@
         "bugdhor.backend.url": {
           "type": "string",
           "default": "http://127.0.0.1:8765",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "pattern": "^https?://[^\\s]+$",
           "markdownDescription": "Base URL of the running Bug Dhor FastAPI backend. Use only an HTTP or HTTPS origin with no credentials, path, query, or fragment. The extension appends `/api/v1` itself."
         },
@@ -287,7 +293,7 @@
           "default": 30000,
           "minimum": 1000,
           "maximum": 300000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Timeout in milliseconds for scan and analysis requests. The request is aborted and reported to the user when it expires."
         },
         "bugdhor.backend.healthTimeoutMs": {
@@ -295,19 +301,19 @@
           "default": 3000,
           "minimum": 500,
           "maximum": 60000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Timeout in milliseconds for backend health checks."
         },
         "bugdhor.privacy.sendSourceText": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Send the active document text and selected text with explicitly user-invoked scan and analysis commands. Disable to send only file paths and ranges; the backend then reads the saved file from disk. Workspace scans never send file contents. Background monitoring also requires bugdhor.monitoring.allowAutomaticSourceSharing and never sends source text without it."
         },
         "bugdhor.backend.pythonPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
         },
         "bugdhor.backend.autoStart": {
@@ -344,19 +350,19 @@
         "bugdhor.monitoring.enabled": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Enable background monitoring of Python and JavaScript document changes. Monitoring is off by default. It observes ordinary editor changes from any source and never claims to identify an AI assistant or model."
         },
         "bugdhor.monitoring.allowAutomaticSourceSharing": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Explicit consent to send changed source text for automatic background analysis. No background analysis request containing source text is sent unless this AND bugdhor.privacy.sendSourceText are enabled. Enabling this setting alone does not enable monitoring."
         },
         "bugdhor.monitoring.onSaveOnly": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Analyze only on document save instead of after debounced edits."
         },
         "bugdhor.monitoring.debounceMs": {
@@ -364,7 +370,7 @@
           "default": 750,
           "minimum": 100,
           "maximum": 10000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Delay in milliseconds before a debounced background analysis runs. Rapid edits collapse into one scan of the latest document version."
         },
         "bugdhor.monitoring.languages": {
@@ -376,7 +382,7 @@
             "python",
             "javascript"
           ],
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Language IDs eligible for background monitoring. Python and JavaScript are supported initially."
         },
         "bugdhor.monitoring.analysisScope": {
@@ -392,7 +398,7 @@
             "Scope each request to the functions enclosing the changed lines, falling back to changed lines for top-level edits.",
             "Scan the whole file on every monitored change."
           ],
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Granularity of incremental background analysis. Wide change batches fall back to a bounded file-level scan."
         },
         "bugdhor.monitoring.maxFileBytes": {
@@ -400,7 +406,7 @@
           "default": 1048576,
           "minimum": 1024,
           "maximum": 10485760,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Maximum document size in bytes for background analysis. Larger documents are skipped."
         },
         "bugdhor.monitoring.maxChangedLines": {
@@ -408,7 +414,7 @@
           "default": 500,
           "minimum": 1,
           "maximum": 10000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Maximum number of changed lines analyzed incrementally. Wider batches fall back to a bounded file-level scan."
         },
         "bugdhor.monitoring.excludeGlobs": {
@@ -438,31 +444,31 @@
             "**/vendor/**",
             "**/.bugdhor-data/**"
           ],
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Path globs excluded from background monitoring. Supports *, **, and ?."
         },
         "bugdhor.monitoring.watchWorkspaceFiles": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Watch official workspace file create, delete, and folder-change events. Requires bugdhor.monitoring.enabled."
         },
         "bugdhor.monitoring.scanNewFiles": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Scan eligible source files when they are created in the workspace. Opening the file for inspection is the only way content is observed; no private API is used."
         },
         "bugdhor.monitoring.scanOnOpen": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Scan an eligible document when it is opened. Disabled by default so browsing files does not repeatedly trigger scans."
         },
         "bugdhor.monitoring.fullScanOnWorkspaceChange": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Schedule a full metadata-only workspace scan when workspace folders are added or removed. Disabled by default because it can be expensive."
         },
         "bugdhor.monitoring.fullScanDebounceMs": {
@@ -470,7 +476,7 @@
           "default": 2000,
           "minimum": 100,
           "maximum": 60000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Delay in milliseconds before a full workspace scan runs. Repeated workspace changes collapse into one scan."
         },
         "bugdhor.monitoring.maxConcurrentScans": {
@@ -478,7 +484,7 @@
           "default": 2,
           "minimum": 1,
           "maximum": 8,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Maximum number of concurrent workspace-level scans. Document-level scans remain per-document bounded."
         },
         "bugdhor.monitoring.maxWorkspaceFiles": {
@@ -486,25 +492,25 @@
           "default": 2000,
           "minimum": 100,
           "maximum": 50000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Maximum number of newly created files observed from one workspace event. Extra files are ignored to keep the editor responsive."
         },
         "bugdhor.monitoring.excludeBinaryFiles": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Skip files with common binary extensions before opening them for monitoring."
         },
         "bugdhor.monitoring.excludeGeneratedFiles": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Skip common generated files such as minified bundles, source maps, and lockfiles."
         },
         "bugdhor.monitoring.notifyOnFindings": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Show a non-blocking notification when a background scan publishes findings."
         },
         "bugdhor.repository.maxFiles": {
@@ -512,7 +518,7 @@
           "default": 2000,
           "minimum": 1,
           "maximum": 50000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Maximum number of source files discovered for an explicit repository scan. The inventory is truncated at this bound and the truncation is reported."
         },
         "bugdhor.repository.maxFileBytes": {
@@ -520,7 +526,7 @@
           "default": 1048576,
           "minimum": 1024,
           "maximum": 10485760,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Largest source file included in an explicit repository inventory."
         },
         "bugdhor.repository.excludeGlobs": {
@@ -550,13 +556,13 @@
             "**/vendor/**",
             "**/.bugdhor-data/**"
           ],
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Additional glob exclusions applied during repository discovery. Built-in exclusions, `.gitignore`, symlink safety, and binary/generated file filters always apply."
         },
         "bugdhor.repository.includeUntrackedFiles": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Include untracked files reported by Git when scanning changed files. Ignored files are still excluded by `.gitignore`."
         },
         "bugdhor.repository.gitTimeoutMs": {
@@ -564,43 +570,43 @@
           "default": 10000,
           "minimum": 1000,
           "maximum": 60000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Timeout for each read-only Git metadata query used to find changed files."
         },
         "bugdhor.repository.notifyOnWorkspaceOpen": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Offer an explicit repository scan once when a workspace with source files is detected. This never sends source text by itself."
         },
         "bugdhor.repository.autoScanOnWorkspaceOpen": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Automatically scan a newly detected workspace. Requires a loopback backend plus both automatic source-sharing consent and privacy source-text consent; otherwise only a notification is shown."
         },
         "bugdhor.feedback.notifyOnPatchApplied": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Notify when Bug Dhor records an explicitly applied patch. The finding remains open until a clean rescan and passing verification are recorded."
         },
         "bugdhor.feedback.notifyOnResolution": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Notify when a finding is resolved after a clean rescan and passing verification."
         },
         "bugdhor.recommendations.runFunctionalTests": {
           "type": "boolean",
           "default": true,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Require functional tests for secure recommendations. When disabled, no candidate can be recommended."
         },
         "bugdhor.recommendations.allowSandboxedExecution": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Explicitly allow sandboxed test execution for secure recommendations. Network, privileged, and destructive operations remain forbidden."
         },
         "bugdhor.recommendations.testCommand": {
@@ -609,7 +615,7 @@
             "type": "string"
           },
           "default": [],
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Optional argv list for project functional tests. Empty means the backend uses repository detection only."
         },
         "bugdhor.recommendations.testTimeoutSeconds": {
@@ -617,7 +623,7 @@
           "default": 120,
           "minimum": 1,
           "maximum": 3600,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Maximum time allowed for one functional-test run during recommendation verification."
         },
         "bugdhor.assistant.provider": {
@@ -637,67 +643,67 @@
             "Use a direct local Hugging Face model with explicitly injected adapters.",
             "Use an official extension-specific API declared by a local manifest."
           ],
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Selected assistant integration. Capabilities are discovered, never assumed. Internal activation, SAE, and steering capabilities remain unavailable unless explicitly validated."
         },
         "bugdhor.assistant.vscodeLanguageModel.selector": {
           "type": "object",
           "default": {},
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Optional `vendor`, `family`, `id`, or `version` selector passed to the documented `vscode.lm.selectChatModels` API."
         },
         "bugdhor.assistant.openAiCompatible.endpoint": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Base URL or full `/chat/completions` URL of an OpenAI-compatible endpoint. Credentials in the URL are rejected."
         },
         "bugdhor.assistant.openAiCompatible.model": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Model identifier sent to the configured OpenAI-compatible endpoint."
         },
         "bugdhor.assistant.openAiCompatible.apiKeyEnvironmentVariable": {
           "type": "string",
           "default": "BUGDHOR_LLM_API_KEY",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Name of the environment variable containing the API key. Keys are never stored in extension settings or logs."
         },
         "bugdhor.assistant.localHuggingFace.modelPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Absolute path to a local Hugging Face model directory containing `config.json`. Reading metadata does not grant generation or activation access."
         },
         "bugdhor.assistant.extensionApi.manifestPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Path to an explicit JSON manifest describing an official extension API, its documentation URL, and its declared capabilities. Undocumented interfaces are never used."
         },
         "bugdhor.assistant.sae.enabled": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Enable attempts to attach a validated local SAE provider. This does not claim SAE capability by itself; D and E must be discovered first."
         },
         "bugdhor.assistant.counterfactual.enabled": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Enable attempts to attach a configured counterfactual provider. D, E, and F must be discovered first."
         },
         "bugdhor.localEngine.enabled": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Opt in to the local bugdhor_ast Phase 6 engine for explain, suggest, preview, apply, verify, revert, and history commands. Backend scans remain the default and are unaffected by this setting."
         },
         "bugdhor.localEngine.pythonPath": {
           "type": "string",
           "default": "python",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Python executable used only by the opt-in local Phase 6 CLI. The extension runs `python -m bugdhor_ast.phase6.cli` without a shell; it never executes generated source."
         },
         "bugdhor.localEngine.requestTimeoutMs": {
@@ -705,19 +711,19 @@
           "default": 15000,
           "minimum": 1000,
           "maximum": 300000,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "description": "Timeout in milliseconds for one local Phase 6 CLI request."
         },
         "bugdhor.localEngine.allowSourceWrite": {
           "type": "boolean",
           "default": false,
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Permit explicit apply and revert writes from the local Phase 6 engine. Even when enabled, each command requires a modal warning and an exact patch_id confirmation. Leave disabled unless you intend to edit source locally."
         },
         "bugdhor.localEngine.sessionPath": {
           "type": "string",
           "default": ".bugdhor/phase6-session.json",
-          "scope": "machine-overridable",
+          "scope": "machine",
           "markdownDescription": "Workspace-relative path for the local-only Phase 6 patch and verification session. This file is never sent to the backend."
         }
       }

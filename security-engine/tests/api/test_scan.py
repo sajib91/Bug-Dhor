@@ -106,8 +106,8 @@ def test_scan_file_still_requires_supplied_source_to_match_an_allowed_path(
         json={"workspaceRoot": str(api.root), "filePath": str(outside), "sourceText": "safe = 1\n"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["code"] == "E_PATH_OUTSIDE_WORKSPACE"
+    assert response.status_code == 422
+    assert response.json()["code"] == "E_VALIDATION"
 
 
 def test_scan_file_enforces_the_file_size_limit_for_supplied_source_text(api) -> None:
@@ -239,8 +239,8 @@ def test_scan_file_rejects_traversal_outside_the_workspace(api, tmp_path: Path) 
         json={"workspaceRoot": str(api.root), "filePath": "../outside.py"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["code"] == "E_PATH_OUTSIDE_WORKSPACE"
+    assert response.status_code == 422
+    assert response.json()["code"] == "E_VALIDATION"
 
 
 def test_scan_file_rejects_a_symlink_that_escapes_the_workspace(api, tmp_path: Path) -> None:
@@ -254,7 +254,7 @@ def test_scan_file_rejects_a_symlink_that_escapes_the_workspace(api, tmp_path: P
 
     response = api.client.post(
         "/api/v1/scan/file",
-        json={"workspaceRoot": str(api.root), "filePath": str(link)},
+        json={"workspaceRoot": str(api.root), "filePath": "link.py"},
     )
 
     assert response.status_code == 403

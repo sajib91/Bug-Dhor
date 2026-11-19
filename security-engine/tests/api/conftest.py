@@ -30,7 +30,7 @@ class ApiContext:
     def payload(self, **overrides: object) -> dict[str, object]:
         payload: dict[str, object] = {
             "workspaceRoot": str(self.root),
-            "filePath": str(self.root / "app.py"),
+            "filePath": "app.py",
         }
         payload.update(overrides)
         return payload
@@ -42,6 +42,7 @@ def build_client(root: Path, **settings_overrides: object) -> TestClient:
         _env_file=None,
         workspace_roots=[root],
         log_level="ERROR",
+        environment="development",
         **settings_overrides,
     )
     return TestClient(create_app(settings), raise_server_exceptions=False)
@@ -58,6 +59,7 @@ def api(tmp_path: Path) -> Iterator[ApiContext]:
         _env_file=None,
         workspace_roots=[root],
         log_level="ERROR",
+        environment="development",
     )
     app = create_app(settings)
     with TestClient(app, raise_server_exceptions=False) as client:

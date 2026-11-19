@@ -41,6 +41,38 @@ function createClient(fetchImpl, options = {}) {
   return new ApiClient({ baseUrl: BASE_URL, fetchImpl, ...options });
 }
 
+/**
+ * @param {Uint8Array[]} chunks
+ * @param {{ headers?: Record<string, string> }} [options]
+ */
+function streamResponse(chunks, options = {}) {
+  const state = { cancelled: false };
+  const queue = [...chunks];
+  const reader = {
+    async read() {
+      if (queue.length === 0) return { done: true, value: undefined };
+      return { done: false, value: queue.shift() };
+    },
+    async cancel() {
+      state.cancelled = true;
+    },
+    releaseLock() {}
+  };
+  const headers = options.headers ?? {};
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      get(name) {
+        return headers[name.toLowerCase()] ?? null;
+      }
+    },
+    body: { getReader: () => reader },
+    state
+  };
+}
+
 test('health sends an unauthenticated GET to the versioned endpoint', async () => {
   const requests = [];
   const client = createClient(async (url, init) => {
@@ -282,5 +314,66 @@ test('paths outside the versioned API prefix are rejected', async () => {
 
   await assert.rejects(() => client.request('/health', { method: 'GET', timeoutMs: 10 }), {
     name: 'TypeError'
+  });
+});
+
+test('streaming responses enforce the byte cap across chunks and abort the request', async () => {
+  let signal;
+  const response = streamResponse([Buffer.from('{"data":"'), Buffer.from('0123456789abcdef")}')]);
+  const client = createClient(
+    async (_url, init) => {
+      signal = init.signal;
+      return response;
+    },
+    { maxResponseBytes: 16 }
+  );
+
+  await assert.rejects(client.post('/scan/file', {}, undefined), (error) => {
+    assert.equal(error.code, 'E_INVALID_RESPONSE');
+    assert.match(error.message, /exceeded 16 bytes/);
+    return true;
+  });
+  assert.equal(signal.aborted, true);
+  assert.equal(response.state.cancelled, true);
+});
+
+test('streaming responses reject an oversized content-length before reading', async () => {
+  let read = false;
+  const response = streamResponse([], { headers: { 'content-length': '9999' } });
+  response.body.getReader = () => ({
+    async read() {
+      read = true;
+      return { done: true, value: undefined };
+    },
+    releaseLock() {}
+  });
+  const client = createClient(async () => response, { maxResponseBytes: 16 });
+
+  await assert.rejects(client.post('/scan/file', {}, undefined), (error) => {
+    assert.equal(error.code, 'E_INVALID_RESPONSE');
+    return true;
+  });
+  assert.equal(read, false);
+});
+
+test('streaming responses decode multi-byte UTF-8 split across chunks', async () => {
+  const bytes = Buffer.from(JSON.stringify({ data: '😀' }), 'utf8');
+  const splitAt = bytes.indexOf(0xf0) + 1;
+  const response = streamResponse([bytes.subarray(0, splitAt), bytes.subarray(splitAt)]);
+  const client = createClient(async () => response, { maxResponseBytes: bytes.byteLength });
+
+  const result = await client.post('/scan/file', {}, undefined);
+  assert.deepEqual(result.data, { data: '😀' });
+});
+
+test('text-only responses count UTF-8 bytes rather than JavaScript characters', async () => {
+  const payload = JSON.stringify({ data: 'é' });
+  const client = createClient(async () => jsonResponse(payload), {
+    maxResponseBytes: Buffer.byteLength(payload, 'utf8') - 1
+  });
+
+  await assert.rejects(client.post('/scan/file', {}, undefined), (error) => {
+    assert.equal(error.code, 'E_INVALID_RESPONSE');
+    return true;
   });
 });

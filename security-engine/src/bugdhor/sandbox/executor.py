@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.execution import run_command, sanitized_environment
 
 
@@ -99,7 +100,7 @@ class IsolatedExecutor:
                 check=False,
             )
         except Exception as exc:  # noqa: BLE001
-            return False, "E_SANDBOX_UNAVAILABLE", f"{self.backend} probe failed: {exc}"
+            return False, "E_SANDBOX_UNAVAILABLE", f"{self.backend} probe failed: {redact_text(exc)}"
         if probe.returncode != 0:
             detail = (probe.stderr or probe.stdout or "").strip()[:500]
             return False, "E_SANDBOX_UNAVAILABLE", detail or f"{self.backend} is not usable."
@@ -176,6 +177,10 @@ class IsolatedExecutor:
             docker_cmd.extend(["-e", f"{key}={value}"])
         docker_cmd.append(request.image)
         docker_cmd.extend(request.argv)
+        # `-e KEY=value` may contain operator-supplied values. Redact the
+        # recorded command so process details in results/problems cannot leak
+        # credentials even if a deployment passes a sensitive override.
+        recorded_command = tuple(redact_text(part) for part in docker_cmd)
 
         start = time.monotonic()
         try:
@@ -187,8 +192,8 @@ class IsolatedExecutor:
                 check=False,
             )
             duration = time.monotonic() - start
-            stdout = (proc.stdout or "")[:200000]
-            stderr = (proc.stderr or "")[:200000]
+            stdout = redact_text((proc.stdout or "")[:200000], limit=200_000)
+            stderr = redact_text((proc.stderr or "")[:200000], limit=200_000)
             status = "ok" if proc.returncode == 0 else "failed"
             return ExecutionResult(
                 status=status,
@@ -198,7 +203,7 @@ class IsolatedExecutor:
                 duration_seconds=duration,
                 timed_out=False,
                 backend=self.backend,
-                command=tuple(docker_cmd),
+                command=recorded_command,
             )
         except subprocess.TimeoutExpired as exc:
             duration = time.monotonic() - start
@@ -211,14 +216,14 @@ class IsolatedExecutor:
             return ExecutionResult(
                 status="timeout",
                 exit_code=None,
-                stdout=str(stdout)[:200000],
-                stderr=str(stderr)[:200000],
+                stdout=redact_text(str(stdout)[:200000], limit=200_000),
+                stderr=redact_text(str(stderr)[:200000], limit=200_000),
                 duration_seconds=duration,
                 timed_out=True,
                 backend=self.backend,
                 reason_code="E_EXECUTION_TIMEOUT",
                 detail=f"Execution exceeded {request.timeout_seconds}s timeout.",
-                command=tuple(docker_cmd),
+                command=recorded_command,
             )
         except Exception as exc:  # noqa: BLE001
             duration = time.monotonic() - start
@@ -226,13 +231,13 @@ class IsolatedExecutor:
                 status="unavailable",
                 exit_code=None,
                 stdout="",
-                stderr=str(exc)[:200000],
+                stderr=redact_text(exc, limit=200_000),
                 duration_seconds=duration,
                 timed_out=False,
                 backend=self.backend,
                 reason_code="E_EXECUTION_FAILED",
-                detail=str(exc),
-                command=tuple(docker_cmd),
+                detail=redact_text(exc),
+                command=recorded_command,
             )
 
     def run_host_check(self, argv: Sequence[str], *, cwd: Path, timeout_seconds: float = 30.0) -> ExecutionResult:

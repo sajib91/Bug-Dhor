@@ -6,14 +6,11 @@ const { COMMANDS } = require('../constants');
 const { getCommandDefinition } = require('./definitions');
 const { registerEngineCommand } = require('./registerEngineCommand');
 const { reportScanAvailability } = require('./scanCommands');
-const {
-  CommandValidationError,
-  createWorkspaceRequest
-} = require('../workspace/workspaceService');
+const { CommandValidationError, createWorkspaceRequest } = require('../workspace/workspaceService');
 const { isLoopbackBackendUrl } = require('../api/configurationService');
 const { discoverRepositoryInventory } = require('../repository');
 const { collectGitChangedFiles, GitChangedFilesError } = require('../repository/gitChangedFiles');
-const { isPathWithinRoot } = require('../security/paths');
+const { isRealPathWithinRoot } = require('../security/paths');
 
 const WORKSPACE_PROMPT_KEY = 'bugdhor.repository.workspacePrompt';
 
@@ -155,7 +152,7 @@ function findContainingWorkspaceFolder(vscode, uri) {
     return (
       folder?.uri?.scheme === 'file' &&
       typeof folder.uri.fsPath === 'string' &&
-      isPathWithinRoot(uri.fsPath, folder.uri.fsPath)
+      isRealPathWithinRoot(uri.fsPath, folder.uri.fsPath)
     );
   });
   candidates.sort((left, right) => right.uri.fsPath.length - left.uri.fsPath.length);
@@ -190,11 +187,15 @@ function registerRepositoryCommands(context) {
     );
   };
 
-  const onResult = (result) => reportScanAvailability({ vscode, logger }, 'Repository scan', result);
+  const onResult = (result) =>
+    reportScanAvailability({ vscode, logger }, 'Repository scan', result);
 
   for (const id of [COMMANDS.scanRepository, COMMANDS.rescanAll]) {
     disposables.push(
-      registerEngineCommand(context, getCommandDefinition(id), prepareFull, { onResult, passContextToPrepare: true })
+      registerEngineCommand(context, getCommandDefinition(id), prepareFull, {
+        onResult,
+        passContextToPrepare: true
+      })
     );
   }
 

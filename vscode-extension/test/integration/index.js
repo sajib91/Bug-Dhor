@@ -104,6 +104,15 @@ async function run() {
   assert.equal(typeof api.checkBackendHealth, 'function');
   assert.equal(typeof api.service.health, 'function');
   assert.equal(typeof api.configurationService.get, 'function');
+  assert.equal(
+    vscode.workspace.isTrusted,
+    true,
+    'the integration temporary workspace must be trusted'
+  );
+  assert.equal(typeof api.trustGate.isTrusted, 'function');
+  assert.equal(api.trustGate.isTrusted(), true);
+  assert.doesNotThrow(() => api.trustGate.assertCapability('sourceAnalysis'));
+  assert.doesNotThrow(() => api.trustGate.assertCapability('localEngine'));
 
   const backendUrl = process.env.BUGDHOR_E2E_BACKEND_URL;
   const workspacePath = process.env.BUGDHOR_E2E_WORKSPACE;
@@ -115,8 +124,8 @@ async function run() {
   assert.ok(diskSha256, 'BUGDHOR_E2E_DISK_SHA256 must be provided by runTest.js');
 
   const configuration = vscode.workspace.getConfiguration('bugdhor');
-  await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Workspace);
-  await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Global);
+  await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Global);
 
   await assertBackendHealth(api, backendUrl);
 
@@ -173,7 +182,7 @@ async function run() {
   );
 
   // With source sharing disabled the backend must fall back to the saved file.
-  await configuration.update('privacy.sendSourceText', false, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('privacy.sendSourceText', false, vscode.ConfigurationTarget.Global);
   assert.equal(
     await editor.edit((builder) =>
       builder.insert(new vscode.Position(0, 0), '# E2E consent disabled\n')
@@ -190,7 +199,7 @@ async function run() {
     'without consent the backend must inspect the saved file only'
   );
 
-  await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Global);
 
   // Workspace scans send metadata only; benign sources yield no findings.
   const workspaceScan = await vscode.commands.executeCommand(COMMANDS.scanWorkspace);
@@ -219,10 +228,10 @@ async function run() {
   await configuration.update(
     'backend.url',
     'http://127.0.0.1:1',
-    vscode.ConfigurationTarget.Workspace
+    vscode.ConfigurationTarget.Global
   );
   assert.equal(await api.checkBackendHealth(), undefined);
-  await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Global);
   await assertBackendHealth(api, backendUrl);
 
   const contributes = extension.packageJSON.contributes;
@@ -293,17 +302,17 @@ async function run() {
     return vscode.workspace.applyEdit(edit);
   }
 
-  await configuration.update('monitoring.enabled', true, vscode.ConfigurationTarget.Workspace);
-  await configuration.update('monitoring.debounceMs', 400, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('monitoring.enabled', true, vscode.ConfigurationTarget.Global);
+  await configuration.update('monitoring.debounceMs', 400, vscode.ConfigurationTarget.Global);
   await configuration.update(
     'monitoring.analysisScope',
     'function',
-    vscode.ConfigurationTarget.Workspace
+    vscode.ConfigurationTarget.Global
   );
   await configuration.update(
     'monitoring.allowAutomaticSourceSharing',
     true,
-    vscode.ConfigurationTarget.Workspace
+    vscode.ConfigurationTarget.Global
   );
   assert.equal(api.monitor.getStats().enabled, true);
 
@@ -374,7 +383,7 @@ async function run() {
   await configuration.update(
     'monitoring.allowAutomaticSourceSharing',
     false,
-    vscode.ConfigurationTarget.Workspace
+    vscode.ConfigurationTarget.Global
   );
   const skippedBefore = api.monitor.getStats().skipped;
   assert.equal(await applyInsert(concurrentA.document, '# no consent\n'), true);
@@ -382,8 +391,8 @@ async function run() {
   assert.equal(completedAnalyses(concurrentA.uri).length, 1);
   assert.ok(api.monitor.getStats().skipped > skippedBefore);
 
-  await configuration.update('monitoring.enabled', false, vscode.ConfigurationTarget.Workspace);
-  await configuration.update('monitoring.debounceMs', 750, vscode.ConfigurationTarget.Workspace);
+  await configuration.update('monitoring.enabled', false, vscode.ConfigurationTarget.Global);
+  await configuration.update('monitoring.debounceMs', 750, vscode.ConfigurationTarget.Global);
   assert.equal(
     bugdhorDiagnostics().length,
     0,
@@ -607,7 +616,7 @@ module.exports = {
     } catch (error) {
       // The extension host swallows runner stack traces in its own output;
       // echo the first failure so runTest.js can report the real assertion.
-      const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
       console.error(`Bug Dhor integration failure: ${detail}`);
       throw error;
     } finally {

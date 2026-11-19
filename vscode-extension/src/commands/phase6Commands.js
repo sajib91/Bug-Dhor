@@ -1,10 +1,7 @@
 'use strict';
 
 const { COMMAND_DEFINITIONS } = require('./definitions');
-const {
-  LocalPhase6Error,
-  createLocalPhase6Engine
-} = require('../phase6/localEngine');
+const { LocalPhase6Error, createLocalPhase6Engine } = require('../phase6/localEngine');
 
 /**
  * Phase 6 commands use the opt-in local engine only. They never replace the
@@ -16,11 +13,12 @@ const {
  *   logger: any,
  *   diagnostics: any,
  *   registry: import('./registry').CommandRegistry,
+ *   trustGate?: { assertCapability: (operation?: string) => void },
  *   phase6Runner?: (command: string, args: string[], options: object) => Promise<{ stdout: string, stderr: string }>
  * }} context
  */
 function registerPhase6Commands(context) {
-  const { vscode, logger, diagnostics, registry, phase6Runner } = context;
+  const { vscode, logger, diagnostics, registry, trustGate, phase6Runner } = context;
   const engine = createLocalPhase6Engine({
     vscode,
     logger,
@@ -63,7 +61,9 @@ function registerPhase6Commands(context) {
     }
     const finding = engine.currentFinding(editor.document, editor);
     if (!finding) {
-      throw new LocalPhase6Error('No finding is selected. Scan the file and place the cursor on a finding.');
+      throw new LocalPhase6Error(
+        'No finding is selected. Scan the file and place the cursor on a finding.'
+      );
     }
     const file = editor.document.uri.fsPath;
     const index = await engine.indexForFinding(file, finding);
@@ -104,6 +104,7 @@ function registerPhase6Commands(context) {
   /** @param {(...args: any[]) => Promise<unknown>} task */
   async function guarded(task) {
     try {
+      trustGate?.assertCapability?.('localEngine');
       return await task();
     } catch (error) {
       return reportFailure(error);
@@ -129,7 +130,10 @@ function registerPhase6Commands(context) {
         const location = await selectedLocation();
         if (!location) return undefined;
         const suggestion = await engine.suggest(location.file, location.index);
-        await showDocument('Bug Dhor Phase 6 repair suggestion', JSON.stringify(suggestion, null, 2));
+        await showDocument(
+          'Bug Dhor Phase 6 repair suggestion',
+          JSON.stringify(suggestion, null, 2)
+        );
         return { status: suggestion.recommendation?.status };
       }),
 
@@ -140,12 +144,11 @@ function registerPhase6Commands(context) {
         const preview = await engine.preview(location.file, location.index);
         if (preview.patch?.unified_diff) {
           await showDocument('Bug Dhor Phase 6 patch preview', preview.patch.unified_diff, 'diff');
-          await notify(`Patch ${preview.patch.patch_id} is ready for review. No source was changed.`);
-        } else {
-          await showDocument(
-            'Bug Dhor Phase 6 patch preview',
-            JSON.stringify(preview, null, 2)
+          await notify(
+            `Patch ${preview.patch.patch_id} is ready for review. No source was changed.`
           );
+        } else {
+          await showDocument('Bug Dhor Phase 6 patch preview', JSON.stringify(preview, null, 2));
           await notify('No reviewable deterministic patch is available for this finding.');
         }
         return { patchId: preview.patch?.patch_id ?? null, canApply: preview.can_apply };

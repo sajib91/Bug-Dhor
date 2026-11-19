@@ -1,0 +1,18 @@
+rules:
+  - id: bugdhor.python.sqlite-string-concat
+    languages: [python]
+    severity: WARNING
+    message: >-
+      sqlite3 statement built from a runtime value may permit SQL injection.
+      Use bound parameters instead.
+    pattern-either:
+      - pattern: $DB.execute("..." + $VALUE + "...")
+      - pattern: $DB.execute(f"...{$VALUE}...")
+
+  - id: bugdhor.javascript.dom-innerhtml
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Writing runtime data to innerHTML may permit DOM XSS. Prefer textContent
+      or an approved sanitizer.
+    pattern: $EL.innerHTML = $VALUE

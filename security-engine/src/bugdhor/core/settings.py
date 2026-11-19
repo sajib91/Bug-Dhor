@@ -6,17 +6,29 @@ included in redacted configuration output.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 Device = Literal["auto", "cpu", "cuda", "mps"]
 SandboxBackend = Literal["docker", "process", "none"]
+
+
+def is_loopback_host(host: str) -> bool:
+    """Return whether a bind host is loopback without performing DNS lookups."""
+    value = host.strip().lower().strip("[]")
+    if value in {"localhost", "ip6-localhost", "ip6-loopback"}:
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
 
 
 class Settings(BaseSettings):
@@ -40,11 +52,16 @@ class Settings(BaseSettings):
     log_level: LogLevel = "INFO"
     data_dir: Path = Path(".bugdhor-data")
     log_dir: Path = Path(".bugdhor-data/logs")
+    persist_full_payloads: bool = False
+    result_retention_days: int = Field(default=7, ge=0, le=365)
 
     # HTTP transport. Keep the loopback default unless the deployment is
     # intentionally isolated; the engine has no remote multi-user auth layer.
     host: str = "127.0.0.1"
     port: int = Field(default=8765, ge=0, le=65_535)
+    environment: Literal["development", "production"] = "production"
+    enable_docs: bool | None = None
+    remote_transport: Literal["loopback", "https-terminated"] = "loopback"
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     workspace_roots: Annotated[list[Path], NoDecode] = Field(default_factory=lambda: [Path.cwd()])
     max_request_bytes: int = Field(default=2 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
@@ -66,6 +83,12 @@ class Settings(BaseSettings):
     sandbox_timeout_seconds: int = Field(default=900, ge=1, le=86_400)
 
     semgrep_path: str = "semgrep"
+    semgrep_configs: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            str(Path(__file__).resolve().parents[3] / "semgrep-rules" / "bugdhor.yml")
+        ]
+    )
+    semgrep_require_local_rules: bool = True
     bandit_path: str = "bandit"
     codeql_path: str | None = None
     joern_path: str | None = None
@@ -85,7 +108,7 @@ class Settings(BaseSettings):
     def _normalize_lowercase(cls, value: object) -> object:
         return value.lower() if isinstance(value, str) else value
 
-    @field_validator("cors_origins", "workspace_roots", mode="before")
+    @field_validator("cors_origins", "workspace_roots", "semgrep_configs", mode="before")
     @classmethod
     def _split_list_setting(cls, value: object) -> object:
         """Accept a JSON array or a comma-separated environment value."""
@@ -120,10 +143,38 @@ class Settings(BaseSettings):
                 normalized.append(origin)
         return normalized
 
+    @model_validator(mode="after")
+    def _validate_remote_transport(self) -> Settings:
+        """Require authentication and explicit HTTPS transport beyond loopback."""
+        if is_loopback_host(self.host):
+            return self
+        if not self.api_token:
+            raise ValueError("non-loopback binding requires BUGDHOR_API_TOKEN")
+        if self.remote_transport != "https-terminated":
+            raise ValueError(
+                "non-loopback binding requires explicit HTTPS termination "
+                "(BUGDHOR_REMOTE_TRANSPORT=https-terminated)"
+            )
+        return self
+
+    def validate_runtime(self) -> None:
+        """Re-check transport policy after CLI overrides."""
+        self._validate_remote_transport()
+
+    def docs_enabled(self) -> bool:
+        """Docs are opt-in in production and available by default in development."""
+        if self.enable_docs is not None:
+            return self.enable_docs
+        return self.environment == "development"
+
     def ensure_directories(self) -> None:
-        """Create local data and log directories, including parents."""
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        """Create private local data and log directories, including parents."""
+        for directory in (self.data_dir, self.log_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+            try:
+                directory.chmod(0o700)
+            except OSError:
+                pass
 
     def redacted(self) -> dict[str, object]:
         """Return JSON-safe settings with secrets removed."""

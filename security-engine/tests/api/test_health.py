@@ -93,7 +93,7 @@ def test_health_reports_language_and_analyzer_capabilities_separately(api) -> No
         "joern",
     }
     assert all(item["adapterAvailable"] is False for item in report["linterTypeCheckers"])
-    assert report["dependencyVulnerabilityChecks"]["automated"] is False
+    assert report["dependencyVulnerabilityChecks"]["automated"] is True
     assert report["generalBugs"]["enabledByDefault"] is False
     assert "wired paths" in report["note"]
 

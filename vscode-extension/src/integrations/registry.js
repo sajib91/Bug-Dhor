@@ -42,7 +42,9 @@ function createProviderRegistry(options = {}) {
   /** @type {Map<string, any>} */
   const providers = new Map();
   const currentSettings = () =>
-    typeof options.getSettings === 'function' ? options.getSettings() ?? {} : options.settings ?? {};
+    typeof options.getSettings === 'function'
+      ? (options.getSettings() ?? {})
+      : (options.settings ?? {});
   let selectedKind = normalizeKind(currentSettings().provider);
   let refreshedAt = null;
 
@@ -97,10 +99,10 @@ function createProviderRegistry(options = {}) {
           config.apiKeyEnvironmentVariable.length > 0
             ? config.apiKeyEnvironmentVariable
             : 'BUGDHOR_LLM_API_KEY';
-        const apiKey =
-          typeof config.apiKey === 'string'
-            ? config.apiKey
-            : options.environment?.[apiKeyVariable] ?? process.env?.[apiKeyVariable];
+        // Credentials are accepted only from the extension-host environment.
+        // A workspace-supplied `apiKey` setting is never read, even if a caller
+        // injects one programmatically through the settings object.
+        const apiKey = options.environment?.[apiKeyVariable] ?? process.env?.[apiKeyVariable];
         remember(
           createOpenAiCompatibleProvider({
             endpoint: config.endpoint,

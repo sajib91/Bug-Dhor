@@ -20,7 +20,7 @@ const path = require('node:path');
 
 const { isPathExcluded } = require('../monitoring/changeAnalyzer');
 const { isBinaryPath, isGeneratedPath, languageForPath } = require('../monitoring/fileFilter');
-const { isPathWithinRoot } = require('../security/paths');
+const { isRealPathWithinRoot } = require('../security/paths');
 const { GitIgnoreRules, parseGitIgnore } = require('./gitignore');
 
 const DEFAULT_MAX_FILES = 2000;
@@ -504,13 +504,13 @@ async function discoverRepositoryInventory(vscode, options = {}) {
       }
 
       const fsPath = path.join(context.dirFsPath, name);
-      if (!isPathWithinRoot(fsPath, context.rootPath)) {
-        recordIgnored(fsPath, IGNORE_REASONS.outsideWorkspace);
-        continue;
-      }
       if (hasFlag(type, FileType.SymbolicLink)) {
         state.stats.symlinksSkipped += 1;
         recordIgnored(fsPath, IGNORE_REASONS.symbolicLink);
+        continue;
+      }
+      if (!isRealPathWithinRoot(fsPath, context.rootPath)) {
+        recordIgnored(fsPath, IGNORE_REASONS.outsideWorkspace);
         continue;
       }
 

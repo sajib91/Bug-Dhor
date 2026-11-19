@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 
 /**
@@ -48,4 +49,26 @@ function isFileUriWithinFolders(uri, folders) {
   );
 }
 
-module.exports = { isPathWithinRoot, isFileUriWithinFolders };
+/**
+ * Containment check that also follows existing symlinks to their real paths.
+ * Non-existent paths fall back to the lexical result so pre-write validation
+ * remains usable; existing symlinks that escape the root are rejected.
+ *
+ * @param {unknown} filePath
+ * @param {unknown} rootPath
+ * @returns {boolean}
+ */
+function isRealPathWithinRoot(filePath, rootPath) {
+  if (!isPathWithinRoot(filePath, rootPath)) {
+    return false;
+  }
+  try {
+    const realRoot = fs.realpathSync.native(path.resolve(/** @type {string} */ (rootPath)));
+    const realFile = fs.realpathSync.native(path.resolve(/** @type {string} */ (filePath)));
+    return isPathWithinRoot(realFile, realRoot);
+  } catch {
+    return true;
+  }
+}
+
+module.exports = { isPathWithinRoot, isRealPathWithinRoot, isFileUriWithinFolders };

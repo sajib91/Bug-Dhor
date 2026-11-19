@@ -21,6 +21,7 @@ const { onSettingsChanged, readSettings } = require('./config');
 const { createProviderRegistry, SecurityHooks } = require('./integrations');
 const { FeedbackController } = require('./feedback');
 const { offerWorkspaceScan } = require('./commands/repositoryCommands');
+const { createTrustGate } = require('./security/trustGate');
 
 /** @type {import('./logging/output').Logger | undefined} */
 let logger;
@@ -30,8 +31,8 @@ let logger;
  *
  * @returns {object}
  */
-function getMonitoringSettings() {
-  const settings = readSettings();
+function getMonitoringSettings(trustGate) {
+  const settings = trustGate?.sanitizeSettings?.(readSettings()) ?? readSettings();
   return {
     enabled: settings.monitoringEnabled,
     onSaveOnly: settings.monitoringOnSaveOnly,
@@ -62,8 +63,8 @@ function getMonitoringSettings() {
  *
  * @returns {object}
  */
-function getAssistantSettings() {
-  const settings = readSettings();
+function getAssistantSettings(trustGate) {
+  const settings = trustGate?.sanitizeSettings?.(readSettings()) ?? readSettings();
   return {
     provider: settings.assistantProvider,
     vscodeLanguageModel: {
@@ -90,8 +91,8 @@ function getAssistantSettings() {
  *
  * @returns {object}
  */
-function getFeedbackSettings() {
-  const settings = readSettings();
+function getFeedbackSettings(trustGate) {
+  const settings = trustGate?.sanitizeSettings?.(readSettings()) ?? readSettings();
   return {
     notifyOnPatchApplied: settings.feedbackNotifyOnPatchApplied,
     notifyOnResolution: settings.feedbackNotifyOnResolution
@@ -105,8 +106,8 @@ function getFeedbackSettings() {
  *
  * @returns {object}
  */
-function getRecommendationSettings() {
-  const settings = readSettings();
+function getRecommendationSettings(trustGate) {
+  const settings = trustGate?.sanitizeSettings?.(readSettings()) ?? readSettings();
   return {
     runFunctionalTests: settings.recommendationRunFunctionalTests,
     allowSandboxedExecution: settings.recommendationAllowSandboxedExecution,
@@ -120,8 +121,8 @@ function getRecommendationSettings() {
  *
  * @returns {object}
  */
-function getRepositorySettings() {
-  const settings = readSettings();
+function getRepositorySettings(trustGate) {
+  const settings = trustGate?.sanitizeSettings?.(readSettings()) ?? readSettings();
   return {
     backendUrl: settings.backendUrl,
     sendSourceText: settings.sendSourceText,
@@ -150,12 +151,15 @@ function activate(context) {
   logger.info('Activating Bug Dhor Security Framework.');
 
   const statusBar = createStatusBar();
-  const configurationService = createConfigurationService({ vscode });
-  const service = createSecurityEngineService({ configurationService, logger });
+  const trustGate = createTrustGate({ vscode, logger });
+  const configurationService = createConfigurationService({ vscode, trustGate });
+  const service = trustGate.createTrustedService(
+    createSecurityEngineService({ configurationService, logger })
+  );
   const feedback = new FeedbackController({
     vscode,
     logger,
-    getSettings: getFeedbackSettings
+    getSettings: () => getFeedbackSettings(trustGate)
   });
 
   /**
@@ -176,7 +180,7 @@ function activate(context) {
         `Bug Dhor backend v${health.version} reachable at the configured URL ` +
           `(API ${health.apiVersion}).`
       );
-      const settings = readSettings();
+      const settings = trustGate.sanitizeSettings(readSettings());
       if (!isLoopbackBackendUrl(settings.backendUrl)) {
         logger.warn(
           'bugdhor.backend.url points outside loopback. Source text is sent only for explicit ' +
@@ -201,7 +205,7 @@ function activate(context) {
     getState: (dataMode) =>
       buildDashboardState({
         dataMode,
-        settings: readSettings()
+        settings: trustGate.sanitizeSettings(readSettings())
       })
   });
   /** @type {object[]} */
@@ -255,14 +259,18 @@ function activate(context) {
   const assistantRegistry = createProviderRegistry({
     vscode,
     logger,
-    getSettings: getAssistantSettings
+    getSettings: () => getAssistantSettings(trustGate)
   });
   const assistantHooks = new SecurityHooks({
     registry: assistantRegistry,
     logger,
-    settings: getAssistantSettings()
+    settings: getAssistantSettings(trustGate)
   });
-  void assistantRegistry.refresh();
+  if (trustGate.isTrusted()) {
+    void assistantRegistry.refresh();
+  } else {
+    logger.warn('Assistant provider discovery is disabled in an untrusted workspace.');
+  }
 
   const commandRegistry = registerCommands({
     vscode,
@@ -273,8 +281,9 @@ function activate(context) {
     assistantRegistry,
     assistantHooks,
     feedback,
-    getRecommendationSettings,
-    getRepositorySettings
+    getRecommendationSettings: () => getRecommendationSettings(trustGate),
+    getRepositorySettings: () => getRepositorySettings(trustGate),
+    trustGate
   });
   const sidebarRegistration = registerSidebarView(context, logger);
 
@@ -283,10 +292,16 @@ function activate(context) {
     service,
     logger,
     diagnostics: diagnostics.controller,
-    getSettings: getMonitoringSettings,
+    getSettings: () => getMonitoringSettings(trustGate),
     hooks: assistantHooks,
     feedback
-  }).start();
+  });
+  if (trustGate.isTrusted()) {
+    monitor.start();
+  } else {
+    monitor.updateSettings(getMonitoringSettings(trustGate));
+    logger.warn('Workspace monitoring is disabled in an untrusted workspace.');
+  }
 
   const settingsSubscription = onSettingsChanged((event) => {
     if (event.affectsConfiguration('bugdhor.logging.level')) {
@@ -305,12 +320,24 @@ function activate(context) {
     ) {
       void checkBackendHealth();
     }
-    monitor.updateSettings(getMonitoringSettings());
+    monitor.updateSettings(getMonitoringSettings(trustGate));
     if (event.affectsConfiguration('bugdhor.assistant')) {
-      assistantHooks.updateSettings(getAssistantSettings());
-      void assistantRegistry.refresh();
+      assistantHooks.updateSettings(getAssistantSettings(trustGate));
+      if (trustGate.isTrusted()) {
+        void assistantRegistry.refresh();
+      }
     }
     logger.debug('Bug Dhor settings updated.');
+  });
+
+  const trustSubscription = trustGate.onChange(() => {
+    if (trustGate.isTrusted()) {
+      monitor.start();
+      void assistantRegistry.refresh();
+    }
+    monitor.updateSettings(getMonitoringSettings(trustGate));
+    assistantHooks.updateSettings(getAssistantSettings(trustGate));
+    dashboard.refresh();
   });
 
   context.subscriptions.push(
@@ -320,6 +347,8 @@ function activate(context) {
     diagnostics,
     sidebarRegistration,
     settingsSubscription,
+    trustSubscription,
+    trustGate,
     commandRegistry,
     monitor,
     feedbackSubscription,
@@ -333,15 +362,17 @@ function activate(context) {
     );
   }
 
-  void checkBackendHealth().then((health) =>
-    offerWorkspaceScan({
-      vscode,
-      logger,
-      memento: context.globalState,
-      settings: getRepositorySettings(),
-      backendReachable: Boolean(health)
-    })
-  );
+  if (trustGate.isTrusted()) {
+    void checkBackendHealth().then((health) =>
+      offerWorkspaceScan({
+        vscode,
+        logger,
+        memento: context.globalState,
+        settings: getRepositorySettings(trustGate),
+        backendReachable: Boolean(health)
+      })
+    );
+  }
   logger.info('Bug Dhor activated.');
 
   return {
@@ -351,7 +382,8 @@ function activate(context) {
     monitor,
     feedback,
     assistantRegistry,
-    assistantHooks
+    assistantHooks,
+    trustGate
   };
 }
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.base import StaticToolAdapter, validate_common_config
 from bugdhor.static.execution import DEFAULT_MAX_CAPTURE_BYTES, run_command
 from bugdhor.static.models import (
@@ -30,7 +31,10 @@ class SemgrepConfig:
     """
 
     executable: str = "semgrep"
-    configs: tuple[str, ...] = ("auto",)
+    configs: tuple[str, ...] = (
+        str(Path(__file__).resolve().parents[3] / "semgrep-rules" / "bugdhor.yml"),
+    )
+    require_local_rules: bool = True
     timeout_seconds: float = 300.0
     extra_args: tuple[str, ...] = ()
     environment: tuple[tuple[str, str], ...] = ()
@@ -51,11 +55,18 @@ class SemgrepConfig:
         for config in self.configs:
             if not isinstance(config, str) or not config or "\x00" in config:
                 raise ValueError("Semgrep configs must be non-empty strings")
+            if self.require_local_rules:
+                candidate = Path(config)
+                if not candidate.is_absolute() or not candidate.is_file():
+                    raise ValueError(
+                        "Semgrep rules must be pinned local files when require_local_rules is enabled"
+                    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "executable": self.executable,
             "configs": list(self.configs),
+            "requireLocalRules": self.require_local_rules,
             "timeoutSeconds": self.timeout_seconds,
             "extraArgs": list(self.extra_args),
             "maxOutputBytes": self.max_output_bytes,
@@ -145,7 +156,7 @@ class SemgrepAdapter(StaticToolAdapter):
                     config_hash=availability.config_hash,
                 )
             except (json.JSONDecodeError, ValueError) as exc:
-                parse_error = f"Semgrep output could not be parsed: {exc}"
+                parse_error = f"Semgrep output could not be parsed: {redact_text(exc)}"
 
         successful_exit = execution.return_code in {0, 1}
         if parse_error is not None:

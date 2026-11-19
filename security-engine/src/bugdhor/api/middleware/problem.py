@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse
 
 from bugdhor.api.schemas.common import ProblemDetail
 from bugdhor.config import ERROR_TYPE_BASE, PROBLEM_MEDIA_TYPE
+from bugdhor.core.redaction import redact_mapping, redact_text
 
 
 def problem_payload(
@@ -23,14 +24,14 @@ def problem_payload(
 ) -> dict[str, Any]:
     problem = ProblemDetail(
         type=f"{ERROR_TYPE_BASE}/{code}",
-        title=title,
+        title=redact_text(title),
         status=status,
         code=code,
-        detail=detail,
+        detail=redact_text(detail),
         instance=instance,
         retryable=retryable,
         request_id=request_id,
-        details=details,
+        details=redact_mapping(details) if details is not None else None,
     )
     return problem.model_dump(by_alias=True, mode="json")
 

@@ -101,12 +101,16 @@ def analysis_capabilities() -> dict[str, Any]:
         "staticTools": _static_tool_report(),
         "linterTypeCheckers": _linter_report(),
         "dependencyVulnerabilityChecks": {
-            "automated": False,
-            "status": "manual_only",
-            "observedCommands": ["python -m pip check", "npm audit --omit=dev"],
+            "automated": True,
+            "status": "ci_lockfile_sca",
+            "observedCommands": [
+                "pip-audit --require-hashes -r security-engine/requirements.lock.txt --strict",
+                "npm audit --omit=dev"
+            ],
             "note": (
-                "No automated SCA adapter or CI gate ships in this build. "
-                "Documented manual checks are not a clean-scan signal."
+                "CI regenerates and audits a hash-pinned runtime/dev/ML Python lockfile and "
+                "the production npm closure. Analyzer CLIs are excluded from that lock. "
+                "This runtime does not execute SCA and does not report CVE-free status."
             ),
         },
         "generalBugs": {

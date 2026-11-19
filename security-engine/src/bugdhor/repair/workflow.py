@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from bugdhor.core.redaction import redact_text
+from bugdhor.core.safe_patch import (
+    apply_patch_to_sources,
+    validate_patch_scope,
+)
 from bugdhor.repair.engine import RepairConstraints, RepairEngine, normalize_patch, patch_paths
 from bugdhor.sandbox.executor import ExecutionConsent
 from bugdhor.verification.engine import IndependentVerificationEngine
@@ -135,7 +140,10 @@ class RepairWorkflow:
                 else:
                     candidate_meta = {"generated": False, "error": "no_generator_or_adapter_available"}
             except Exception as exc:  # noqa: BLE001
-                candidate_meta = {"generated": False, "error": f"generation_failed: {type(exc).__name__}: {exc}"}
+                candidate_meta = {
+                    "generated": False,
+                    "error": f"generation_failed: {type(exc).__name__}: {redact_text(exc)}",
+                }
         if not candidate_patch:
             step(2, "Generate repair candidate", "failed" if generate else "skipped", candidate_meta.get("error", "No patch provided."), candidate_meta)
             record.state = FAILED if generate else INCONCLUSIVE
@@ -178,7 +186,7 @@ class RepairWorkflow:
         try:
             patched_source = self._apply_patch_to_source(original_source, file_path, normalized)
         except Exception as exc:  # noqa: BLE001
-            step(4, "Validate syntax", "failed", f"Patch could not be applied: {exc}")
+            step(4, "Validate syntax", "failed", f"Patch could not be applied: {redact_text(exc)}")
             record.state = FAILED
             step(5, "Run independent security checks", "skipped", "Patch could not be applied.")
             step(6, "Run functional tests", "skipped", "Patch could not be applied.")
@@ -322,61 +330,10 @@ class RepairWorkflow:
         return record
 
     def _apply_patch_to_source(self, original: str, file_path: str, patch: str) -> str:
-        # reuse verification logic-like application in temp dir
-        import tempfile
-        tmp = tempfile.TemporaryDirectory(prefix="bugdhor-wf-apply-")
-        try:
-            root = Path(tmp.name)
-            target = root / Path(file_path).name
-            target.write_text(original, encoding="utf-8")
-            # simple unified diff apply
-            lines = patch.splitlines()
-            original_lines = original.splitlines()
-            output: list[str] = []
-            cursor = 0
-            i = 0
-            while i < len(lines) and not lines[i].startswith("@@ "):
-                i += 1
-            if i >= len(lines):
-                raise ValueError("no hunks")
-            while i < len(lines):
-                if not lines[i].startswith("@@ "):
-                    i += 1
-                    continue
-                header = lines[i]
-                # parse @@ -l,s +l,s @@
-                m = __import__("re").match(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", header)
-                if not m:
-                    raise ValueError("bad hunk")
-                start = int(m.group(1)) - 1
-                if start < 0:
-                    start = 0
-                output.extend(original_lines[cursor:start])
-                cursor = start
-                i += 1
-                while i < len(lines) and not lines[i].startswith("@@ "):
-                    line = lines[i]
-                    if line.startswith(" "):
-                        if cursor >= len(original_lines) or original_lines[cursor] != line[1:]:
-                            raise ValueError("context mismatch")
-                        output.append(original_lines[cursor]); cursor += 1
-                    elif line.startswith("-"):
-                        if cursor >= len(original_lines) or original_lines[cursor] != line[1:]:
-                            raise ValueError("delete mismatch")
-                        cursor += 1
-                    elif line.startswith("+"):
-                        output.append(line[1:])
-                    elif line.startswith("\\"):
-                        pass
-                    elif line.startswith("---") or line.startswith("+++"):
-                        pass
-                    else:
-                        raise ValueError("bad patch line")
-                    i += 1
-            output.extend(original_lines[cursor:])
-            return "\n".join(output) + ("\n" if original.endswith("\n") or output else "")
-        finally:
-            tmp.cleanup()
+        """Apply a candidate patch without writing to the source workspace."""
+        touched = validate_patch_scope(patch, file_path)
+        patched = apply_patch_to_sources({str(touched[0]): original}, patch)
+        return patched[str(touched[0])]
 
     def _validate_syntax(self, source: str, file_path: str, language_id: str | None) -> tuple[bool, str]:
         suffix = Path(file_path).suffix.lower()
@@ -385,7 +342,7 @@ class RepairWorkflow:
                 __import__("ast").parse(source)
                 return True, "Python syntax valid."
             except SyntaxError as exc:
-                return False, f"Python syntax error: {exc}"
+                return False, f"Python syntax error: {redact_text(exc)}"
         if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
             try:
                 from bugdhor.program_analysis.analysis import analyze_source
@@ -394,7 +351,7 @@ class RepairWorkflow:
                     return False, "JavaScript/TypeScript parse reported syntax errors."
                 return True, "JavaScript/TypeScript syntax valid."
             except Exception as exc:
-                return False, f"Parse error: {exc}"
+                return False, f"Parse error: {redact_text(exc)}"
         return True, "Syntax validation not applicable for this language."
 
     def _derive_state(self, *, syntax_ok, security_ok, security_failed, security_inconclusive, security_partial, functional_ok, functional_failed, functional_inconclusive) -> str:

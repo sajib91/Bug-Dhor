@@ -1,6 +1,7 @@
 'use strict';
 
 const { CommandValidationError } = require('./validation');
+const { redactText } = require('../security/redaction');
 
 /**
  * @param {unknown} error
@@ -19,13 +20,17 @@ function isCancellation(error) {
 }
 
 /**
- * @param {{ vscode: import('vscode'), logger: import('../logging/output').Logger }} dependencies
+ * @param {{
+ *   vscode: import('vscode'),
+ *   logger: import('../logging/output').Logger,
+ *   trustGate?: { assertCapability: (operation?: string) => void }
+ * }} dependencies
  * @param {string} commandTitle
  * @param {Error} error
  * @param {boolean} expected
  */
 function reportFailure({ vscode, logger }, commandTitle, error, expected) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = redactText(error instanceof Error ? error.message : error);
   if (expected) {
     logger.warn(`${commandTitle}: ${message}`);
   } else {
@@ -50,7 +55,11 @@ function reportFailure({ vscode, logger }, commandTitle, error, expected) {
  * consistent error handling. Assignments are only published after a validated
  * backend result is returned; transport failures never produce a success notice.
  *
- * @param {{ vscode: import('vscode'), logger: import('../logging/output').Logger }} dependencies
+ * @param {{
+ *   vscode: import('vscode'),
+ *   logger: import('../logging/output').Logger,
+ *   trustGate?: { assertCapability: (operation?: string) => void }
+ * }} dependencies
  * @param {{
  *   definition: { title: string, progressTitle: string },
  *   prepare: (context?: { token: import('vscode').CancellationToken, progress: import('vscode').Progress<{ message?: string }> }) => object | Promise<object>,
@@ -63,6 +72,7 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke, onR
   const { vscode, logger } = dependencies;
   let cancellationToken;
   try {
+    dependencies.trustGate?.assertCapability?.('sourceAnalysis');
     return await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,

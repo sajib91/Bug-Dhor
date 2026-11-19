@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.base import StaticToolAdapter
 from bugdhor.static.models import (
     AvailabilityStatus,
@@ -58,7 +59,7 @@ class StaticAnalysisRunner:
                         status=AvailabilityStatus.LAUNCH_FAILED,
                         executable=None,
                         reason_code="E_TOOL_LAUNCH_FAILED",
-                        detail=f"{type(exc).__name__}: {exc}",
+                        detail=f"{type(exc).__name__}: {redact_text(exc)}",
                         configuration=adapter.configuration(),
                         config_hash=adapter.configuration_hash(),
                     )
@@ -71,7 +72,7 @@ class StaticAnalysisRunner:
                         configuration=availability.configuration,
                         config_hash=availability.config_hash or adapter.configuration_hash(),
                         reason_code="E_ANALYZER_INTERNAL",
-                        detail=f"{type(exc).__name__}: {exc}",
+                        detail=f"{type(exc).__name__}: {redact_text(exc)}",
                     )
                 )
 

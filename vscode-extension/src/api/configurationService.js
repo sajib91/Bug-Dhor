@@ -8,6 +8,8 @@
  * configuration object when it creates a service.
  */
 
+const { endpointPolicyViolation, isTrustedValue } = require('../security/trustPolicy');
+
 const SECTION = 'bugdhor';
 const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8765';
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -149,11 +151,25 @@ function getEnvironmentToken(environment = process.env) {
  *   sendSourceText?: unknown,
  *   token?: unknown
  * }} [raw]
+ * @param {{ trusted?: unknown }} [options]
  * @returns {ApiConfiguration}
  */
-function normalizeApiConfiguration(raw = {}) {
+function normalizeApiConfiguration(raw = {}, options = {}) {
+  const baseUrl = normalizeBackendUrl(raw.baseUrl ?? DEFAULT_BACKEND_URL);
+  const trusted = isTrustedValue(options.trusted);
+  const violation = endpointPolicyViolation({ baseUrl, trusted });
+  if (violation) {
+    const messages = {
+      E_UNTRUSTED_REMOTE_ENDPOINT: 'Untrusted workspaces may use only a loopback backend endpoint.',
+      E_INSECURE_REMOTE_ENDPOINT: 'A non-loopback backend endpoint must use HTTPS.'
+    };
+    throw new ConfigurationError(
+      messages[violation] ?? 'The configured backend endpoint is invalid.',
+      violation
+    );
+  }
   return Object.freeze({
-    baseUrl: normalizeBackendUrl(raw.baseUrl ?? DEFAULT_BACKEND_URL),
+    baseUrl,
     requestTimeoutMs: normalizeTimeout(
       raw.requestTimeoutMs,
       DEFAULT_REQUEST_TIMEOUT_MS,
@@ -166,7 +182,7 @@ function normalizeApiConfiguration(raw = {}) {
       MIN_HEALTH_TIMEOUT_MS,
       MAX_HEALTH_TIMEOUT_MS
     ),
-    sendSourceText: raw.sendSourceText !== false,
+    sendSourceText: trusted && raw.sendSourceText !== false,
     token: normalizeToken(raw.token)
   });
 }
@@ -196,20 +212,28 @@ function readRawApiConfiguration(configuration, environment = process.env) {
  *
  * @param {{
  *   vscode: import('vscode'),
- *   environment?: NodeJS.ProcessEnv
+ *   environment?: NodeJS.ProcessEnv,
+ *   trustGate?: { isTrusted: () => boolean }
  * }} dependencies
  */
-function createConfigurationService({ vscode, environment = process.env }) {
+function createConfigurationService({ vscode, environment = process.env, trustGate }) {
   if (!vscode || !vscode.workspace || typeof vscode.workspace.getConfiguration !== 'function') {
     throw new TypeError('createConfigurationService requires the VS Code workspace API.');
   }
 
+  /** @returns {boolean} */
+  const isTrusted = () => {
+    if (trustGate && typeof trustGate.isTrusted === 'function') {
+      return trustGate.isTrusted() === true;
+    }
+    return vscode.workspace.isTrusted === true;
+  };
+
   return Object.freeze({
     /** @returns {ApiConfiguration} */
     get() {
-      return normalizeApiConfiguration(
-        readRawApiConfiguration(vscode.workspace.getConfiguration(SECTION), environment)
-      );
+      const raw = readRawApiConfiguration(vscode.workspace.getConfiguration(SECTION), environment);
+      return normalizeApiConfiguration(raw, { trusted: isTrusted() });
     },
     /** @returns {Record<string, unknown>} */
     getRaw() {

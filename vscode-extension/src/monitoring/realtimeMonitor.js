@@ -22,7 +22,7 @@ const { MAX_ABSOLUTE_LINES, buildAnalysisPlan, textForPlan } = require('./change
 const { DocumentVersionTracker } = require('./documentVersionTracker');
 const { evaluateFileEligibility } = require('./fileFilter');
 const { DEFAULT_MONITORING_SETTINGS, normalizeMonitoringSettings } = require('./settings');
-const { isPathWithinRoot } = require('../security/paths');
+const { isRealPathWithinRoot } = require('../security/paths');
 
 // Backward-compatible aliases for existing callers and tests. The shared
 // settings module is the single source of truth for all monitoring defaults.
@@ -116,7 +116,7 @@ function resolveWorkspaceFolder(vscode, uri) {
       folder?.uri?.scheme === 'file' &&
       typeof folder.uri.fsPath === 'string' &&
       typeof uri?.fsPath === 'string' &&
-      isPathWithinRoot(uri.fsPath, folder.uri.fsPath)
+      isRealPathWithinRoot(uri.fsPath, folder.uri.fsPath)
   );
 }
 
@@ -372,7 +372,7 @@ class RealtimeMonitor {
           (folder) =>
             folder?.uri?.scheme === 'file' &&
             typeof folder.uri.fsPath === 'string' &&
-            isPathWithinRoot(fsPath, folder.uri.fsPath)
+            isRealPathWithinRoot(fsPath, folder.uri.fsPath)
         );
       if (!inside) {
         this.handleDeleteUri(uri);

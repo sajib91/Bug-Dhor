@@ -22,10 +22,7 @@ const {
   errors
 } = require('../../src/integrations');
 const { DiagnosticController } = require('../../src/diagnostics/diagnosticController');
-const {
-  createFakeVscode,
-  createRawFinding
-} = require('./diagnosticsFake');
+const { createFakeVscode, createRawFinding } = require('./diagnosticsFake');
 
 /**
  * Build a read-only fake filesystem. Keys and lookups use the host path rules
@@ -77,7 +74,9 @@ function createFakeFetch(response) {
 test('capability taxonomy enforces E implies D and F implies D and E', () => {
   assert.deepEqual(CAPABILITIES, ['A', 'B', 'C', 'D', 'E', 'F']);
   assert.ok(validateCapabilities(['E']).errors.some((message) => message.includes('capability D')));
-  assert.ok(validateCapabilities(['F', 'D']).errors.some((message) => message.includes('capability E')));
+  assert.ok(
+    validateCapabilities(['F', 'D']).errors.some((message) => message.includes('capability E'))
+  );
   assert.deepEqual(validateCapabilities(['D', 'E', 'F']).errors, []);
   assert.throws(
     () => normalizeCapabilities(['E'], { hosted: true }),
@@ -88,7 +87,10 @@ test('capability taxonomy enforces E implies D and F implies D and E', () => {
 test('editor provider exposes only capability A and never attributes an edit', () => {
   const provider = createEditorProvider();
   assert.deepEqual(provider.capabilities, ['A']);
-  assert.equal(provider.observeChange({ uri: 'file:///workspace/app.py' }).authorAttribution, 'none');
+  assert.equal(
+    provider.observeChange({ uri: 'file:///workspace/app.py' }).authorAttribution,
+    'none'
+  );
   return assert.rejects(() => provider.generate({}), errors.ProviderUnsupportedCapabilityError);
 });
 
@@ -140,7 +142,10 @@ test('local Hugging Face provider reads metadata and does not claim internal acc
   assert.deepEqual(provider.capabilities, ['B', 'C']);
   assert.equal(provider.model.family, 'gpt2');
   assert.ok(provider.limitations.some((item) => item.includes('does not by itself grant')));
-  await assert.rejects(() => provider.extractActivations({}), errors.ProviderInternalActivationError);
+  await assert.rejects(
+    () => provider.extractActivations({}),
+    errors.ProviderInternalActivationError
+  );
 });
 
 test('local Hugging Face provider reports D/E/F only for validated real accessors', () => {
@@ -249,12 +254,12 @@ test('VS Code Language Model provider uses only documented API surfaces', async 
       { role: 'user', content: 'Write a query.' }
     ]
   });
-  assert.equal(
-    response.text,
-    'SELECT * FROM users WHERE id = ?'
-  );
+  assert.equal(response.text, 'SELECT * FROM users WHERE id = ?');
   assert.equal(sent[0].messages[0].content, 'Prefer parameterized queries.\nWrite a query.');
-  await assert.rejects(() => provider.extractActivations({}), errors.ProviderUnsupportedCapabilityError);
+  await assert.rejects(
+    () => provider.extractActivations({}),
+    errors.ProviderUnsupportedCapabilityError
+  );
 });
 
 test('OpenAI-compatible provider sends only documented fields and maps provider errors', async () => {
@@ -319,6 +324,36 @@ test('registry defaults to editor monitoring and reports discovery failures hone
   const failedRecord = snapshot.records().find((record) => record.kind === 'openai-compatible');
   assert.equal(failedRecord.status, 'unavailable');
   assert.deepEqual(failedRecord.capabilities, []);
+});
+
+test('provider registry ignores programmatic API keys from settings', async () => {
+  const { fetchImpl, calls } = createFakeFetch({
+    status: 200,
+    json: {
+      choices: [{ message: { content: 'safe output' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+    }
+  });
+  const registry = createProviderRegistry({
+    settings: {
+      provider: 'openai-compatible',
+      openAiCompatible: {
+        endpoint: 'https://llm.example.com/v1',
+        model: 'example-model',
+        apiKey: 'workspace-supplied-secret',
+        apiKeyEnvironmentVariable: 'BUGDHOR_MISSING_KEY'
+      }
+    },
+    environment: {},
+    fetch: fetchImpl
+  });
+
+  const snapshot = await registry.refresh();
+  await snapshot.getActiveProvider().generate({
+    messages: [{ role: 'user', content: 'Write safe code.' }]
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.headers.authorization, undefined);
 });
 
 test('compatibility matrix marks internals conditional, never default-supported', () => {
@@ -396,9 +431,9 @@ test('diagnostics publish backend verification provenance without synthesizing f
     scope: { uris: ['file:///workspace/src/app.js', 'file:///workspace/src/app.py'] }
   });
   assert.equal(result.published, 2);
-  const related = collections[0].entries.get('file:///workspace/src/app.js').flatMap(
-    (diagnostic) => diagnostic.relatedInformation.map((item) => item.message)
-  );
+  const related = collections[0].entries
+    .get('file:///workspace/src/app.js')
+    .flatMap((diagnostic) => diagnostic.relatedInformation.map((item) => item.message));
   assert.ok(related.some((message) => message.includes('Verification: confirmed')));
 
   const secure = controller.publishScanResult({

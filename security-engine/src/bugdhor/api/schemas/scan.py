@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 
 from bugdhor.api.schemas.common import (
     APIModel,
@@ -12,6 +12,7 @@ from bugdhor.api.schemas.common import (
     Range,
     ScanScope,
 )
+from bugdhor.core.safe_patch import reject_absolute_file_path
 
 
 class FileContext(APIModel):
@@ -39,6 +40,16 @@ class FileContext(APIModel):
             "workspace root and the configured file-size limit is enforced."
         ),
     )
+
+    @field_validator("file_path", mode="before")
+    @classmethod
+    def _reject_absolute_file_path(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        try:
+            return reject_absolute_file_path(value)
+        except Exception as exc:
+            raise ValueError(str(exc)) from None
 
 
 class ScanFileRequest(FileContext):

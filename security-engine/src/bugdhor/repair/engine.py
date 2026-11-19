@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-import ast
 import hashlib
-import re
-import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from bugdhor.core.safe_patch import (
+    apply_patch_in_temp,
+    normalize_patch,
+    patch_paths,
+    validate_patch_tree,
+)
 from bugdhor.models.adapter import ModelAdapter, validate_adapter
 from bugdhor.program_analysis.analysis import analyze_source
 from bugdhor.repair.context import RepositoryContext
@@ -21,7 +24,6 @@ from bugdhor.repair.ranking import (
     RankingPolicy,
 )
 
-_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _SUPPORTED_CWES = {
     "CWE-89": "SQL injection",
     "CWE-78": "OS command injection",
@@ -310,22 +312,17 @@ class RepairEngine:
             or not set(touched).issubset(allowed)
         ):
             return None
-        with tempfile.TemporaryDirectory(prefix="bugdhor-repair-") as directory:
-            root = Path(directory)
-            target = root / file_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(source_text, encoding="utf-8")
-            for relative, text in repository_sources.items():
-                destination = root / relative
-                if not destination.is_relative_to(root):
-                    return None
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                destination.write_text(text, encoding="utf-8")
-            try:
-                _apply_patch(root, patch)
-            except ValueError:
-                return None
-            syntax_valid = _validate_tree(root, touched)
+        try:
+            patched = apply_patch_in_temp(
+                Path.cwd(),
+                file_path,
+                source_text,
+                patch,
+                repository_sources=repository_sources,
+            )
+            syntax_valid = all(_syntax_valid(text, path) for path, text in patched.items())
+        except (ValueError, OSError):
+            return None
         if constraints.require_syntax_valid and not syntax_valid:
             return None
         score = _security_score(patch, context)
@@ -343,108 +340,21 @@ class RepairEngine:
             },
         )
 
-def normalize_patch(raw: str) -> str | None:
-    """Extract a unified diff and normalize line endings."""
-    if not isinstance(raw, str):
-        return None
-    text = raw.replace("\r\n", "\n").strip()
-    fenced = re.fullmatch(r"```(?:diff)?\s*\n(.*?)\n```", text, re.DOTALL)
-    if fenced:
-        text = fenced.group(1).strip()
-    if "--- " not in text or "+++ " not in text or "@@ " not in text:
-        return None
-    lines = text.splitlines()
-    # Accept git-style headers (diff --git, index, etc.) before the first file header.
-    start = None
-    for idx, line in enumerate(lines):
-        if line.startswith("--- "):
-            start = idx
-            break
-    if start is None:
-        return None
-    if not any(line.startswith("+++ ") for line in lines[start:]):
-        return None
-    normalized = lines[start:]
-    return "\n".join(normalized) + "\n"
+def _syntax_valid(source: str, path: str) -> bool:
+    if path.endswith(".py"):
+        import ast
 
-
-def patch_paths(patch: str) -> tuple[str, ...]:
-    paths: list[str] = []
-    for line in patch.splitlines():
-        if line.startswith("+++ "):
-            value = line[4:].split("\t", 1)[0].split(" ", 1)[0]
-            value = value.removeprefix("b/")
-            if value != "/dev/null":
-                paths.append(value)
-    return tuple(dict.fromkeys(paths))
-
-
-def _apply_patch(root: Path, patch: str) -> None:
-    lines = patch.splitlines()
-    index = 0
-    while index < len(lines):
-        if not lines[index].startswith("--- "):
-            index += 1
-            continue
-        if index + 1 >= len(lines) or not lines[index + 1].startswith("+++ "):
-            raise ValueError("malformed unified diff headers")
-        path = lines[index + 1][4:].split("\t", 1)[0].split(" ", 1)[0].removeprefix("b/")
-        if path == "/dev/null":
-            raise ValueError("file creation patches are not supported")
-        target = root / path
-        if not target.is_relative_to(root):
-            raise ValueError("patch escapes workspace")
-        original = target.read_text(encoding="utf-8").splitlines()
-        output: list[str] = []
-        cursor = 0
-        index += 2
-        while index < len(lines) and lines[index].startswith("@@ "):
-            match = _HUNK_RE.match(lines[index])
-            if match is None:
-                raise ValueError("malformed patch hunk")
-            start = int(match.group(1)) - 1
-            output.extend(original[cursor:start])
-            cursor = start
-            index += 1
-            while index < len(lines) and not lines[index].startswith(("@@ ", "--- ")):
-                line = lines[index]
-                if line.startswith(" "):
-                    if cursor >= len(original) or original[cursor] != line[1:]:
-                        raise ValueError("patch context does not match source")
-                    output.append(original[cursor])
-                    cursor += 1
-                elif line.startswith("-"):
-                    if cursor >= len(original) or original[cursor] != line[1:]:
-                        raise ValueError("patch deletion does not match source")
-                    cursor += 1
-                elif line.startswith("+"):
-                    output.append(line[1:])
-                elif line != "\\ No newline at end of file":
-                    raise ValueError("malformed patch line")
-                index += 1
-        output.extend(original[cursor:])
-        target.write_text("\n".join(output) + ("\n" if output else ""), encoding="utf-8")
-
-
-def _validate_tree(root: Path, touched: Sequence[str]) -> bool:
-    for relative in touched:
-        path = root / relative
-        if path.suffix == ".py":
-            try:
-                ast.parse(path.read_text(encoding="utf-8"))
-            except (OSError, SyntaxError):
-                return False
-        elif path.suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
-            try:
-                parsed = analyze_source(
-                    path.read_text(encoding="utf-8"),
-                    path=path,
-                    language_id="javascript",
-                )
-            except (OSError, RuntimeError, TypeError, ValueError):
-                return False
-            if parsed.parsed.has_syntax_errors:
-                return False
+        try:
+            ast.parse(source)
+        except SyntaxError:
+            return False
+        return True
+    if path.endswith((".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx")):
+        try:
+            parsed = analyze_source(source, path=path, language_id="javascript")
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return False
+        return not getattr(parsed.parsed, "has_syntax_errors", False)
     return True
 
 
@@ -460,10 +370,9 @@ def _security_score(patch: str, context: RepositoryContext) -> float:
     return score
 
 
-# Public aliases used by the recommendation workflow. The underscore-prefixed
-# implementations remain for existing callers; these names are the stable API.
-apply_patch = _apply_patch
-validate_patch_tree = _validate_tree
+# Public aliases used by the recommendation workflow. The implementations live
+# in bugdhor.core.safe_patch so every caller shares the same containment rules.
+from bugdhor.core.safe_patch import apply_patch_to_sources as apply_patch  # noqa: E402
 
 __all__ = [
     "CandidatePatch",

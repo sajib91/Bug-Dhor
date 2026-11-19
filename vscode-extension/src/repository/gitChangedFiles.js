@@ -12,6 +12,9 @@ const { execFile } = require('node:child_process');
 const path = require('node:path');
 const { promisify } = require('node:util');
 
+const { isRealPathWithinRoot } = require('../security/paths');
+const { redactText } = require('../security/redaction');
+
 const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_PATHS = 50_000;
@@ -56,12 +59,13 @@ async function defaultRunner(cwd, args, timeoutMs) {
     });
     return stdout;
   } catch (error) {
-    const detail =
+    const detail = redactText(
       error && typeof error === 'object' && typeof error.stderr === 'string'
         ? error.stderr
         : error instanceof Error
           ? error.message
-          : String(error);
+          : String(error)
+    );
     throw new GitChangedFilesError(`Git metadata query failed: ${detail}`, 'E_GIT_QUERY', {
       cause: error
     });
@@ -99,7 +103,10 @@ function parseNulPaths(output) {
  */
 async function gitChangedFilesForRoot(rootPath, options = {}) {
   if (typeof rootPath !== 'string' || !path.isAbsolute(rootPath)) {
-    throw new GitChangedFilesError('Git discovery requires an absolute root path.', 'E_INVALID_ROOT');
+    throw new GitChangedFilesError(
+      'Git discovery requires an absolute root path.',
+      'E_INVALID_ROOT'
+    );
   }
   const runner = options.runner ?? defaultRunner;
   const timeoutMs =
@@ -132,15 +139,17 @@ async function gitChangedFilesForRoot(rootPath, options = {}) {
     try {
       output = await runner(rootPath, args, timeoutMs);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = redactText(error instanceof Error ? error.message : error);
       if (/not a git repository|outside repository|no such directory/i.test(detail)) {
         return { available: false, cancelled: false, paths: [] };
       }
-      throw error;
+      throw new GitChangedFilesError(`Git metadata query failed: ${detail}`, 'E_GIT_QUERY', {
+        cause: error
+      });
     }
     for (const relative of parseNulPaths(output)) {
       const absolute = path.resolve(rootPath, relative);
-      if (!isPathWithinRoot(absolute, rootPath) || seen.has(absolute)) {
+      if (!isRealPathWithinRoot(absolute, rootPath) || seen.has(absolute)) {
         continue;
       }
       seen.add(absolute);
@@ -155,16 +164,6 @@ async function gitChangedFilesForRoot(rootPath, options = {}) {
   }
 
   return { available: true, cancelled: false, paths: relativePaths };
-}
-
-/**
- * @param {string} filePath
- * @param {string} rootPath
- * @returns {boolean}
- */
-function isPathWithinRoot(filePath, rootPath) {
-  const relative = path.relative(path.resolve(rootPath), path.resolve(filePath));
-  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`));
 }
 
 /**

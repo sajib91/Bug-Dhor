@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.cwe import bandit_cwes, extract_cwes, merge_cwes
 from bugdhor.static.models import (
     ParsedOutput,
@@ -311,7 +312,7 @@ def parse_semgrep(
                 )
             )
         except (TypeError, ValueError) as exc:
-            warnings.append(f"Semgrep result {index} was skipped: {exc}")
+            warnings.append(f"Semgrep result {index} was skipped: {redact_text(exc)}")
 
     return ParsedOutput(tuple(findings), tuple(warnings), version)
 
@@ -383,7 +384,7 @@ def parse_bandit(
                 )
             )
         except (TypeError, ValueError) as exc:
-            warnings.append(f"Bandit result {index} was skipped: {exc}")
+            warnings.append(f"Bandit result {index} was skipped: {redact_text(exc)}")
 
     return ParsedOutput(tuple(findings), tuple(warnings), tool_version)
 
@@ -543,7 +544,7 @@ def parse_sarif(
                     )
                 )
             except (TypeError, ValueError) as exc:
-                warnings.append(f"SARIF run {run_index} result {result_index} was skipped: {exc}")
+                warnings.append(f"SARIF run {run_index} result {result_index} was skipped: {redact_text(exc)}")
 
     unique_versions = tuple(dict.fromkeys(versions))
     if len(unique_versions) > 1:
@@ -684,7 +685,7 @@ def parse_joern(
                 )
             )
         except (TypeError, ValueError) as exc:
-            warnings = (*warnings, f"Joern finding {index} was skipped: {exc}")
+            warnings = (*warnings, f"Joern finding {index} was skipped: {redact_text(exc)}")
 
     return ParsedOutput(tuple(findings), tuple(warnings), tool_version)
 

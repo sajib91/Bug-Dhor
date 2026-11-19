@@ -39,6 +39,10 @@ class VerificationResult(APIModel):
         "inconclusive_verification",
     ] | None = None
     profile: Literal["static_only", "sandbox"] = "static_only"
+    execution_executed: bool = Field(
+        default=False,
+        description="Whether code was actually executed for this verification.",
+    )
     checks: list[dict[str, Any]] = Field(default_factory=list)
     sandbox_backend: str
     limitations: list[str] = Field(default_factory=list)

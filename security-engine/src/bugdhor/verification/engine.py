@@ -9,23 +9,24 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import json
-import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from bugdhor.core.redaction import redact_text
+from bugdhor.core.safe_patch import (
+    apply_patch_to_sources,
+    normalize_patch,
+    patch_paths,
+    reject_absolute_file_path,
+)
 from bugdhor.parsing.languages import detect_language
 from bugdhor.parsing.models import SupportedLanguage
 from bugdhor.program_analysis.analysis import analyze_source
 from bugdhor.program_analysis.taint import analyze_taint_source
-from bugdhor.repair.engine import normalize_patch, patch_paths
 from bugdhor.static import BanditAdapter, SemgrepAdapter, StaticAnalysisRunner
 from bugdhor.static.models import ScanStatus, StaticFinding
-
-_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-_PATCH_HEADER_FILE_RE = re.compile(r"^(---|\+\+\+) ")
 
 # Verdict classification required by the research contract.
 VERIFIED_SECURITY_IMPROVEMENT = "verified_security_improvement"
@@ -85,6 +86,7 @@ class VerificationOutcome:
     sandbox_backend: str
     profile: str
     report: dict[str, Any]
+    execution_executed: bool = False
 
     def to_result(self, repair_id: str | None) -> dict[str, Any]:
         return {
@@ -93,6 +95,7 @@ class VerificationOutcome:
             "verdict": self.verdict,
             "classification": self.classification,
             "profile": self.profile,
+            "executionExecuted": self.execution_executed,
             "sandboxBackend": self.sandbox_backend,
             "checks": [check.to_dict() for check in self.checks],
             "limitations": list(dict.fromkeys(self.limitations)),
@@ -130,6 +133,17 @@ class IndependentVerificationEngine:
             counter += 1
             return f"{prefix}-{counter:02d}"
 
+        try:
+            relative_file_path = reject_absolute_file_path(file_path, "filePath")
+        except Exception:
+            return self._inconclusive(
+                next_id,
+                profile,
+                checks,
+                ["The verification target is not a canonical workspace-relative path."],
+                reason="invalid_file_path",
+            )
+
         if patch is None and patched_source is None:
             return self._inconclusive(
                 next_id,
@@ -156,11 +170,13 @@ class IndependentVerificationEngine:
             before_source = original_source
             if patched_source is not None:
                 after_source = patched_source
-                touched_files = (file_path,)
+                touched_files = (relative_file_path,)
             else:
                 assert normalized_patch is not None
                 touched_files = patch_paths(normalized_patch)
-                after_source = self._apply_to_source(before_source, file_path, normalized_patch)
+                after_source = self._apply_to_source(
+                    before_source, relative_file_path, normalized_patch
+                )
         except Exception as exc:
             checks.append(
                 VerificationCheck(
@@ -168,7 +184,7 @@ class IndependentVerificationEngine:
                     "security",
                     "Patch application",
                     "error",
-                    f"Could not apply patch for independent verification: {type(exc).__name__}: {exc}",
+                    f"Could not apply patch for independent verification: {type(exc).__name__}",
                 )
             )
             return self._inconclusive(
@@ -182,7 +198,7 @@ class IndependentVerificationEngine:
                 report_extra={"touchedFiles": list(touched_files) if 'touched_files' in locals() else []},
             )
 
-        lang = self._resolve_language(file_path, language_id, before_source)
+        lang = self._resolve_language(relative_file_path, language_id, before_source)
         before_hash = _sha256(before_source)
         after_hash = _sha256(after_source)
 
@@ -192,8 +208,8 @@ class IndependentVerificationEngine:
         ) as after_dir:
             before_root = Path(before_dir)
             after_root = Path(after_dir)
-            before_file = before_root / Path(file_path).name
-            after_file = after_root / Path(file_path).name
+            before_file = before_root / Path(relative_file_path).name
+            after_file = after_root / Path(relative_file_path).name
             before_file.write_text(before_source, encoding="utf-8")
             after_file.write_text(after_source, encoding="utf-8")
 
@@ -221,7 +237,7 @@ class IndependentVerificationEngine:
             next_id,
             before_source,
             after_source,
-            file_path=file_path,
+            file_path=relative_file_path,
             language=lang,
             cwe=cwe,
         )
@@ -246,7 +262,7 @@ class IndependentVerificationEngine:
             next_id,
             before_source=before_source,
             after_source=after_source,
-            file_path=file_path,
+            file_path=relative_file_path,
             language=lang,
             touched_files=touched_files,
             comparison=comparison,
@@ -298,11 +314,11 @@ class IndependentVerificationEngine:
         report = {
             "before": {
                 "sha256": before_hash,
-                "filePath": file_path,
+                "filePath": relative_file_path,
             },
             "after": {
                 "sha256": after_hash,
-                "filePath": file_path,
+                "filePath": relative_file_path,
                 "touchedFiles": list(touched_files),
             },
             "staticAnalysisComparison": comparison,
@@ -378,67 +394,10 @@ class IndependentVerificationEngine:
             return None
 
     def _apply_to_source(self, original: str, file_path: str, patch: str) -> str:
-        with tempfile.TemporaryDirectory(prefix="bugdhor-verify-apply-") as directory:
-            root = Path(directory)
-            target = root / Path(file_path).name
-            target.write_text(original, encoding="utf-8")
-            self._apply_patch(root, patch, target_name=target.name)
-            return target.read_text(encoding="utf-8")
-
-    def _apply_patch(self, root: Path, patch: str, *, target_name: str | None = None) -> None:
-        lines = patch.splitlines()
-        index = 0
-        while index < len(lines):
-            if not lines[index].startswith("--- "):
-                index += 1
-                continue
-            if index + 1 >= len(lines) or not lines[index + 1].startswith("+++ "):
-                raise ValueError("malformed unified diff headers")
-            raw_path = lines[index + 1][4:].split("\t", 1)[0].split(" ", 1)[0]
-            raw_path = raw_path.removeprefix("b/")
-            path = Path(raw_path).name if target_name else raw_path
-            if raw_path == "/dev/null":
-                raise ValueError("file creation patches are not supported")
-            if target_name and Path(raw_path).name != target_name and raw_path != target_name:
-                # Single-file verification: accept patch that targets the same basename.
-                path = target_name
-            target = root / path
-            if not target.is_relative_to(root):
-                raise ValueError("patch escapes workspace")
-            original = target.read_text(encoding="utf-8").splitlines() if target.exists() else []
-            output: list[str] = []
-            cursor = 0
-            index += 2
-            while index < len(lines) and lines[index].startswith("@@ "):
-                match = _HUNK_RE.match(lines[index])
-                if match is None:
-                    raise ValueError("malformed patch hunk")
-                old_count = int(match.group(2) or "1")
-                start = int(match.group(1)) - 1 if old_count != 0 or int(match.group(1)) > 0 else 0
-                if start < 0:
-                    start = 0
-                output.extend(original[cursor:start])
-                cursor = start
-                index += 1
-                while index < len(lines) and not lines[index].startswith(("@@ ", "--- ")):
-                    line = lines[index]
-                    if line.startswith(" "):
-                        if cursor >= len(original) or original[cursor] != line[1:]:
-                            raise ValueError("patch context does not match source")
-                        output.append(original[cursor])
-                        cursor += 1
-                    elif line.startswith("-"):
-                        if cursor >= len(original) or original[cursor] != line[1:]:
-                            raise ValueError("patch deletion does not match source")
-                        cursor += 1
-                    elif line.startswith("+"):
-                        output.append(line[1:])
-                    elif line != "\\ No newline at end of file":
-                        raise ValueError("malformed patch line")
-                    index += 1
-            output.extend(original[cursor:])
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("\n".join(output) + ("\n" if output or original == [] else ""), encoding="utf-8")
+        """Apply a validated patch in memory using the shared safe-patch boundary."""
+        relative = reject_absolute_file_path(file_path, "filePath")
+        patched = apply_patch_to_sources({relative: original}, patch)
+        return patched[relative]
 
     def _run_static_scans(self, next_id, before_root, before_name, after_root, after_name):
         adapters = [SemgrepAdapter(), BanditAdapter()]
@@ -457,7 +416,7 @@ class IndependentVerificationEngine:
                     "security",
                     "Independent static-analysis scans",
                     "error",
-                    f"Static analysis runner failed: {type(exc).__name__}: {exc}",
+                    f"Static analysis runner failed: {type(exc).__name__}: {redact_text(exc)}",
                     evidence_sources=[
                         {"kind": "static", "source": "semgrep"},
                         {"kind": "static", "source": "bandit"},
@@ -645,16 +604,22 @@ class IndependentVerificationEngine:
             before_taint = analyze_taint_source(before_source, path=file_path)
             after_taint = analyze_taint_source(after_source, path=file_path)
         except Exception as exc:
-            limitations.append(f"Taint-flow comparison failed: {type(exc).__name__}: {exc}")
+            limitations.append(
+                f"Taint-flow comparison failed: {type(exc).__name__}: {redact_text(exc)}"
+            )
             check = VerificationCheck(
                 next_id(),
                 "security",
                 "Taint-flow comparison",
                 "error",
-                f"Taint analysis failed: {type(exc).__name__}: {exc}",
+                f"Taint analysis failed: {type(exc).__name__}: {redact_text(exc)}",
                 evidence_sources=[{"kind": "static", "source": "bugdhor.taint"}],
             )
-            return {"supported": False, "reason": "error", "error": str(exc)}, [check], limitations
+            return (
+                {"supported": False, "reason": "error", "error": redact_text(exc)},
+                [check],
+                limitations,
+            )
 
         target_kind = _CWE_TAINT_KIND.get(cwe) if cwe else None
 

@@ -56,7 +56,7 @@ test('timeouts are rounded, clamped, and fall back for invalid values', () => {
 });
 
 test('API configuration applies defaults, consent, and token normalization', () => {
-  const configuration = normalizeApiConfiguration({ token: '  secret  ' });
+  const configuration = normalizeApiConfiguration({ token: '  secret  ' }, { trusted: true });
 
   assert.equal(configuration.baseUrl, DEFAULT_BACKEND_URL);
   assert.equal(configuration.requestTimeoutMs, DEFAULT_REQUEST_TIMEOUT_MS);
@@ -65,8 +65,14 @@ test('API configuration applies defaults, consent, and token normalization', () 
   assert.equal(configuration.token, 'secret');
   assert.equal(Object.isFrozen(configuration), true);
 
-  assert.equal(normalizeApiConfiguration({ sendSourceText: false }).sendSourceText, false);
-  assert.equal(normalizeApiConfiguration({ sendSourceText: null }).sendSourceText, true);
+  assert.equal(
+    normalizeApiConfiguration({ sendSourceText: false }, { trusted: true }).sendSourceText,
+    false
+  );
+  assert.equal(
+    normalizeApiConfiguration({ sendSourceText: null }, { trusted: true }).sendSourceText,
+    true
+  );
 });
 
 test('the token is read only from the extension host environment', () => {

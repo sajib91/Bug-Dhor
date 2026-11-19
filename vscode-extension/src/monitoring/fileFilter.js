@@ -16,7 +16,7 @@ const {
   normalizeLanguage,
   normalizeLanguageList
 } = require('./changeAnalyzer');
-const { isPathWithinRoot } = require('../security/paths');
+const { isRealPathWithinRoot } = require('../security/paths');
 
 /** Extensions treated as non-source by default. */
 const BINARY_EXTENSIONS = Object.freeze(
@@ -178,7 +178,7 @@ function isWithinWorkspace(fsPath, folders) {
     (folder) =>
       folder?.uri?.scheme === 'file' &&
       typeof folder.uri.fsPath === 'string' &&
-      isPathWithinRoot(fsPath, folder.uri.fsPath)
+      isRealPathWithinRoot(fsPath, folder.uri.fsPath)
   );
 }
 

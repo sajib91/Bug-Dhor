@@ -95,6 +95,9 @@ def create_app(
     orchestrator: Orchestrator | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    # Programmatic Settings mutations must obey the same transport policy as
+    # CLI/environment configuration. This keeps SEC-04 enforced at app boot.
+    settings.validate_runtime()
     logger = configure_logging(settings)
 
     @asynccontextmanager
@@ -115,14 +118,18 @@ def create_app(
         description=DESCRIPTION,
         version=__version__,
         openapi_tags=OPENAPI_TAGS,
-        openapi_url="/openapi.json",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        openapi_url="/openapi.json" if settings.docs_enabled() else None,
+        docs_url="/docs" if settings.docs_enabled() else None,
+        redoc_url="/redoc" if settings.docs_enabled() else None,
         lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.orchestrator = orchestrator or Orchestrator(settings)
-    app.state.job_store = JobStore(settings.data_dir)
+    app.state.job_store = JobStore(
+        settings.data_dir,
+        retention_days=settings.result_retention_days,
+        persist_full_payloads=settings.persist_full_payloads,
+    )
     app.state.started_at = time.monotonic()
 
     # Middleware order: the last added runs first. Request context is outermost
@@ -184,12 +191,11 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     def index() -> dict[str, str]:
-        return {
-            "service": SERVICE_NAME,
-            "apiVersion": API_VERSION,
-            "docs": "/docs",
-            "openapi": "/openapi.json",
+        docs = {
+            "docs": "/docs" if settings.docs_enabled() else "",
+            "openapi": "/openapi.json" if settings.docs_enabled() else "",
         }
+        return {"service": SERVICE_NAME, "apiVersion": API_VERSION, **docs}
 
     return app
 

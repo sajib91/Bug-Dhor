@@ -21,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Bind port (default: BUGDHOR_PORT or 8765; use 0 for an ephemeral port).",
     )
+    parser.add_argument(
+        "--enable-docs",
+        action="store_true",
+        help="Explicitly enable /docs, /redoc, and /openapi.json in production.",
+    )
     return parser
 
 
@@ -32,8 +37,11 @@ def main() -> None:
         for key, value in {"host": args.host, "port": args.port}.items()
         if value is not None
     }
+    if args.enable_docs:
+        updates["enable_docs"] = True
     if updates:
         settings = settings.model_copy(update=updates)
+    settings.validate_runtime()
 
     settings.ensure_directories()
     configure_logging(settings)

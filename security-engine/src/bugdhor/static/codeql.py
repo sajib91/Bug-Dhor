@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from bugdhor.core.redaction import redact_text
 from bugdhor.static.base import StaticToolAdapter, validate_common_config
 from bugdhor.static.execution import DEFAULT_MAX_CAPTURE_BYTES, run_command
 from bugdhor.static.models import (
@@ -209,7 +210,7 @@ class CodeQLAdapter(StaticToolAdapter):
                     execution=execution,
                     warnings=warnings,
                     reason_code="E_ANALYZER_OUTPUT",
-                    detail=f"CodeQL SARIF output could not be parsed: {exc}",
+                    detail=f"CodeQL SARIF output could not be parsed: {redact_text(exc)}",
                 )
 
             successful_exit = execution.return_code == 0 and not truncated_output
