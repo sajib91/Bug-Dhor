@@ -347,7 +347,9 @@ function createFakeDiagnostics(options = {}) {
       return findingsByUri[key] ?? [];
     },
     getPublishedUris() {
-      return ['file:///workspace/src/app.js'];
+      // Match the URI produced by the inventory's childUri() so the published
+      // URI key resolves on every platform, including Windows separators.
+      return [`file://${path.join('/workspace', 'src', 'app.js')}`];
     },
     publishScanResult(result, publishOptions) {
       publications.push({ result, options: publishOptions });

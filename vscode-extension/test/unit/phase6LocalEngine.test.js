@@ -14,7 +14,8 @@ const {
 } = require('../../src/phase6/localEngine');
 
 const FILE = '/workspace/sample.js';
-const SESSION = '/workspace/.bugdhor/phase6-session.json';
+const SESSION = path.join('/workspace', '.bugdhor', 'phase6-session.json');
+const WORKSPACE_SRC = path.join('/workspace', 'src');
 
 function createFinding() {
   return {
@@ -207,7 +208,7 @@ test('invoke builds an explicit JSON-only CLI command with a bounded timeout', a
   assert.ok(!call.args.includes('--allow-source-write'));
   assert.equal(call.options.cwd, '/workspace');
   assert.equal(call.options.timeoutMs, 20000);
-  assert.ok(call.options.env.PYTHONPATH.split(path.delimiter).includes('/workspace/src'));
+  assert.ok(call.options.env.PYTHONPATH.split(path.delimiter).includes(WORKSPACE_SRC));
 });
 
 test('invoke surfaces CLI error envelopes as typed local errors', async () => {

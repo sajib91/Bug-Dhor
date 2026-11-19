@@ -147,7 +147,7 @@ jobs:
             exit 1
           fi
 
-          if ! npx @vscode/vsce show "$EXTENSION_ID" --json > "$RUNNER_TEMP/marketplace-show.json"; then
+          if ! npx --no-install @vscode/vsce show "$EXTENSION_ID" --json > "$RUNNER_TEMP/marketplace-show.json"; then
             echo "Could not query Marketplace metadata for $EXTENSION_ID; refusing to publish." >&2
             exit 1
           fi
@@ -307,4 +307,4 @@ jobs:
         run: |
           set -euo pipefail
           VSIX="release-vsix/bug-dhor-${VERSION}.vsix"
-          npx @vscode/vsce publish --oidc --packagePath "$VSIX"
+          npx --no-install @vscode/vsce publish --oidc --packagePath "$VSIX"
