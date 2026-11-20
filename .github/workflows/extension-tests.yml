@@ -376,10 +376,7 @@ jobs:
             run_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
             generated_at: new Date().toISOString(),
             test_count: Number(process.env.TEST_COUNT),
-            real_model_integration: {
-              status: "not_provisioned",
-              reason: "Full SAE checkpoints are not distributed; required cosine recomputation used committed SHA-256-verified decoder-column fixtures."
-            }
+            detail: "real_model_integration not provisioned: full SAE checkpoints are not distributed; required cosine recomputation used committed SHA-256-verified decoder-column fixtures."
           };
           fs.mkdirSync("artifacts/evidence", { recursive: true });
           fs.writeFileSync(`artifacts/evidence/${process.env.GATE_NAME}.json`, JSON.stringify(payload, null, 2) + "\n");
