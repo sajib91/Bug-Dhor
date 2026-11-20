@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { resolvePython } = require('../integration/pythonDiscovery');
+const { resolvePython, resolveCleanPython } = require('../integration/pythonDiscovery');
 const {
   discoverRepositoryInventory,
   RepositoryInventoryError,
@@ -121,6 +121,35 @@ test('Python discovery is deterministic for every supported platform', () => {
     }),
     'C:\\Python312\\python.exe',
     'an explicit override must win over the virtual environment'
+  );
+});
+
+test('clean VSIX Python discovery never selects the repository virtual environment', () => {
+  const repositoryRoot = path.win32.join('D:', 'a', 'Bug-Dhor', 'Bug-Dhor');
+
+  assert.equal(
+    resolveCleanPython({
+      platform: 'win32',
+      repositoryRoot,
+      env: { BUGDHOR_PYTHON: path.win32.join(repositoryRoot, '.venv', 'Scripts', 'python.exe') },
+      exists: () => true
+    }),
+    'python',
+    'Windows clean installs must use the standard python command, not python3 or the repo .venv'
+  );
+  assert.equal(
+    resolveCleanPython({ platform: 'darwin', repositoryRoot, env: {}, exists: () => true }),
+    'python3'
+  );
+  assert.equal(
+    resolveCleanPython({
+      platform: 'win32',
+      repositoryRoot,
+      env: { BUGDHOR_CLEAN_PYTHON: 'C:\\Python312\\python.exe' },
+      exists: () => true
+    }),
+    'C:\\Python312\\python.exe',
+    'an explicit clean Python override must still win'
   );
 });
 

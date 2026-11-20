@@ -11,6 +11,7 @@
  */
 
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -23,7 +24,7 @@ const {
 } = require('@vscode/test-electron');
 
 const { canonicalPath } = require('./pathUtils');
-const { resolvePython } = require('./pythonDiscovery');
+const { resolveCleanPython } = require('./pythonDiscovery');
 const { removeTemporaryDirectory } = require('./tempCleanup');
 
 const extensionRoot = path.resolve(__dirname, '..', '..');
@@ -124,23 +125,65 @@ function runCli(command, args) {
   });
 }
 
+/**
+ * Resolve a real interpreter path for a command name without using a shell.
+ * Windows CI may expose Python as a PATH shim; the extension spawns the
+ * interpreter with `shell: false`, so settings must contain a real executable.
+ *
+ * @param {string} candidate
+ * @returns {string | undefined}
+ */
+function pythonExecutablePath(candidate) {
+  try {
+    const result = spawnSync(candidate, ['-c', 'import sys; print(sys.executable)'], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+      timeout: 10_000
+    });
+    if (result.status !== 0) {
+      return undefined;
+    }
+    const resolved = result.stdout.trim().split(/\r?\n/).at(-1);
+    return resolved && fs.existsSync(resolved) ? resolved : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** @returns {string} */
 function cleanPython() {
+  /** @type {string[]} */
+  const candidates = [];
   const override = process.env.BUGDHOR_CLEAN_PYTHON;
   if (override && fs.existsSync(override)) {
-    return override;
+    candidates.push(override);
   }
-  const candidates =
-    process.platform === 'darwin'
-      ? [
-          '/opt/homebrew/opt/python@3.11/bin/python3.11',
-          '/usr/local/opt/python@3.11/bin/python3.11'
-        ]
-      : [];
-  return (
-    candidates.find((candidate) => fs.existsSync(candidate)) ??
-    resolvePython({ repositoryRoot, env: { ...process.env, BUGDHOR_PYTHON: 'python3' } })
+  if (process.platform === 'darwin') {
+    candidates.push(
+      ...[
+        '/opt/homebrew/opt/python@3.11/bin/python3.11',
+        '/usr/local/opt/python@3.11/bin/python3.11'
+      ].filter((candidate) => fs.existsSync(candidate))
+    );
+  }
+  // Never inject the repository .venv. Use the platform's standard command
+  // name: Windows uses `python`, not `python3`, and Node spawns it without a
+  // shell so a non-existent `python3` would fail before the engine can start.
+  candidates.push(
+    resolveCleanPython({ repositoryRoot, platform: process.platform, env: process.env })
   );
+  if (process.platform === 'win32') {
+    candidates.push('python', 'py');
+  }
+
+  for (const candidate of new Set(candidates)) {
+    const executable = pythonExecutablePath(candidate);
+    if (executable) {
+      return executable;
+    }
+  }
+  return candidates[0];
 }
 
 async function main() {

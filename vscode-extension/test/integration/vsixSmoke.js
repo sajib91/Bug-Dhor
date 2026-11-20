@@ -9,7 +9,7 @@ const vscode = require('vscode');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { DASHBOARD_TITLE } = require('../../src/webviews/dashboardPanel');
 const manifest = require('../../package.json');
-const { canonicalPath } = require('./pathUtils');
+const { canonicalPath, fileUriMatchesPath } = require('./pathUtils');
 
 /** @param {string} label @param {number} [timeoutMs] */
 async function waitForTab(label, timeoutMs = 5000) {
@@ -169,7 +169,9 @@ async function run() {
   );
   assert.ok(
     Array.isArray(repositoryScan.scope?.uris) &&
-      repositoryScan.scope.uris.some((uri) => uri === vscode.Uri.file(sourcePath).toString()),
+      repositoryScan.scope.uris.some((uri) =>
+        fileUriMatchesPath(uri, sourcePath, { parseUri: (value) => vscode.Uri.parse(value) })
+      ),
     'diagnostics scope must come from the backend response'
   );
   const statusAfterScan = api.engineManager.getStatus();

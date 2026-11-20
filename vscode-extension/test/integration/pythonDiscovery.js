@@ -52,4 +52,31 @@ function resolvePython(options) {
   return FALLBACK_EXECUTABLE[platform] ?? 'python3';
 }
 
-module.exports = { resolvePython, FALLBACK_EXECUTABLE };
+/**
+ * Resolve a clean Python for the VSIX test. Unlike `resolvePython`, this never
+ * picks up the repository virtual environment: the installed extension must
+ * create its own runtime from the VSIX assets. The platform fallback matters
+ * on Windows, where `python3` is not the standard command name.
+ *
+ * @param {{
+ *   platform?: string,
+ *   repositoryRoot: string,
+ *   env?: Record<string, string | undefined>,
+ *   exists?: (candidate: string) => boolean
+ * }} options
+ * @returns {string}
+ */
+function resolveCleanPython(options) {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  const explicit = env.BUGDHOR_CLEAN_PYTHON;
+  if (typeof explicit === 'string' && explicit.trim().length > 0) {
+    return explicit.trim();
+  }
+  const cleanEnvironment = { ...env };
+  delete cleanEnvironment.BUGDHOR_PYTHON;
+  cleanEnvironment.BUGDHOR_PYTHON = FALLBACK_EXECUTABLE[platform] ?? 'python3';
+  return resolvePython({ ...options, platform, env: cleanEnvironment });
+}
+
+module.exports = { resolvePython, resolveCleanPython, FALLBACK_EXECUTABLE };

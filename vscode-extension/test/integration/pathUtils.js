@@ -41,4 +41,41 @@ function canonicalPath(target, options = {}) {
   return resolved;
 }
 
-module.exports = { canonicalPath };
+/**
+ * Compare a `file:` URI reported by the backend with a local filesystem path.
+ * Python's `Path.as_uri()` and VS Code's `Uri.file().toString()` are both valid
+ * but differ on Windows (drive-letter case and `:` escaping), so raw string
+ * equality is not portable. Parse the URI and compare canonical filesystem
+ * paths instead.
+ *
+ * @param {unknown} uriText
+ * @param {string} filePath
+ * @param {{
+ *   parseUri: (value: string) => { scheme?: string, fsPath?: unknown },
+ *   fileSystem?: { realpathSync: typeof fs.realpathSync },
+ *   platform?: NodeJS.Platform
+ * }} options
+ * @returns {boolean}
+ */
+function fileUriMatchesPath(uriText, filePath, options) {
+  if (typeof uriText !== 'string' || typeof options?.parseUri !== 'function') {
+    return false;
+  }
+  try {
+    const uri = options.parseUri(uriText);
+    if (uri?.scheme !== 'file' || typeof uri.fsPath !== 'string') {
+      return false;
+    }
+    const actual = canonicalPath(uri.fsPath, options);
+    const expected = canonicalPath(filePath, options);
+    // Windows filesystems are case-insensitive; drive-letter casing in
+    // particular varies between Python and VS Code URI writers.
+    return options.platform === 'win32'
+      ? actual.toLowerCase() === expected.toLowerCase()
+      : actual === expected;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { canonicalPath, fileUriMatchesPath };
