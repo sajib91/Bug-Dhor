@@ -17,6 +17,15 @@ const { DEFAULT_MONITORING_SETTINGS, normalizeMonitoringSettings } = require('./
 const { canonicalPath } = require('../security/paths');
 const { createWorkspaceRequest } = require('../workspace/workspaceService');
 
+// Filesystem watchers can report a creation or write after the editor has
+// already emitted the corresponding document events. Treating that late event
+// as a fresh scan supersedes the editor's debounced work and publishes a second
+// analysis for one logical edit burst. Editor events remain authoritative for
+// recently touched documents; genuine external changes are still scanned once
+// the editor activity window has elapsed.
+const RECENT_EDITOR_ACTIVITY_MS = 2000;
+const MAX_RECENT_EDITOR_ACTIVITY = 2000;
+
 /**
  * @param {unknown} uri
  * @returns {{ scheme?: string, fsPath?: string, path?: string }}
@@ -107,6 +116,8 @@ class WorkspaceMonitor {
     this.createdUris = new Set();
     /** @type {Map<string, number>} */
     this.recentEditorSaves = new Map();
+    /** @type {Map<string, number>} */
+    this.recentEditorActivity = new Map();
     /** @type {{ dispose: () => void } | undefined} */
     this.externalWatcher = undefined;
     /** @type {Array<{ dispose: () => void }>} */
@@ -190,16 +201,23 @@ class WorkspaceMonitor {
 
   /** @param {{ document?: any, contentChanges?: unknown[] }} event */
   handleChange(event) {
-    if (!this.disposed) {
-      this.executor.handleChange(event);
+    if (this.disposed) {
+      return;
     }
+    const document = event?.document;
+    if (this.settings.enabled && document?.uri) {
+      this.markEditorActivity(pathKey(document.uri));
+    }
+    this.executor.handleChange(event);
   }
 
   /** @param {any} document */
   handleSave(document) {
     if (!this.disposed) {
-      if (document?.uri) {
-        this.recentEditorSaves.set(pathKey(document.uri), Date.now());
+      if (this.settings.enabled && document?.uri) {
+        const key = pathKey(document.uri);
+        this.recentEditorSaves.set(key, Date.now());
+        this.markEditorActivity(key);
       }
       this.executor.handleSave(document);
     }
@@ -216,7 +234,9 @@ class WorkspaceMonitor {
 
   /**
    * New files are opened through the documented API so the same language and
-   * version rules apply. Repeated create events for one URI are ignored.
+   * version rules apply. Repeated create events for one URI are ignored. The
+   * create scan is debounced because an editor burst immediately after a file
+   * appears must supersede it instead of producing two completed analyses.
    *
    * @param {{ files?: unknown[] }} event
    */
@@ -234,7 +254,7 @@ class WorkspaceMonitor {
     const limit = Math.max(0, this.settings.maxWorkspaceFiles);
     for (const file of files.slice(0, limit)) {
       const key = pathKey(file);
-      if (this.createdUris.has(key) || key.length === 0) {
+      if (this.createdUris.has(key) || key.length === 0 || this.hadRecentEditorActivity(key)) {
         this.stats.ignoredCreations += 1;
         continue;
       }
@@ -329,6 +349,43 @@ class WorkspaceMonitor {
     return true;
   }
 
+  /** @returns {number} */
+  editorActivityWindowMs() {
+    return Math.max(RECENT_EDITOR_ACTIVITY_MS, this.settings.debounceMs + 500);
+  }
+
+  /** @param {string} key */
+  markEditorActivity(key) {
+    if (!key) {
+      return;
+    }
+    const now = Date.now();
+    const cutoff = now - this.editorActivityWindowMs();
+    for (const [entry, seenAt] of this.recentEditorActivity) {
+      if (typeof seenAt !== 'number' || seenAt < cutoff) {
+        this.recentEditorActivity.delete(entry);
+      }
+    }
+    this.recentEditorActivity.set(key, now);
+    while (this.recentEditorActivity.size > MAX_RECENT_EDITOR_ACTIVITY) {
+      const oldest = this.recentEditorActivity.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.recentEditorActivity.delete(oldest);
+    }
+  }
+
+  /** @param {string} key @returns {boolean} */
+  hadRecentEditorActivity(key) {
+    const seenAt = this.recentEditorActivity.get(key);
+    if (typeof seenAt !== 'number' || Date.now() - seenAt >= this.editorActivityWindowMs()) {
+      this.recentEditorActivity.delete(key);
+      return false;
+    }
+    return true;
+  }
+
   /**
    * External writes are scanned from disk only. A recent editor save is skipped
    * because the document listener already handled that exact event.
@@ -344,9 +401,8 @@ class WorkspaceMonitor {
     ) {
       return;
     }
-    const key = uriKey(uri);
     const dedupeKey = pathKey(uri);
-    if (this.consumeRecentSave(dedupeKey)) {
+    if (this.consumeRecentSave(dedupeKey) || this.hadRecentEditorActivity(dedupeKey)) {
       return;
     }
     const eligibility = evaluateFileEligibility({
@@ -365,13 +421,20 @@ class WorkspaceMonitor {
       // A slow Windows watcher callback can start before the editor save event
       // and resume after it. Recheck here so the newly scheduled save scan is
       // never cancelled by the duplicate watcher scan.
-      if (this.consumeRecentSave(dedupeKey) || this.executor.isActiveScan(key, 'save')) {
+      if (
+        this.consumeRecentSave(dedupeKey) ||
+        this.hadRecentEditorActivity(dedupeKey) ||
+        this.executor.isActiveScan(uriKey(document.uri), 'save')
+      ) {
         return;
       }
       const fsPath = fsPathOf(uri);
       this.stats.externalChanges += 1;
-      this.executor.schedule(document, key, 'external-change', { immediate: true });
-      this.logger.debug(`Bug Dhor observed an external file change: ${fsPath ?? key}`);
+      // Use the resolved document's URI identity so editor and watcher events
+      // share the same debounce, cancellation, and content-hash state.
+      const documentUri = uriKey(document.uri);
+      this.executor.schedule(document, documentUri, 'external-change', { immediate: true });
+      this.logger.debug(`Bug Dhor observed an external file change: ${fsPath ?? documentUri}`);
     } catch (error) {
       this.logger.debug(
         `Bug Dhor could not open an externally changed file: ${
@@ -472,6 +535,7 @@ class WorkspaceMonitor {
       this.scheduler.cancelAll('monitoring disabled');
       this.createdUris.clear();
       this.recentEditorSaves.clear();
+      this.recentEditorActivity.clear();
     }
     this.logger.debug('Bug Dhor workspace monitoring settings updated.');
   }
@@ -513,6 +577,7 @@ class WorkspaceMonitor {
     this.externalWatcher = undefined;
     this.createdUris.clear();
     this.recentEditorSaves.clear();
+    this.recentEditorActivity.clear();
     this.executor.dispose();
     this.disposed = true;
   }

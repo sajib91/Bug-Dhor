@@ -480,6 +480,102 @@ test('the external watcher scans created and externally changed files', async ()
   }
 });
 
+test('a create scan is superseded by a rapid editor edit burst', async () => {
+  const harness = createHarness({ debounceMs: 100 });
+  harness.monitor.start();
+  const finalText = ['# rapid 1', '# rapid 2', 'value = 2'].join('\n');
+  const document = createDocument({ version: 1, text: 'value = 0\n' });
+  harness.vscode.workspace.textDocuments = [document];
+  try {
+    await harness.monitor.handleCreate({ files: [document.uri] });
+    for (let version = 2; version <= 3; version += 1) {
+      document.version = version;
+      document.getText = () => finalText;
+      harness.change(document, [edit(0)]);
+    }
+    await waitUntil(() => harness.calls.length === 1);
+    await delay(180);
+
+    assert.equal(harness.calls.length, 1, 'the pending create scan must be cancelled');
+    assert.equal(harness.calls[0].request.documentVersion, 3);
+    const completed = harness.monitor
+      .getStats()
+      .analyses.filter((entry) => entry.status === 'completed');
+    assert.deepEqual(
+      completed.map((entry) => entry.reason),
+      ['change']
+    );
+    assert.equal(harness.monitor.getStats().workspace.createdFiles, 1);
+    assert.ok(harness.monitor.getStats().cancelled >= 1);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('late watcher events do not duplicate a rapid editor edit burst', async () => {
+  const harness = createHarness({ debounceMs: 50 });
+  harness.monitor.start();
+  const finalText = [
+    '# rapid 1',
+    '# rapid 2',
+    '# rapid 3',
+    '# rapid 4',
+    '# rapid 5',
+    'value = 5'
+  ].join('\n');
+  const document = createDocument({ version: 1, text: 'value = 0\n' });
+  harness.vscode.workspace.textDocuments = [document];
+  try {
+    for (let version = 2; version <= 6; version += 1) {
+      document.version = version;
+      document.getText = () => finalText;
+      harness.change(document, [edit(0)]);
+    }
+    await waitUntil(() => harness.calls.length === 1);
+    await delay(80);
+
+    const watcherUri = createUri(document.uri.fsPath);
+    await harness.externalChange(watcherUri);
+    harness.externalCreate(watcherUri);
+    await delay(80);
+
+    assert.equal(harness.calls.length, 1, 'watcher events must not supersede the editor scan');
+    const completed = harness.monitor
+      .getStats()
+      .analyses.filter((entry) => entry.status === 'completed');
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0].version, 6);
+    assert.equal(harness.monitor.getStats().workspace.externalChanges, 0);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('external changes share the resolved document URI identity', async () => {
+  const harness = createHarness();
+  harness.monitor.start();
+  const document = createDocument({ version: 2, isDirty: false });
+  harness.vscode.workspace.textDocuments = [document];
+  const watcherUri = {
+    ...createUri(document.uri.fsPath),
+    toString() {
+      return 'file://watcher-uri-variant';
+    }
+  };
+  try {
+    await harness.externalChange(watcherUri);
+    await waitUntil(() => harness.calls.length === 1);
+
+    assert.equal(harness.calls[0].request.documentUri, document.uri.toString());
+    const completed = harness.monitor
+      .getStats()
+      .analyses.find((entry) => entry.status === 'completed');
+    assert.equal(completed?.uri, document.uri.toString());
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
 test('an external watcher event for a recent editor save does not scan twice', async () => {
   const harness = createHarness();
   harness.monitor.start();

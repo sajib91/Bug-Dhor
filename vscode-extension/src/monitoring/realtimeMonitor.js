@@ -336,6 +336,9 @@ class RealtimeMonitor {
     if (observed.ignored) {
       return false;
     }
+    // Let a create scan wait out the normal debounce window. Edits made right
+    // after a file appears then cancel this pending scan and replace it with a
+    // single scan of the newest version.
     this.schedule(document, uri, 'create');
     return true;
   }

@@ -330,20 +330,31 @@ async function run() {
   assert.equal(api.monitor.getStats().enabled, true);
 
   // Rapid changes from ordinary editor edits collapse into one scan of the
-  // newest version. No attribution to any model is made or inferred.
-  const rapid = await openMonitoringFile('rapid.py', 'value = 0\n');
-  for (let index = 1; index <= 5; index += 1) {
-    assert.equal(await applyInsert(rapid.document, `# rapid ${index}\n`), true);
+  // newest version. No attribution to any model is made or inferred. A wider
+  // window keeps the burst intact on slow CI runners without weakening the
+  // exactly-one assertion below.
+  await configuration.update('monitoring.debounceMs', 2000, vscode.ConfigurationTarget.Global);
+  try {
+    const rapid = await openMonitoringFile('rapid.py', 'value = 0\n');
+    for (let index = 1; index <= 5; index += 1) {
+      assert.equal(await applyInsert(rapid.document, `# rapid ${index}\n`), true);
+    }
+    await waitForMonitor(() => completedAnalyses(rapid.uri).length === 1);
+    await delay(500);
+    const rapidCompleted = completedAnalyses(rapid.uri);
+    assert.equal(
+      rapidCompleted.length,
+      1,
+      `rapid edits must produce exactly one debounced analysis: ${JSON.stringify({
+        analyses: rapidCompleted,
+        stats: api.monitor.getStats()
+      })}`
+    );
+    assert.equal(rapidCompleted[0].version, rapid.document.version);
+    assert.equal('sourceText' in rapidCompleted[0], false);
+  } finally {
+    await configuration.update('monitoring.debounceMs', 400, vscode.ConfigurationTarget.Global);
   }
-  await waitForMonitor(() => completedAnalyses(rapid.uri).length === 1);
-  await delay(500);
-  assert.equal(
-    completedAnalyses(rapid.uri).length,
-    1,
-    'rapid edits must produce exactly one debounced analysis'
-  );
-  assert.equal(completedAnalyses(rapid.uri)[0].version, rapid.document.version);
-  assert.equal('sourceText' in completedAnalyses(rapid.uri)[0], false);
 
   // A paste is a single bulk edit; its inserted lines are identified and the
   // enclosing JavaScript functions become the analysis target.
