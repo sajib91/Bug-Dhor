@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "bundle_id": "counterfactual-decoder-cosines-v1",
+  "artifact_root": "research/experiments/counterfactual_validation",
+  "description": "Selected decoder columns extracted from the real SAE checkpoints used by real_model_validation.json. Not a re-trained or synthetic model artifact.",
+  "files": {
+    "base_layer10": {
+      "path": "decoder_fixtures/v1/base_layer10.npz",
+      "sha256": "c9a135c72df55cf068735dde4675cad9c1df93336c69b398da306d91c00720dc",
+      "source_checkpoint": "artifacts/base_layer10.pt",
+      "source_sha256": "2e69ad0f45c22c4e872c005b665256b965937c26ef9ac3508e87bb964be992cf",
+      "checkpoint": "base",
+      "layer": 10,
+      "features": [
+        1443,
+        1111,
+        26,
+        1773,
+        107
+      ]
+    },
+    "base_layer16": {
+      "path": "decoder_fixtures/v1/base_layer16.npz",
+      "sha256": "e26f92188d5f4419dfcf0abbba8826e6513912e9993080aeb467207a0b4f626e",
+      "source_checkpoint": "artifacts/base_layer16.pt",
+      "source_sha256": "36bc43988694f3d688f5d4a93c2f29fc06b638718e63111269ac27698eed8611",
+      "checkpoint": "base",
+      "layer": 16,
+      "features": [
+        1337,
+        1332,
+        685,
+        1055,
+        1582
+      ]
+    },
+    "base_layer21": {
+      "path": "decoder_fixtures/v1/base_layer21.npz",
+      "sha256": "fb6b67063fb472ce7089939e34cbfb66afb5dde849df9200c440da35ac572f09",
+      "source_checkpoint": "artifacts/base_layer21.pt",
+      "source_sha256": "aeb2024e2a6689c9978de321d585b68458ccf9f2b5f1135af0da66b40f23ca1b",
+      "checkpoint": "base",
+      "layer": 21,
+      "features": [
+        1706,
+        1700,
+        1050,
+        1578,
+        197
+      ]
+    },
+    "base_layer4": {
+      "path": "decoder_fixtures/v1/base_layer4.npz",
+      "sha256": "fdb29a210c58550dc8f367ade314b51757be021ea110c1d733cba4f24bfe261d",
+      "source_checkpoint": "artifacts/base_layer4.pt",
+      "source_sha256": "3335632d561f63a16da2d3cccfc22cb34c863e2c6eb57c3318a2f85fa2a3b50f",
+      "checkpoint": "base",
+      "layer": 4,
+      "features": [
+        975,
+        475,
+        743,
+        1145,
+        477
+      ]
+    },
+    "instruct_layer10": {
+      "path": "decoder_fixtures/v1/instruct_layer10.npz",
+      "sha256": "a4e2b296d5fccfdc7a925bbd0f20e5896bf74afbeb01b0ebbd7d1d5f9cd0994d",
+      "source_checkpoint": "artifacts/instruct_layer10.pt",
+      "source_sha256": "f89c9a1f4f959dce80b712a1b898b1a6a5b8314f814b58f7505d0c69846287dd",
+      "checkpoint": "instruct",
+      "layer": 10,
+      "features": [
+        1443,
+        351,
+        403,
+        1595,
+        1635
+      ]
+    },
+    "instruct_layer16": {
+      "path": "decoder_fixtures/v1/instruct_layer16.npz",
+      "sha256": "0aed76115d209d31cc5ce2e0673bd6b62f5a39275d4f4fe1291d1e0e77ce11fc",
+      "source_checkpoint": "artifacts/instruct_layer16.pt",
+      "source_sha256": "f413fa66495f9cc883c7179626d084dd88836de26baeb6a8991839d4196766cb",
+      "checkpoint": "instruct",
+      "layer": 16,
+      "features": [
+        1063,
+        1302,
+        1190,
+        1332,
+        945
+      ]
+    },
+    "instruct_layer21": {
+      "path": "decoder_fixtures/v1/instruct_layer21.npz",
+      "sha256": "809a33febcdc79ccdd13bfce5f262d9137c851e32aa25bf8907730a9c13e1b50",
+      "source_checkpoint": "artifacts/instruct_layer21.pt",
+      "source_sha256": "d54136e9e20e763db9cb5a0218c2cbfbd6193e3600d282a94d824af617ee6490",
+      "checkpoint": "instruct",
+      "layer": 21,
+      "features": [
+        383,
+        667,
+        240,
+        423,
+        1717
+      ]
+    },
+    "instruct_layer4": {
+      "path": "decoder_fixtures/v1/instruct_layer4.npz",
+      "sha256": "9fd4aa9c8964d8ce83f2824934e6b53007d6d3d4765881c8a441d884fc48e955",
+      "source_checkpoint": "artifacts/instruct_layer4.pt",
+      "source_sha256": "647f93b9fcca16a82c13ad350a8b686fa121f3c98488a3b9533ea64b93a0aa41",
+      "checkpoint": "instruct",
+      "layer": 4,
+      "features": [
+        73,
+        1171,
+        557,
+        1274,
+        1775
+      ]
+    }
+  }
+}

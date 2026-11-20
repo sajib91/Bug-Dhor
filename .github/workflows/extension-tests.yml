@@ -331,12 +331,30 @@ jobs:
       # the engine package and are pinned in this repository-level file.
       - name: Install root AST test dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-ast.txt
+      # The committed decoder-column bundle is the portable substitute for the
+      # ~100 MiB full SAE checkpoints, which are intentionally not distributed.
+      - name: Verify decoder fixture manifest
+        run: |
+          PYTHONPATH=research/experiments/counterfactual_validation python - <<'PY'
+          from artifact_paths import ARTIFACT_ROOT, artifact_path, load_manifest, sha256_file
+          manifest = load_manifest()
+          for fixture_id, entry in manifest["files"].items():
+              path = artifact_path(entry["path"])
+              if not path.is_file():
+                  raise SystemExit(f"missing fixture {fixture_id}: {path}")
+              actual = sha256_file(path)
+              if actual != entry["sha256"]:
+                  raise SystemExit(
+                      f"checksum mismatch for {fixture_id}: expected {entry['sha256']}, got {actual}"
+                  )
+          print(f"verified {len(manifest['files'])} decoder fixtures under {ARTIFACT_ROOT}")
+          PY
       - name: Run Python tests
         id: pytest
         run: |
           set -uo pipefail
           mkdir -p artifacts
-          PYTHONPATH=src:security-engine/src python -m pytest -q 2>&1 | tee artifacts/python-tests.log
+          PYTHONPATH=src:security-engine/src python -m pytest -q -m "not real_model_integration" 2>&1 | tee artifacts/python-tests.log
           exit "${PIPESTATUS[0]}"
       - name: Write Python test evidence
         if: ${{ always() }}
@@ -357,7 +375,11 @@ jobs:
             run_id: process.env.GITHUB_RUN_ID,
             run_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
             generated_at: new Date().toISOString(),
-            test_count: Number(process.env.TEST_COUNT)
+            test_count: Number(process.env.TEST_COUNT),
+            real_model_integration: {
+              status: "not_provisioned",
+              reason: "Full SAE checkpoints are not distributed; required cosine recomputation used committed SHA-256-verified decoder-column fixtures."
+            }
           };
           fs.mkdirSync("artifacts/evidence", { recursive: true });
           fs.writeFileSync(`artifacts/evidence/${process.env.GATE_NAME}.json`, JSON.stringify(payload, null, 2) + "\n");

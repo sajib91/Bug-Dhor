@@ -23,10 +23,16 @@ From the repository root:
 .venv/bin/python -m pytest mathematical-regression-tests -q
 ```
 
-The suite requires NumPy.  Tensor tests use PyTorch and are skipped when it is
-not installed.  Artifact tests are skipped when
-`research/experiments/counterfactual_validation/results/real_model_validation.json`
-is absent.
+The suite requires NumPy.  Artifact tests require
+`research/experiments/counterfactual_validation/results/real_model_validation.json`.
+All checkpoint references in that JSON are POSIX-style paths relative to
+`research/experiments/counterfactual_validation/`; absolute developer paths are
+no longer stored.  The cross-checkpoint cosine recomputation loads the
+committed, SHA-256-verified decoder-column bundle under
+`decoder_fixtures/v1/`, extracted from the original real SAE checkpoints.  The
+full-checkpoint integration test is marked `real_model_integration` and is
+deselected from default CI; enable it only after provisioning the full
+checkpoints under the documented artifact root.
 
 ## Contents
 

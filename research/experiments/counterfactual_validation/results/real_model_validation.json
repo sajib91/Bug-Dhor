@@ -537,7 +537,6 @@
     "base": {
       "status": "ok",
       "repo": "Qwen/Qwen2.5-Coder-0.5B",
-      "local_path": "/Users/md.khayrulislamsajib/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots/8123ea2e9354afb7ffcc6c8641d1b2f5ecf18301",
       "hidden_size": 896,
       "num_hidden_layers": 24,
       "dtype": "float32",
@@ -553,12 +552,12 @@
         10,
         16,
         21
-      ]
+      ],
+      "provisioning": "external Hugging Face snapshot required for full-model integration; no local path recorded"
     },
     "instruct": {
       "status": "ok",
       "repo": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
-      "local_path": "/Users/md.khayrulislamsajib/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B-Instruct/snapshots/ea3f2471cf1b1f0db85067f1ef93848e38e88c25",
       "hidden_size": 896,
       "num_hidden_layers": 24,
       "dtype": "float32",
@@ -574,7 +573,8 @@
         10,
         16,
         21
-      ]
+      ],
+      "provisioning": "external Hugging Face snapshot required for full-model integration; no local path recorded"
     }
   },
   "configs": [
@@ -608,7 +608,14 @@
         "relative_reconstruction_error": 0.00017704769561532885,
         "mean_l0": 186.124267578125,
         "dead_features": 42,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/base_layer4.pt"
+        "checkpoint": "artifacts/base_layer4.pt",
+        "checkpoint_sha256": "3335632d561f63a16da2d3cccfc22cb34c863e2c6eb57c3318a2f85fa2a3b50f",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "base_layer4",
+          "path": "decoder_fixtures/v1/base_layer4.npz",
+          "sha256": "fdb29a210c58550dc8f367ade314b51757be021ea110c1d733cba4f24bfe261d"
+        }
       },
       "selected_features": [
         {
@@ -1828,7 +1835,14 @@
         "relative_reconstruction_error": 0.0011862890096381307,
         "mean_l0": 187.9378662109375,
         "dead_features": 50,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/base_layer10.pt"
+        "checkpoint": "artifacts/base_layer10.pt",
+        "checkpoint_sha256": "2e69ad0f45c22c4e872c005b665256b965937c26ef9ac3508e87bb964be992cf",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "base_layer10",
+          "path": "decoder_fixtures/v1/base_layer10.npz",
+          "sha256": "c9a135c72df55cf068735dde4675cad9c1df93336c69b398da306d91c00720dc"
+        }
       },
       "selected_features": [
         {
@@ -3048,7 +3062,14 @@
         "relative_reconstruction_error": 0.0005008793086744845,
         "mean_l0": 200.26036071777344,
         "dead_features": 33,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/base_layer16.pt"
+        "checkpoint": "artifacts/base_layer16.pt",
+        "checkpoint_sha256": "36bc43988694f3d688f5d4a93c2f29fc06b638718e63111269ac27698eed8611",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "base_layer16",
+          "path": "decoder_fixtures/v1/base_layer16.npz",
+          "sha256": "e26f92188d5f4419dfcf0abbba8826e6513912e9993080aeb467207a0b4f626e"
+        }
       },
       "selected_features": [
         {
@@ -4268,7 +4289,14 @@
         "relative_reconstruction_error": 0.010097592137753963,
         "mean_l0": 338.25738525390625,
         "dead_features": 337,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/base_layer21.pt"
+        "checkpoint": "artifacts/base_layer21.pt",
+        "checkpoint_sha256": "aeb2024e2a6689c9978de321d585b68458ccf9f2b5f1135af0da66b40f23ca1b",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "base_layer21",
+          "path": "decoder_fixtures/v1/base_layer21.npz",
+          "sha256": "fb6b67063fb472ce7089939e34cbfb66afb5dde849df9200c440da35ac572f09"
+        }
       },
       "selected_features": [
         {
@@ -5488,7 +5516,14 @@
         "relative_reconstruction_error": 0.00038466902333311737,
         "mean_l0": 212.7958526611328,
         "dead_features": 34,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/instruct_layer4.pt"
+        "checkpoint": "artifacts/instruct_layer4.pt",
+        "checkpoint_sha256": "647f93b9fcca16a82c13ad350a8b686fa121f3c98488a3b9533ea64b93a0aa41",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "instruct_layer4",
+          "path": "decoder_fixtures/v1/instruct_layer4.npz",
+          "sha256": "9fd4aa9c8964d8ce83f2824934e6b53007d6d3d4765881c8a441d884fc48e955"
+        }
       },
       "selected_features": [
         {
@@ -6708,7 +6743,14 @@
         "relative_reconstruction_error": 0.0011838518548756838,
         "mean_l0": 188.775146484375,
         "dead_features": 34,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/instruct_layer10.pt"
+        "checkpoint": "artifacts/instruct_layer10.pt",
+        "checkpoint_sha256": "f89c9a1f4f959dce80b712a1b898b1a6a5b8314f814b58f7505d0c69846287dd",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "instruct_layer10",
+          "path": "decoder_fixtures/v1/instruct_layer10.npz",
+          "sha256": "a4e2b296d5fccfdc7a925bbd0f20e5896bf74afbeb01b0ebbd7d1d5f9cd0994d"
+        }
       },
       "selected_features": [
         {
@@ -7928,7 +7970,14 @@
         "relative_reconstruction_error": 0.0005641672760248184,
         "mean_l0": 213.60946655273438,
         "dead_features": 33,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/instruct_layer16.pt"
+        "checkpoint": "artifacts/instruct_layer16.pt",
+        "checkpoint_sha256": "f413fa66495f9cc883c7179626d084dd88836de26baeb6a8991839d4196766cb",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "instruct_layer16",
+          "path": "decoder_fixtures/v1/instruct_layer16.npz",
+          "sha256": "0aed76115d209d31cc5ce2e0673bd6b62f5a39275d4f4fe1291d1e0e77ce11fc"
+        }
       },
       "selected_features": [
         {
@@ -9148,7 +9197,14 @@
         "relative_reconstruction_error": 0.01202086079865694,
         "mean_l0": 450.8520812988281,
         "dead_features": 193,
-        "checkpoint": "/Users/md.khayrulislamsajib/Downloads/CRAFT-Sec/research/experiments/counterfactual_validation/artifacts/instruct_layer21.pt"
+        "checkpoint": "artifacts/instruct_layer21.pt",
+        "checkpoint_sha256": "d54136e9e20e763db9cb5a0218c2cbfbd6193e3600d282a94d824af617ee6490",
+        "decoder_ref": {
+          "bundle_id": "counterfactual-decoder-cosines-v1",
+          "id": "instruct_layer21",
+          "path": "decoder_fixtures/v1/instruct_layer21.npz",
+          "sha256": "809a33febcdc79ccdd13bfce5f262d9137c851e32aa25bf8907730a9c13e1b50"
+        }
       },
       "selected_features": [
         {
@@ -10561,5 +10617,7 @@
       "mean_selected_feature_best_decoder_cosine": 0.2456446025520563,
       "note": "Independently trained SAEs do not guarantee feature identity across checkpoints.  The contrast comparison is therefore population-level, and the decoder-cosine values quantify how weak that identification is."
     }
-  }
+  },
+  "schema_version": 2,
+  "artifact_root": "research/experiments/counterfactual_validation"
 }

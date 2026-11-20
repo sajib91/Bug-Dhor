@@ -9,8 +9,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "security-engine" / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+RESEARCH = ROOT / "research" / "experiments" / "counterfactual_validation"
+for path in (SRC, RESEARCH):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 ARTIFACT = (
     ROOT

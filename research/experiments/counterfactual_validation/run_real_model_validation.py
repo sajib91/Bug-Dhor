@@ -73,6 +73,8 @@ from bugdhor.sae.model import SparseAutoencoder
 from bugdhor.sae.training import SAETrainer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from artifact_paths import ARTIFACT_ROOT, normalize_relative_ref, sha256_file
+
 ROOT = Path(__file__).resolve().parents[3]
 OUT_DIR = Path(__file__).resolve().parent / "results"
 ARTIFACT_DIR = Path(__file__).resolve().parent / "artifacts"
@@ -255,7 +257,10 @@ def _load_model(repo: str) -> tuple[Any, Any, Path, dict[str, Any]]:
     model.to("cpu")
     metadata = {
         "repo": repo,
-        "local_path": str(path),
+        "provisioning": (
+            "external Hugging Face snapshot required for full-model "
+            "integration; no local path recorded"
+        ),
         "hidden_size": int(model.config.hidden_size),
         "num_hidden_layers": int(model.config.num_hidden_layers),
         "dtype": "float32",
@@ -294,6 +299,7 @@ def _train_sae(
     training = trainer.fit(model, tensor)
     save_checkpoint(artifact_path, model, training=training)
     validation = training.validation
+    relative_checkpoint = normalize_relative_ref(artifact_path.relative_to(ARTIFACT_ROOT))
     summary = {
         "config": config.to_dict(),
         "config_hash": config.config_hash,
@@ -308,7 +314,14 @@ def _train_sae(
         "dead_features": (
             None if validation is None else len(validation.dead_features)
         ),
-        "checkpoint": str(artifact_path),
+        "checkpoint": relative_checkpoint,
+        "checkpoint_sha256": sha256_file(artifact_path),
+        "decoder_ref": {
+            "bundle_id": "counterfactual-decoder-cosines-v1",
+            "id": artifact_path.stem,
+            "path": f"decoder_fixtures/v1/{artifact_path.stem}.npz",
+            "sha256": None,
+        },
     }
     return model, summary
 
@@ -865,6 +878,8 @@ def main() -> int:
 
     requested_checkpoints = [item.strip() for item in args.checkpoints.split(",")]
     payload: dict[str, Any] = {
+        "schema_version": 2,
+        "artifact_root": "research/experiments/counterfactual_validation",
         "experiment": "real_model_counterfactual_validation",
         "created_at_utc": datetime.now(UTC).isoformat(),
         "estimand": {

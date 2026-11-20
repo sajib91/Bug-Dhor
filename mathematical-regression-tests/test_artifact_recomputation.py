@@ -17,6 +17,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 import reference as ref
+from artifact_paths import (
+    ArtifactPathError,
+    artifact_path,
+    checkpoint_reference,
+    load_manifest,
+    normalize_relative_ref,
+    resolve_under_root,
+    verify_checksum,
+)
 
 pytestmark = pytest.mark.skipif(
     not (Path(__file__).resolve().parents[1] / "research/experiments/counterfactual_validation/results/real_model_validation.json").exists(),
@@ -28,24 +37,71 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _checkpoint_path(config: dict, artifact_path: Path) -> Path:
-    """Resolve a saved checkpoint path without trusting its original machine.
+def _require_decoder_fixture(config: dict) -> tuple[np.ndarray, list[int], str, Path]:
+    """Return verified selected decoder columns from the committed bundle."""
 
-    The artifact records absolute paths from the machine that produced it. The
-    regression suite must remain runnable from a fresh checkout, so a missing
-    absolute path falls back to the checkpoint of the same name beside the
-    stored artifact.
-    """
+    checkpoint = config["checkpoint"]
+    layer_index = int(config["layer_index"])
+    ref_data = config["sae"].get("decoder_ref")
+    manifest = load_manifest()
+    if isinstance(ref_data, dict):
+        fixture_id = ref_data["id"]
+        relative = ref_data["path"]
+        expected_sha256 = ref_data["sha256"]
+    elif isinstance(ref_data, str):
+        fixture_id = f"{checkpoint}_layer{layer_index}"
+        relative = ref_data
+        expected_sha256 = None
+    else:
+        pytest.fail(
+            f"missing decoder artifact reference for {checkpoint} layer {layer_index}"
+        )
 
-    saved = Path(config["sae"]["checkpoint"])
-    if saved.exists():
-        return saved
-    fallback = (
-        artifact_path.parent.parent
-        / "artifacts"
-        / saved.name
-    )
-    return fallback if fallback.exists() else saved
+    entry = manifest["files"].get(fixture_id)
+    if entry is None:
+        pytest.fail(
+            f"missing decoder fixture entry {fixture_id!r} in {manifest['bundle_id']!r}"
+        )
+    if expected_sha256 is None:
+        expected_sha256 = entry["sha256"]
+
+    path = artifact_path(relative)
+    label = f"decoder fixture {fixture_id} ({relative})"
+    try:
+        verify_checksum(path, expected_sha256, label=label)
+    except ArtifactPathError as error:
+        pytest.fail(f"{checkpoint} layer {layer_index}: {error}")
+
+    with np.load(path, allow_pickle=False) as payload:
+        columns = np.asarray(payload["decoder_columns"], dtype=np.float64).copy()
+        features = [int(value) for value in payload["features"]]
+    expected_features = [int(item["feature"]) for item in config["selected_features"]]
+    if features != expected_features:
+        pytest.fail(
+            f"decoder fixture {fixture_id} features {features} do not match "
+            f"artifact selected_features {expected_features}"
+        )
+    return columns, features, fixture_id, path
+
+
+def _require_full_checkpoint(config: dict) -> Path:
+    """Resolve and verify a full SAE checkpoint before torch.load()."""
+
+    checkpoint = config["checkpoint"]
+    layer_index = int(config["layer_index"])
+    reference = checkpoint_reference(config)
+    path = artifact_path(reference)
+    expected_sha256 = config["sae"].get("checkpoint_sha256")
+    if not expected_sha256:
+        pytest.fail(
+            f"missing checkpoint_sha256 for {checkpoint} layer {layer_index}; "
+            "full-checkpoint integration requires a verified manifest"
+        )
+    try:
+        verify_checksum(path, expected_sha256, label=f"checkpoint {reference}")
+    except ArtifactPathError as error:
+        pytest.fail(f"{checkpoint} layer {layer_index}: {error}")
+    return path
 
 
 @contextmanager
@@ -213,35 +269,76 @@ def test_saved_pooled_pairwise_interval_recomputes(artifact_path: Path) -> None:
         )
 
 
-def test_cross_checkpoint_decoder_cosines_recompute(artifact_path: Path) -> None:
-    torch = pytest.importorskip("torch")
-    artifact = _load(artifact_path)
+def _cross_checkpoint_configs(artifact: dict) -> dict[int, dict[str, dict]]:
     by_layer: dict[int, dict[str, dict]] = {}
     for config in artifact["configs"]:
         if config.get("status") == "error":
             continue
         by_layer.setdefault(int(config["layer_index"]), {})[config["checkpoint"]] = config
+    return by_layer
 
-    saved_layers = {
+
+def _saved_layers(artifact: dict) -> dict[int, dict]:
+    return {
         int(layer["layer_index"]): layer
         for layer in artifact["stability"]["across_checkpoints"]["layers"]
     }
+
+
+def _assert_cosines(best: np.ndarray, saved: dict) -> None:
+    np.testing.assert_allclose(
+        saved["selected_feature_best_decoder_cosine"], best, rtol=0, atol=1e-6
+    )
+
+
+def test_cross_checkpoint_decoder_cosines_recompute(artifact_path: Path) -> None:
+    """Recompute cosines from committed, checksum-verified decoder columns."""
+
+    artifact = _load(artifact_path)
+    by_layer = _cross_checkpoint_configs(artifact)
+    saved_layers = _saved_layers(artifact)
+    all_cosines = []
+    for layer_index, entries in sorted(by_layer.items()):
+        if "base" not in entries or "instruct" not in entries:
+            continue
+        base_columns, _, _, _ = _require_decoder_fixture(entries["base"])
+        instruct_columns, _, _, _ = _require_decoder_fixture(entries["instruct"])
+        base_vectors = ref.normalized_columns(base_columns)
+        instruct_vectors = ref.normalized_columns(instruct_columns)
+        best = (base_vectors.T @ instruct_vectors).max(axis=1)
+        _assert_cosines(best, saved_layers[layer_index])
+        all_cosines.extend(float(value) for value in best)
+
+    assert artifact["stability"]["across_checkpoints"][
+        "mean_selected_feature_best_decoder_cosine"
+    ] == pytest.approx(float(np.mean(all_cosines)), abs=1e-6)
+
+
+@pytest.mark.real_model_integration
+def test_cross_checkpoint_decoder_cosines_from_full_checkpoints(artifact_path: Path) -> None:
+    """Provisioned-only integration: load the real SAE checkpoints themselves.
+
+    This test is deselected from the default CI suite.  It is enabled only when
+    the full checkpoints under the documented artifact root have been
+    provisioned; missing or mismatched checkpoints fail explicitly.
+    """
+
+    torch = pytest.importorskip("torch")
+    artifact = _load(artifact_path)
+    by_layer = _cross_checkpoint_configs(artifact)
+    saved_layers = _saved_layers(artifact)
     all_cosines = []
     for layer_index, entries in sorted(by_layer.items()):
         if "base" not in entries or "instruct" not in entries:
             continue
         base_config = entries["base"]
         instruct_config = entries["instruct"]
+        base_checkpoint = _require_full_checkpoint(base_config)
+        instruct_checkpoint = _require_full_checkpoint(instruct_config)
         with _legacy_checkpoint_modules():
-            base_payload = torch.load(
-                _checkpoint_path(base_config, artifact_path),
-                map_location="cpu",
-                weights_only=False,
-            )
+            base_payload = torch.load(base_checkpoint, map_location="cpu", weights_only=False)
             instruct_payload = torch.load(
-                _checkpoint_path(instruct_config, artifact_path),
-                map_location="cpu",
-                weights_only=False,
+                instruct_checkpoint, map_location="cpu", weights_only=False
             )
         base_decoder = base_payload["state_dict"]["decoder.weight"].detach().numpy()
         instruct_decoder = instruct_payload["state_dict"]["decoder.weight"].detach().numpy()
@@ -250,10 +347,7 @@ def test_cross_checkpoint_decoder_cosines_recompute(artifact_path: Path) -> None
         base_vectors = ref.normalized_columns(base_decoder[:, base_features])
         instruct_vectors = ref.normalized_columns(instruct_decoder[:, instruct_features])
         best = (base_vectors.T @ instruct_vectors).max(axis=1)
-        saved = saved_layers[layer_index]
-        np.testing.assert_allclose(
-            saved["selected_feature_best_decoder_cosine"], best, rtol=0, atol=1e-6
-        )
+        _assert_cosines(best, saved_layers[layer_index])
         all_cosines.extend(float(value) for value in best)
 
     assert artifact["stability"]["across_checkpoints"][
