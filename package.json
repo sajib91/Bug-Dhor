@@ -16,6 +16,7 @@
     "format": "node scripts/dev.js format",
     "format:check": "node scripts/dev.js format-check",
     "test": "node scripts/dev.js test",
+    "test:release-manifest": "node --test scripts/releaseManifest.test.js",
     "build": "node scripts/dev.js build",
     "check": "node scripts/dev.js check",
     "structure:check": "node scripts/dev.js structure-check",

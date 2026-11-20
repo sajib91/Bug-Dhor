@@ -39,6 +39,8 @@ jobs:
     outputs:
       version: ${{ steps.manifest.outputs.version }}
       sha256: ${{ steps.integrity.outputs.sha256 }}
+      authorized: ${{ steps.release_manifest.outputs.authorized }}
+      blockers: ${{ steps.release_manifest.outputs.blockers }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -212,6 +214,7 @@ jobs:
 
       - name: Verify structured release gate manifest
         if: ${{ inputs.confirm_publish }}
+        id: release_manifest
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXPECTED_COMMIT_SHA: ${{ github.sha }}
@@ -219,14 +222,36 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Validation must not fail merely because manual release authorization
+          # is still open. The verifier still checks manifest hash, freshness,
+          # exact commit/run, mandatory gates, and the recorded GitHub Actions
+          # jobs. --allow-no-go only converts the policy decision into outputs;
+          # the publish job below requires authorized=true and is skipped otherwise.
           node ../scripts/verifyReleaseManifest.js \
             --manifest "$MANIFEST_PATH" \
             --sidecar "${MANIFEST_PATH}.sha256" \
             --expected-commit-sha "$EXPECTED_COMMIT_SHA" \
-            --expected-repository "$EXPECTED_REPOSITORY"
+            --expected-repository "$EXPECTED_REPOSITORY" \
+            --allow-no-go \
+            --output "$RUNNER_TEMP/release-authorization.env"
+          cat "$RUNNER_TEMP/release-authorization.env" >> "$GITHUB_OUTPUT"
+
+      - name: Report publication authorization
+        if: ${{ inputs.confirm_publish }}
+        env:
+          AUTHORIZED: ${{ steps.release_manifest.outputs.authorized }}
+          BLOCKERS: ${{ steps.release_manifest.outputs.blockers }}
+        run: |
+          set -euo pipefail
+
+          if [ "$AUTHORIZED" = 'true' ]; then
+            echo 'Release authorization: GO'
+          else
+            echo "::warning::Release authorization: NO-GO; publication will be skipped. Blockers: ${BLOCKERS:-unknown}"
+          fi
 
       - name: Verify release gate, tags, and Marketplace version
-        if: ${{ inputs.confirm_publish }}
+        if: ${{ inputs.confirm_publish && steps.release_manifest.outputs.authorized == 'true' }}
         env:
           VERSION: ${{ steps.manifest.outputs.version }}
         run: |
@@ -354,7 +379,9 @@ jobs:
   publish:
     name: Publish with OIDC
     needs: validate-release
-    if: ${{ inputs.confirm_publish == true }}
+    # Fail closed: explicit confirmation alone is insufficient. The verified
+    # manifest must be GO with zero blockers before the OIDC job can run.
+    if: ${{ inputs.confirm_publish == true && needs.validate-release.outputs.authorized == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

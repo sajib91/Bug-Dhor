@@ -32,25 +32,36 @@ const GATE_DEFINITIONS = Object.freeze([
   { key: 'untrusted-workspace', file: 'untrusted-workspace.json' }
 ]);
 
-// These are not inferable from CI logs and stay UNVERIFIED until an explicit,
-// separately reviewed process records them. They are always release blockers.
-const EXTERNAL_BLOCKERS = Object.freeze([
+// These are not inferable from ordinary CI logs. They remain blockers unless a
+// separately reviewed process uploads passing evidence for the exact same
+// commit and workflow run. Missing or failing evidence stays fail-closed.
+const EXTERNAL_GATES = Object.freeze([
   {
     gate: 'oidc-publish-receipt',
+    file: 'oidc-publish-receipt.json',
+    artifact: 'evidence-oidc-publish-receipt',
     status: 'UNVERIFIED',
     reason: 'No verified OIDC publish receipt exists for this release.'
   },
   {
     gate: 'publisher-ownership',
+    file: 'publisher-ownership.json',
+    artifact: 'evidence-publisher-ownership',
     status: 'UNVERIFIED',
     reason: 'Marketplace publisher ownership has not been independently verified.'
   },
   {
     gate: 'trusted-publishing-policy',
+    file: 'trusted-publishing-policy.json',
+    artifact: 'evidence-trusted-publishing-policy',
     status: 'UNVERIFIED',
     reason: 'Marketplace Trusted Publishing policy compliance has not been verified.'
   }
 ]);
+const EXTERNAL_BLOCKERS = Object.freeze(
+  EXTERNAL_GATES.map(({ gate, status, reason }) => ({ gate, status, reason }))
+);
+const EXTERNAL_ARTIFACTS = new Set(EXTERNAL_GATES.map(({ artifact }) => artifact));
 
 // Untrusted workspace behavior is no longer listed here: it is a mandatory CI
 // gate (`untrusted-workspace`) with its own evidence artifact. Only facts that
@@ -111,7 +122,10 @@ function isSha256(value) {
 }
 
 function validateCommitSha(value, label) {
-  assert(typeof value === 'string' && /^[0-9a-f]{40}$/i.test(value), `${label} must be a 40-character hex commit SHA`);
+  assert(
+    typeof value === 'string' && /^[0-9a-f]{40}$/i.test(value),
+    `${label} must be a 40-character hex commit SHA`
+  );
   return value.toLowerCase();
 }
 
@@ -144,7 +158,10 @@ function parseRunUrl(value, label, runId, repository) {
   assert(!parsed.search && !parsed.hash, `${label} must not contain a query or fragment`);
   const segments = parsed.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   assert(
-    segments.length === 5 && segments[2] === 'actions' && segments[3] === 'runs' && segments[4] === runId,
+    segments.length === 5 &&
+      segments[2] === 'actions' &&
+      segments[3] === 'runs' &&
+      segments[4] === runId,
     `${label} must point to /actions/runs/${runId}`
   );
   if (repository) {
@@ -179,19 +196,26 @@ function validatePositiveIntegerOption(value, label, maximum) {
 }
 
 function validateEvidence(raw, options) {
-  const label = isPlainObject(raw) && typeof raw.gate === 'string' ? `evidence ${raw.gate}` : 'evidence';
+  const label =
+    isPlainObject(raw) && typeof raw.gate === 'string' ? `evidence ${raw.gate}` : 'evidence';
   assert(isPlainObject(raw), `${label} must be a JSON object`);
   for (const key of Object.keys(raw)) {
     assert(EVIDENCE_FIELDS.has(key), `${label} contains unknown field ${key}`);
   }
-  assert(raw.schema_version === SCHEMA_VERSION, `${label} schema_version must be ${SCHEMA_VERSION}`);
+  assert(
+    raw.schema_version === SCHEMA_VERSION,
+    `${label} schema_version must be ${SCHEMA_VERSION}`
+  );
   assert(
     typeof raw.gate === 'string' && /^[a-z0-9][a-z0-9._-]{1,63}$/.test(raw.gate),
     `${label} gate must be a lowercase identifier`
   );
   assert(GATE_STATUSES.has(raw.status), `${label} status must be pass, fail, or blocked`);
   const commitSha = validateCommitSha(raw.commit_sha, `${label} commit_sha`);
-  assert(commitSha === options.commitSha.toLowerCase(), `${label} commit_sha does not match the expected commit`);
+  assert(
+    commitSha === options.commitSha.toLowerCase(),
+    `${label} commit_sha does not match the expected commit`
+  );
   const runId = validateRunId(raw.run_id, `${label} run_id`);
   assert(runId === options.runId, `${label} run_id does not match the expected run`);
   parseRunUrl(raw.run_url, `${label} run_url`, runId, options.repository);
@@ -206,13 +230,19 @@ function validateEvidence(raw, options) {
   }
   validateTimestamp(raw.generated_at, `${label} generated_at`, options.maxAgeSeconds, options.now);
   if (raw.test_count !== undefined) {
-    assert(Number.isInteger(raw.test_count) && raw.test_count >= 0, `${label} test_count must be a non-negative integer`);
+    assert(
+      Number.isInteger(raw.test_count) && raw.test_count >= 0,
+      `${label} test_count must be a non-negative integer`
+    );
   }
   if (raw.lock_sha256 !== undefined) {
     assert(isSha256(raw.lock_sha256), `${label} lock_sha256 must be a SHA-256 digest`);
   }
   if (raw.detail !== undefined) {
-    assert(typeof raw.detail === 'string' && raw.detail.length <= MAX_REASON_LENGTH, `${label} detail is invalid`);
+    assert(
+      typeof raw.detail === 'string' && raw.detail.length <= MAX_REASON_LENGTH,
+      `${label} detail is invalid`
+    );
   }
   if (raw.gate === 'python-tests') {
     assert(Number.isInteger(raw.test_count), `${label} requires test_count`);
@@ -230,17 +260,26 @@ function validateGateEntry(raw, key) {
     assert(GATE_ENTRY_FIELDS.has(field), `${label} contains unknown field ${field}`);
   }
   assert(GATE_STATUSES.has(raw.status), `${label} status must be pass, fail, or blocked`);
-  assert(raw.evidence_path === `evidence/${key}.json`, `${label} evidence_path must be evidence/${key}.json`);
+  assert(
+    raw.evidence_path === `evidence/${key}.json`,
+    `${label} evidence_path must be evidence/${key}.json`
+  );
   assert(isSha256(raw.evidence_sha256), `${label} evidence_sha256 must be a SHA-256 digest`);
   assert(typeof raw.generated_at === 'string', `${label} generated_at must be a string`);
   if (raw.test_count !== undefined) {
-    assert(Number.isInteger(raw.test_count) && raw.test_count >= 0, `${label} test_count is invalid`);
+    assert(
+      Number.isInteger(raw.test_count) && raw.test_count >= 0,
+      `${label} test_count is invalid`
+    );
   }
   if (raw.lock_sha256 !== undefined) {
     assert(isSha256(raw.lock_sha256), `${label} lock_sha256 is invalid`);
   }
   if (raw.detail !== undefined) {
-    assert(typeof raw.detail === 'string' && raw.detail.length <= MAX_REASON_LENGTH, `${label} detail is invalid`);
+    assert(
+      typeof raw.detail === 'string' && raw.detail.length <= MAX_REASON_LENGTH,
+      `${label} detail is invalid`
+    );
   }
   return raw;
 }
@@ -250,10 +289,15 @@ function validateBlocker(raw, label) {
   for (const field of Object.keys(raw)) {
     assert(BLOCKER_FIELDS.has(field), `${label} contains unknown field ${field}`);
   }
-  assert(typeof raw.gate === 'string' && /^[a-z0-9][a-z0-9._-]{1,63}$/.test(raw.gate), `${label} gate is invalid`);
+  assert(
+    typeof raw.gate === 'string' && /^[a-z0-9][a-z0-9._-]{1,63}$/.test(raw.gate),
+    `${label} gate is invalid`
+  );
   assert(BLOCKER_STATUSES.has(raw.status), `${label} status is invalid`);
   assert(
-    typeof raw.reason === 'string' && raw.reason.length > 0 && raw.reason.length <= MAX_REASON_LENGTH,
+    typeof raw.reason === 'string' &&
+      raw.reason.length > 0 &&
+      raw.reason.length <= MAX_REASON_LENGTH,
     `${label} reason is invalid`
   );
   return raw;
@@ -264,12 +308,20 @@ function validateManifest(raw, options = {}) {
   for (const key of Object.keys(raw)) {
     assert(MANIFEST_FIELDS.has(key), `manifest contains unknown field ${key}`);
   }
-  assert(raw.schema_version === SCHEMA_VERSION, `manifest schema_version must be ${SCHEMA_VERSION}`);
+  assert(
+    raw.schema_version === SCHEMA_VERSION,
+    `manifest schema_version must be ${SCHEMA_VERSION}`
+  );
   const commitSha = validateCommitSha(raw.commit_sha, 'manifest commit_sha');
   const runId = validateRunId(raw.run_id, 'manifest run_id');
   const repository = validateRepository(raw.repository, 'manifest repository');
   parseRunUrl(raw.run_url, 'manifest run_url', runId, repository);
-  validateTimestamp(raw.generated_at, 'manifest generated_at', options.maxAgeSeconds ?? 7 * 24 * 60 * 60, options.now ?? new Date());
+  validateTimestamp(
+    raw.generated_at,
+    'manifest generated_at',
+    options.maxAgeSeconds ?? 7 * 24 * 60 * 60,
+    options.now ?? new Date()
+  );
   assert(isPlainObject(raw.gates), 'manifest gates must be an object');
   const expectedKeys = GATE_DEFINITIONS.map(({ key }) => key).sort();
   const actualKeys = Object.keys(raw.gates).sort();
@@ -281,26 +333,48 @@ function validateManifest(raw, options = {}) {
     validateGateEntry(raw.gates[key], key);
   }
   assert(Array.isArray(raw.blockers), 'manifest blockers must be an array');
-  const blockerGates = new Set();
+  const manifestBlockerGates = new Set();
   for (const [index, blocker] of raw.blockers.entries()) {
     validateBlocker(blocker, `manifest blocker ${index}`);
-    assert(!blockerGates.has(blocker.gate), `duplicate blocker ${blocker.gate}`);
-    blockerGates.add(blocker.gate);
+    assert(!manifestBlockerGates.has(blocker.gate), `duplicate blocker ${blocker.gate}`);
+    manifestBlockerGates.add(blocker.gate);
   }
   const externalEvidence = raw.external_evidence ?? [];
   assert(Array.isArray(externalEvidence), 'manifest external_evidence must be an array');
+  raw.external_evidence = externalEvidence;
+  const externalEvidenceSet = new Set();
   for (const name of externalEvidence) {
     assert(
       typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name),
       'manifest external_evidence contains an invalid artifact name'
     );
+    assert(
+      EXTERNAL_ARTIFACTS.has(name),
+      `manifest external_evidence contains unsupported artifact ${name}`
+    );
+    assert(!externalEvidenceSet.has(name), `duplicate external evidence artifact ${name}`);
+    externalEvidenceSet.add(name);
   }
-  assert(raw.decision === 'GO' || raw.decision === 'NO-GO', 'manifest decision must be GO or NO-GO');
+  assert(
+    raw.decision === 'GO' || raw.decision === 'NO-GO',
+    'manifest decision must be GO or NO-GO'
+  );
   const allPass = expectedKeys.every((key) => raw.gates[key].status === 'pass');
   const expectedDecision = allPass && raw.blockers.length === 0 ? 'GO' : 'NO-GO';
   assert(raw.decision === expectedDecision, `manifest decision must be ${expectedDecision}`);
+  for (const { gate, artifact } of EXTERNAL_GATES) {
+    const cleared = externalEvidenceSet.has(artifact);
+    const blocked = manifestBlockerGates.has(gate);
+    assert(
+      cleared !== blocked,
+      `external gate ${gate} must have either passing evidence or a blocker, not both or neither`
+    );
+  }
   if (options.expectedCommitSha) {
-    assert(commitSha === options.expectedCommitSha.toLowerCase(), 'manifest commit_sha does not match the expected commit');
+    assert(
+      commitSha === options.expectedCommitSha.toLowerCase(),
+      'manifest commit_sha does not match the expected commit'
+    );
   }
   if (options.expectedRepository) {
     assert(
@@ -374,13 +448,27 @@ function generate(options, now = new Date()) {
   const runUrl = options.runUrl;
   parseRunUrl(runUrl, 'run_url', runId, repository);
   validatePositiveIntegerOption(options.maxAgeSeconds, 'max-age-seconds', 30 * 24 * 60 * 60);
-  const generatedAt = validateTimestamp(options.generatedAt, 'generated_at', options.maxAgeSeconds, now);
-  assert(typeof options.evidenceDir === 'string' && options.evidenceDir.length > 0, 'evidence-dir is required');
-  assert(typeof options.outputDir === 'string' && options.outputDir.length > 0, 'output-dir is required');
+  const generatedAt = validateTimestamp(
+    options.generatedAt,
+    'generated_at',
+    options.maxAgeSeconds,
+    now
+  );
+  assert(
+    typeof options.evidenceDir === 'string' && options.evidenceDir.length > 0,
+    'evidence-dir is required'
+  );
+  assert(
+    typeof options.outputDir === 'string' && options.outputDir.length > 0,
+    'output-dir is required'
+  );
 
   let files;
   try {
-    files = fs.readdirSync(options.evidenceDir).filter((name) => name.endsWith('.json')).sort();
+    files = fs
+      .readdirSync(options.evidenceDir)
+      .filter((name) => name.endsWith('.json'))
+      .sort();
   } catch (error) {
     throw new Error(`cannot read evidence directory ${options.evidenceDir}: ${error.message}`);
   }
@@ -389,7 +477,14 @@ function generate(options, now = new Date()) {
     assert(files.includes(file), `missing required evidence file ${file}`);
   }
 
-  const validationOptions = { commitSha, runId, repository, runUrl, maxAgeSeconds: options.maxAgeSeconds, now };
+  const validationOptions = {
+    commitSha,
+    runId,
+    repository,
+    runUrl,
+    maxAgeSeconds: options.maxAgeSeconds,
+    now
+  };
   const rawByFile = new Map();
   for (const file of files) {
     const fullPath = path.join(options.evidenceDir, file);
@@ -411,7 +506,8 @@ function generate(options, now = new Date()) {
 
   const gates = {};
   const blockers = [];
-  const blockedGates = new Set();
+  const trackedGates = new Set();
+  const externalEvidence = [];
   for (const { key, file } of GATE_DEFINITIONS) {
     const { raw, hash } = rawByFile.get(file);
     const entry = {
@@ -431,8 +527,12 @@ function generate(options, now = new Date()) {
     }
     gates[key] = entry;
     if (raw.status !== 'pass') {
-      blockers.push({ gate: key, status: raw.status, reason: `Gate ${key} evidence status is ${raw.status}.` });
-      blockedGates.add(key);
+      blockers.push({
+        gate: key,
+        status: raw.status,
+        reason: `Gate ${key} evidence status is ${raw.status}.`
+      });
+      trackedGates.add(key);
     }
   }
 
@@ -441,22 +541,32 @@ function generate(options, now = new Date()) {
       continue;
     }
     const { raw } = rawByFile.get(file);
-    if (raw.status !== 'pass' && !blockedGates.has(raw.gate)) {
+    const externalGate = EXTERNAL_GATES.find((definition) => definition.file === file);
+    if (externalGate) {
+      assert(raw.gate === externalGate.gate, `${file} gate must be ${externalGate.gate}`);
+      if (raw.status === 'pass') {
+        externalEvidence.push(externalGate.artifact);
+        trackedGates.add(externalGate.gate);
+        continue;
+      }
+    }
+    if (raw.status !== 'pass' && !trackedGates.has(raw.gate)) {
       blockers.push({
         gate: raw.gate,
         status: raw.status,
         reason: `Additional evidence ${file} has status ${raw.status}.`
       });
-      blockedGates.add(raw.gate);
+      trackedGates.add(raw.gate);
     }
   }
 
   for (const blocker of EXTERNAL_BLOCKERS) {
-    if (!blockedGates.has(blocker.gate)) {
+    if (!trackedGates.has(blocker.gate)) {
       blockers.push({ ...blocker });
-      blockedGates.add(blocker.gate);
+      trackedGates.add(blocker.gate);
     }
   }
+  externalEvidence.sort();
   blockers.sort((left, right) => left.gate.localeCompare(right.gate));
 
   const allPass = GATE_DEFINITIONS.every(({ key }) => gates[key].status === 'pass');
@@ -469,7 +579,7 @@ function generate(options, now = new Date()) {
     generated_at: generatedAt,
     gates,
     blockers,
-    external_evidence: [],
+    external_evidence: externalEvidence,
     decision: allPass && blockers.length === 0 ? 'GO' : 'NO-GO'
   };
   validateManifest(manifest, { maxAgeSeconds: options.maxAgeSeconds, now });
@@ -479,7 +589,10 @@ function generate(options, now = new Date()) {
   const sidecarPath = `${outputPath}.sha256`;
   const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   fs.writeFileSync(outputPath, bytes);
-  fs.writeFileSync(sidecarPath, Buffer.from(`${computeSha256(bytes)}  ${path.basename(outputPath)}\n`, 'utf8'));
+  fs.writeFileSync(
+    sidecarPath,
+    Buffer.from(`${computeSha256(bytes)}  ${path.basename(outputPath)}\n`, 'utf8')
+  );
   return { manifest, outputPath, sidecarPath };
 }
 
@@ -521,6 +634,7 @@ module.exports = {
   SCHEMA_VERSION,
   DEFAULT_EVIDENCE_TTL_SECONDS,
   GATE_DEFINITIONS,
+  EXTERNAL_GATES,
   EXTERNAL_BLOCKERS,
   assert,
   isPlainObject,

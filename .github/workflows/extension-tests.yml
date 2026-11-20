@@ -605,6 +605,11 @@ jobs:
           pattern: evidence-*
           path: artifacts/evidence
           merge-multiple: true
+      # Externally reviewed authorization evidence is consumed only when a
+      # separate protected process uploads evidence-<gate> artifacts for this
+      # exact commit and run. Absence is a NO-GO blocker, never a CI failure.
+      - name: Test release manifest scripts
+        run: npm run test:release-manifest
       - name: Generate release-gate manifest
         run: |
           node scripts/generateReleaseManifest.js \

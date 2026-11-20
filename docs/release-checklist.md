@@ -273,10 +273,13 @@ from a previous build.
   HIGH findings still open. Packaging and documentation work does not clear
   those security gates. See [`PHASE_04_SECURITY_AUDIT.md`](../reports/PHASE_04_SECURITY_AUDIT.md).
 - Publisher identity is declared as `sajib91` but has not been verified against
-  the Marketplace account intended for publication.
+  the Marketplace account intended for publication. The structured manifest can
+  clear this gate only for genuine same-run evidence; see
+  [`release-evidence.md`](release-evidence.md).
 - The MIT `LICENSE` file and manifest `license` field are present. Publication
   is still blocked by the Phase 04 security findings, publisher verification,
-  and Trusted Publishing setup.
+  and Trusted Publishing setup. A `confirm_publish=true` validation run reports
+  NO-GO and skips `Publish with OIDC` rather than failing the validation job.
 - Runtime dependencies are staged from the declared production closure rather
   than bundled into a single file. A bundling step is still recommended for
   extension startup performance.

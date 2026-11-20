@@ -296,6 +296,7 @@ def test(_: argparse.Namespace | None = None) -> None:
     python = require_venv()
     run([str(python), "-m", "pytest"], cwd=ENGINE)
     run([npm_command(), "--workspace", "vscode-extension", "run", "test"], cwd=ROOT)
+    run([npm_command(), "run", "test:release-manifest"], cwd=ROOT)
 
 
 def build(_: argparse.Namespace | None = None) -> None:

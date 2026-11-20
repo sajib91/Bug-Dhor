@@ -35,7 +35,9 @@ function parseArgs(argv, env) {
     expectedRepository: env.RELEASE_EXPECTED_REPOSITORY || env.GITHUB_REPOSITORY || '',
     token: env.GITHUB_TOKEN || '',
     apiUrl: env.GITHUB_API_URL || 'https://api.github.com',
-    maxAgeSeconds: DEFAULT_MANIFEST_TTL_SECONDS
+    maxAgeSeconds: DEFAULT_MANIFEST_TTL_SECONDS,
+    allowNoGo: false,
+    output: env.RELEASE_AUTHORIZATION_OUTPUT || ''
   };
   const valueOptions = new Set([
     '--manifest',
@@ -44,12 +46,17 @@ function parseArgs(argv, env) {
     '--expected-repository',
     '--token',
     '--api-url',
-    '--max-age-seconds'
+    '--max-age-seconds',
+    '--output'
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--help' || argument === '-h') {
       options.help = true;
+      continue;
+    }
+    if (argument === '--allow-no-go') {
+      options.allowNoGo = true;
       continue;
     }
     const separator = argument.indexOf('=');
@@ -90,7 +97,10 @@ function readManifest(manifestPath, sidecarPath) {
   assert(parts.length >= 1 && isSha256(parts[0]), 'sidecar does not contain a SHA-256 digest');
   if (parts.length > 1) {
     assert(parts.length === 2, 'sidecar format is invalid');
-    assert(parts[1] === require('node:path').basename(manifestPath), 'sidecar filename does not match the manifest');
+    assert(
+      parts[1] === require('node:path').basename(manifestPath),
+      'sidecar filename does not match the manifest'
+    );
   }
   const actual = computeSha256(bytes);
   assert(actual === parts[0].toLowerCase(), 'manifest SHA-256 does not match the sidecar');
@@ -132,7 +142,9 @@ function requestJson(url, token) {
       transport = http;
     }
     if (!transport) {
-      reject(new Error('GitHub API URL must use https (http is allowed only for loopback test servers)'));
+      reject(
+        new Error('GitHub API URL must use https (http is allowed only for loopback test servers)')
+      );
       return;
     }
     const request = transport.request(
@@ -153,7 +165,9 @@ function requestJson(url, token) {
           const status = response.statusCode ?? 0;
           const body = Buffer.concat(chunks).toString('utf8');
           if (status < 200 || status >= 300) {
-            reject(new Error(`GitHub API request failed with HTTP ${status}${extractApiMessage(body)}`));
+            reject(
+              new Error(`GitHub API request failed with HTTP ${status}${extractApiMessage(body)}`)
+            );
             return;
           }
           try {
@@ -164,7 +178,9 @@ function requestJson(url, token) {
         });
       }
     );
-    request.on('error', (error) => reject(new Error(`GitHub API request failed: ${error.message}`)));
+    request.on('error', (error) =>
+      reject(new Error(`GitHub API request failed: ${error.message}`))
+    );
     request.end();
   });
 }
@@ -180,7 +196,9 @@ async function requestAllPages(baseUrl, token) {
     if (Array.isArray(payload)) {
       batch = payload;
     } else if (isPlainObject(payload)) {
-      const collections = ['jobs', 'artifacts', 'workflow_runs'].filter((key) => Array.isArray(payload[key]));
+      const collections = ['jobs', 'artifacts', 'workflow_runs'].filter((key) =>
+        Array.isArray(payload[key])
+      );
       assert(collections.length === 1, 'GitHub API returned an unexpected collection');
       batch = payload[collections[0]];
     } else {
@@ -199,10 +217,16 @@ async function verifyAgainstGitHub(manifest, options) {
   const apiUrl = options.apiUrl.replace(/\/+$/, '');
   const base = `${apiUrl}/repos/${manifest.repository}/actions/runs/${manifest.run_id}`;
   const run = await requestJson(base, options.token);
-  assert(run.head_sha?.toLowerCase() === manifest.commit_sha, 'recorded run is for a different commit');
+  assert(
+    run.head_sha?.toLowerCase() === manifest.commit_sha,
+    'recorded run is for a different commit'
+  );
   assert(run.status === 'completed', 'recorded run is not completed');
   assert(run.conclusion === 'success', `recorded run conclusion is ${run.conclusion}, not success`);
-  assert(run.name === SOURCE_WORKFLOW_NAME, `recorded run workflow is ${run.name}, not ${SOURCE_WORKFLOW_NAME}`);
+  assert(
+    run.name === SOURCE_WORKFLOW_NAME,
+    `recorded run workflow is ${run.name}, not ${SOURCE_WORKFLOW_NAME}`
+  );
 
   const jobs = await requestAllPages(`${base}/jobs`, options.token);
   assert(jobs.length > 0, 'recorded run has no jobs');
@@ -216,17 +240,62 @@ async function verifyAgainstGitHub(manifest, options) {
     const job = jobsByName.get(key);
     assert(job, `recorded run is missing gate job ${key}`);
     assert(job.status === 'completed', `gate job ${key} is not completed`);
-    assert(job.conclusion === 'success', `gate job ${key} conclusion is ${job.conclusion}, not success`);
+    assert(
+      job.conclusion === 'success',
+      `gate job ${key} conclusion is ${job.conclusion}, not success`
+    );
   }
 
   if (manifest.external_evidence.length > 0) {
     const artifacts = await requestAllPages(`${base}/artifacts`, options.token);
-    const names = new Set(artifacts.filter((artifact) => !artifact.expired).map((artifact) => artifact.name));
+    const names = new Set(
+      artifacts.filter((artifact) => !artifact.expired).map((artifact) => artifact.name)
+    );
     for (const name of manifest.external_evidence) {
-      assert(names.has(name), `external evidence artifact ${name} is not present in the recorded run`);
+      assert(
+        names.has(name),
+        `external evidence artifact ${name} is not present in the recorded run`
+      );
     }
   }
   return { run, jobCount: jobs.length };
+}
+
+function writeAuthorizationOutput(outputPath, manifest) {
+  if (!outputPath) {
+    return;
+  }
+  const blockers = manifest.blockers.map(({ gate }) => gate).join(',');
+  const authorized = manifest.decision === 'GO' && manifest.blockers.length === 0;
+  const lines = [
+    `decision=${manifest.decision}`,
+    `authorized=${authorized ? 'true' : 'false'}`,
+    `blockers=${blockers}`
+  ];
+  fs.writeFileSync(outputPath, `${lines.join('\n')}\n`);
+}
+
+async function verifyReleaseManifest(manifest, options) {
+  validateManifest(manifest, {
+    expectedCommitSha: options.expectedCommitSha,
+    expectedRepository: options.expectedRepository,
+    maxAgeSeconds: options.maxAgeSeconds,
+    now: new Date()
+  });
+  if (!options.allowNoGo) {
+    assert(
+      manifest.decision === 'GO',
+      `manifest decision is ${manifest.decision}; publication requires GO`
+    );
+    assert(
+      manifest.blockers.length === 0,
+      `manifest has blockers: ${manifest.blockers.map((item) => item.gate).join(', ')}`
+    );
+  }
+  for (const { key } of GATE_DEFINITIONS) {
+    assert(manifest.gates[key].status === 'pass', `mandatory gate ${key} is not pass`);
+  }
+  return verifyAgainstGitHub(manifest, options);
 }
 
 async function main() {
@@ -241,33 +310,33 @@ async function main() {
     console.log(
       'Usage: node scripts/verifyReleaseManifest.js --manifest FILE --sidecar FILE ' +
         '--expected-commit-sha SHA --expected-repository OWNER/REPO [--api-url URL] ' +
-        '[--max-age-seconds N] (GITHUB_TOKEN from environment)'
+        '[--max-age-seconds N] [--allow-no-go] [--output FILE] (GITHUB_TOKEN from environment)'
     );
     return;
   }
   try {
-    const expectedCommitSha = validateCommitSha(options.expectedCommitSha, 'expected commit SHA');
-    const expectedRepository = validateRepository(options.expectedRepository, 'expected repository');
+    options.expectedCommitSha = validateCommitSha(options.expectedCommitSha, 'expected commit SHA');
+    options.expectedRepository = validateRepository(
+      options.expectedRepository,
+      'expected repository'
+    );
     validatePositiveIntegerOption(options.maxAgeSeconds, 'max-age-seconds', 30 * 24 * 60 * 60);
 
     const manifest = readManifest(options.manifest, options.sidecar);
-    validateManifest(manifest, {
-      expectedCommitSha,
-      expectedRepository,
-      maxAgeSeconds: options.maxAgeSeconds,
-      now: new Date()
-    });
-    assert(manifest.decision === 'GO', `manifest decision is ${manifest.decision}; publication requires GO`);
-    assert(manifest.blockers.length === 0, `manifest has blockers: ${manifest.blockers.map((item) => item.gate).join(', ')}`);
-    for (const { key } of GATE_DEFINITIONS) {
-      assert(manifest.gates[key].status === 'pass', `mandatory gate ${key} is not pass`);
-    }
+    const { jobCount } = await verifyReleaseManifest(manifest, options);
+    writeAuthorizationOutput(options.output, manifest);
 
-    const { jobCount } = await verifyAgainstGitHub(manifest, options);
-    console.log(
-      `Release manifest verified: run ${manifest.run_id}, commit ${manifest.commit_sha}, ` +
-        `${GATE_DEFINITIONS.length} mandatory gates, ${jobCount} jobs checked.`
-    );
+    const summary =
+      `run ${manifest.run_id}, commit ${manifest.commit_sha}, ` +
+      `${GATE_DEFINITIONS.length} mandatory gates, ${jobCount} jobs checked`;
+    if (manifest.decision === 'GO') {
+      console.log(`Release manifest verified: ${summary}.`);
+    } else {
+      console.warn(
+        `Release manifest verified but publication is blocked: decision ${manifest.decision}, ` +
+          `blockers ${manifest.blockers.map((item) => item.gate).join(', ')}; ${summary}.`
+      );
+    }
   } catch (error) {
     console.error(`release manifest verification: ${error.message}`);
     process.exitCode = 1;
@@ -285,5 +354,7 @@ module.exports = {
   requestJson,
   requestAllPages,
   verifyAgainstGitHub,
+  writeAuthorizationOutput,
+  verifyReleaseManifest,
   main
 };

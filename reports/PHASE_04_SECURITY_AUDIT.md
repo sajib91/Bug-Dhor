@@ -475,9 +475,9 @@ The grep on report prose was removed from the publish workflow and replaced by `
 
 - 16 mandatory evidence gates: lint/unit/package/integration on three OSes, plus `python-tests`, `python-sca`, `npm-audit`, and `untrusted-workspace`.
 - Evidence JSON is machine-generated inside each CI job and validated for schema, gate name, commit SHA, run ID, run URL, TTL, and required fields. Report prose is never read.
-- The generator emits `release-gate-manifest.json` and a SHA-256 sidecar. The verifier checks freshness, hash consistency, exact commit/repository, `GO` decision, zero blockers, all gate statuses, and then rechecks the recorded run and every gate job conclusion through the GitHub Actions API before publication.
-- Three external blockers remain explicit and fail-closed: `oidc-publish-receipt`, `publisher-ownership`, and `trusted-publishing-policy`. Untrusted workspace behavior is no longer an external blocker because it is a mandatory CI gate with its own evidence artifact.
-- Manual dispatch, explicit `confirm_publish`, local/remote duplicate tag checks, Marketplace version checks, OIDC confined to the publish job, and exact validated-VSIX checksum comparison are preserved.
+- The generator emits `release-gate-manifest.json` and a SHA-256 sidecar. The verifier checks freshness, hash consistency, exact commit/repository, all gate statuses, and then rechecks the recorded run and every gate job conclusion through the GitHub Actions API before publication. Its strict default still requires a `GO` decision and zero blockers; `--allow-no-go` is used only by the validation workflow to report authorization state.
+- Three external blockers remain explicit and fail-closed: `oidc-publish-receipt`, `publisher-ownership`, and `trusted-publishing-policy`. They are cleared only by a passing `evidence-<gate>` artifact for the same commit and run; a manifest may not pair evidence with a blocker for the same gate. No such evidence exists here, so the current manifest is NO-GO. Untrusted workspace behavior is no longer an external blocker because it is a mandatory CI gate with its own evidence artifact.
+- Manual dispatch, explicit `confirm_publish`, local/remote duplicate tag checks, Marketplace version checks, OIDC confined to the publish job, and exact validated-VSIX checksum comparison are preserved. The OIDC job additionally requires `needs.validate-release.outputs.authorized == 'true'`; a NO-GO validation reports a warning and skips publication.
 
 ### 12.6 Remaining unverified gates and decision
 
@@ -489,7 +489,7 @@ Unverified: hosted execution of the modified workflows and manifest artifact; Ma
 
 ## 13. Final reconciliation and release-readiness decision (2026-11-20)
 
-**Final decision: NO-GO for publication.** This is unchanged from the original audit and §12. GO is not claimed because at least one mandatory release gate has failed on GitHub Actions, the modified workflow/manifest implementation has no hosted run, four security/release-critical files are untracked, and three Marketplace/OIDC gates are unverified.
+**Final decision: NO-GO for publication.** This is unchanged from the original audit and §12. GO is not claimed because hosted run `44710375008` produced a NO-GO manifest, and the `oidc-publish-receipt`, `publisher-ownership`, and `trusted-publishing-policy` gates remain unverified. The follow-up workflow change makes that NO-GO a clear authorization warning with publication skipped rather than a validation-job failure; it does not authorize release.
 
 Status meanings used below:
 

@@ -246,6 +246,21 @@ Local validation passed: JS syntax, YAML parse, `git diff --check`, synthetic va
 
 The manifest still reports **NO-GO** because `oidc-publish-receipt`, `publisher-ownership`, and `trusted-publishing-policy` remain explicit UNVERIFIED blockers. This is deliberate fail-closed behavior, not a loosened gate.
 
+The hosted `confirm_publish=true` run `44710375008` exposed a separate workflow defect: validation
+failed at `Verify structured release gate manifest` because the generator always appended those
+three blockers and never recorded any external evidence, so a GO manifest was impossible. The
+implementation now accepts a passing `evidence-<gate>` artifact for each external gate only when
+it matches the exact commit and workflow run, and a manifest may not contain both evidence and a
+blocker for the same gate. No such evidence exists in this repository; therefore no GO is claimed
+and no publication has been performed.
+
+For the validation workflow, `verifyReleaseManifest.js` supports `--allow-no-go`. It still enforces
+the manifest hash, TTL, expected commit/repository, mandatory gate statuses, recorded run, and each
+recorded gate job, but emits `authorized=false` instead of failing solely because the policy
+decision is NO-GO. `publish-extension.yml` gates the OIDC job on `authorized=true` and prints a
+warning when publication is skipped. This keeps validation green for a known-blocked release
+without allowing publication.
+
 ---
 
 ## 10. Final reconciliation and gate status (2026-11-20)

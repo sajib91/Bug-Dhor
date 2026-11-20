@@ -94,6 +94,27 @@ The step script was inspected in the log: it is the deliberate
 `grep -Fq '**Decision:** **NO-GO for publication**' ../reports/PHASE_04_SECURITY_AUDIT.md` guard.
 This is correct behavior, not a workflow configuration defect.
 
+A later structured-manifest run, `44710375008`, failed at
+`Validate extension / Verify structured release gate manifest` with
+`manifest decision is NO-GO; publication requires GO`. The generator appended the three
+external blockers unconditionally and left `external_evidence` empty, so every run was NO-GO even
+when all 16 mandatory CI gates passed. This was a workflow design defect, not evidence that the
+release should be authorized.
+
+The fix separates validation from authorization without weakening the publication gate:
+
+- `scripts/generateReleaseManifest.js` now clears an external blocker only for a passing,
+  same-commit/same-run evidence artifact named `evidence-<gate>`. A manifest may not contain both
+  evidence and a blocker for the same gate.
+- `scripts/verifyReleaseManifest.js` keeps its strict default (`GO` required), but supports
+  `--allow-no-go` for validation workflows. In that mode it still verifies the manifest hash,
+  TTL, expected commit/repository, mandatory gates, recorded run, and all recorded gate jobs; it
+  writes `decision`, `authorized`, and `blockers` outputs instead of failing solely on NO-GO.
+- `.github/workflows/publish-extension.yml` uses that report-only mode in `Validate extension`,
+  emits a visible `NO-GO` warning, and gates the `Publish with OIDC` job on
+  `needs.validate-release.outputs.authorized == 'true'`. Publication remains skipped when any
+  blocker is open.
+
 ---
 
 ## 3. Exact root causes
@@ -257,15 +278,18 @@ Pre-existing Prettier findings remain in `test/integration/index.js` and
    - macOS/Ubuntu lint, unit, package, integration, and VSIX smoke jobs should remain green.
 2. Run `.github/workflows/publish-extension.yml` with `confirm_publish: false` to confirm every
    validation step passes without OIDC permission.
-3. `confirm_publish: true` cannot be verified until Phase 04 clears and Marketplace Trusted
-   Publishing is configured. OIDC success must not be claimed before that run.
+3. A `confirm_publish: true` run now completes validation with a visible NO-GO warning while
+   skipping `Publish with OIDC` until the manifest is GO. OIDC success still cannot be claimed
+   until the publisher owner configures Marketplace Trusted Publishing and an actual publish run
+   succeeds.
 
 ---
 
 ## 9. Remaining blockers
 
-- **Phase 04 NO-GO** — SEC-01–SEC-06 (2 CRITICAL, 4 HIGH) are still open; the publish guard is
-  intentionally failing and must not be weakened.
+- **Phase 04 NO-GO** — SEC-01–SEC-06 (2 CRITICAL, 4 HIGH) are still open; the publication gate is
+  intentionally closed. Validation no longer fails merely because the decision is NO-GO, but the
+  OIDC publish job cannot run without a verified GO manifest.
 - **Marketplace setup** — publisher ownership for `sajib91` and the Trusted Publishing policy are
   unverified.
 - **Windows/macOS** — cannot be executed locally; GitHub Actions verification is required.
@@ -284,6 +308,7 @@ npm ci
 npm --workspace vscode-extension run lint
 npm --workspace vscode-extension test
 npm --workspace vscode-extension run test:integration
+npm run test:release-manifest
 npm --workspace vscode-extension run package:list
 npm --workspace vscode-extension run package:vsix
 unzip -t vscode-extension/bug-dhor-0.1.0.vsix
@@ -302,8 +327,9 @@ gh workflow run "Extension compatibility tests" --repo sajib91/Bug-Dhor --ref ma
 gh workflow run "Publish extension (OIDC Trusted Publishing)" \
   --repo sajib91/Bug-Dhor --ref main -f confirm_publish=false
 
-# Do NOT run with confirm_publish=true until Phase 04 is GO and the Marketplace
-# Trusted Publishing policy is configured by the publisher owner.
+# A confirm_publish=true run is now safe for validation: it reports NO-GO and
+# skips publication until Phase 04 is GO and the Marketplace Trusted Publishing
+# policy is configured by the publisher owner.
 ```
 
 ---
@@ -316,7 +342,7 @@ gh workflow run "Publish extension (OIDC Trusted Publishing)" \
   CI error text reproduced and matched to source lines.
 - All locally executable checks pass: 416/416 unit tests, Extension Host integration, VSIX smoke,
   packaging, VSIX integrity, YAML parse, ESLint, and both `npm ci` strategies.
-- The only remaining publish failure is the deliberate Phase 04 release gate, which was verified in
-  the actual workflow log and left intact as required.
+- The deliberate Phase 04 release gate remains intact: a NO-GO manifest is reported clearly and the
+  OIDC publish job is skipped; it is no longer a spurious failure of the validation job.
 - Windows runners and OIDC authentication were not executed locally, so the final confirmation must
   come from the GitHub Actions re-run commands in §10.
