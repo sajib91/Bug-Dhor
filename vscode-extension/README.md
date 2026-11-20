@@ -32,8 +32,9 @@ findings — not that the code is secure.
   running backend.
 - Publish native VS Code diagnostics from validated backend findings, with hover explanations and
   Quick Fixes only for findings marked repair-eligible by the backend.
-- Open an 11-section **Bug-Dhor Security Dashboard**. It starts empty and merges only validated live
-  state; an explicitly labeled demo preview is available for interface exploration.
+- Open an 11-section **Bug-Dhor Security Dashboard**. It starts with explicit empty states and merges
+  only observed VS Code workspace data, file events, and validated backend responses. No demo or
+  sample data is available.
 - Opt in to model-independent workspace monitoring with debounced, version-aware, bounded analysis.
   Monitoring is off by default.
 - Request evidence-grounded explanations and configured counterfactual evidence. Missing artifacts

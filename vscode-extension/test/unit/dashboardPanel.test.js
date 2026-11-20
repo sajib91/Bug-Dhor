@@ -261,10 +261,10 @@ function createHarness(options = {}) {
     logger,
     feedback: options.feedback,
     memento: options.memento,
-    getState(dataMode) {
-      stateCalls.push(dataMode);
+    getState() {
+      stateCalls.push('state');
       return {
-        dataMode,
+        dataMode: 'empty',
         generatedAt: '2026-11-11T12:00:00.000Z',
         request: stateCalls.length
       };
@@ -384,7 +384,7 @@ test('dashboard panel opens once with local-resource and script options', () => 
   assert.match(panel.webview.html, /default-src &#39;none&#39;/);
   assert.match(panel.webview.html, /Loading dashboard/);
   assert.ok(!panel.webview.html.includes('unsafe-inline'));
-  assert.deepEqual(harness.stateCalls, ['empty']);
+  assert.deepEqual(harness.stateCalls, ['state']);
   assert.equal(panel.messageHandlerCount(), 1);
 
   harness.controller.dispose();
@@ -633,7 +633,7 @@ test('opening an existing dashboard reveals the same panel', () => {
   assert.equal(second, first);
   assert.equal(harness.createdPanels.length, 1);
   assert.deepEqual(first.revealCalls, [1]);
-  assert.deepEqual(harness.stateCalls, ['empty']);
+  assert.deepEqual(harness.stateCalls, ['state']);
 
   harness.controller.dispose();
 });
@@ -645,7 +645,7 @@ test('ready and refresh messages post the current state', async () => {
   await panel.send({ type: 'ready' });
   await panel.send({ type: 'refresh' });
 
-  assert.deepEqual(harness.stateCalls, ['empty', 'empty']);
+  assert.deepEqual(harness.stateCalls, ['state', 'state']);
   assert.deepEqual(panel.postedMessages, [
     {
       type: 'state',
@@ -653,7 +653,8 @@ test('ready and refresh messages post the current state', async () => {
         dataMode: 'empty',
         generatedAt: '2026-11-11T12:00:00.000Z',
         request: 1,
-        findingReviews: {}
+        findingReviews: {},
+        repairHistory: []
       }
     },
     {
@@ -662,7 +663,8 @@ test('ready and refresh messages post the current state', async () => {
         dataMode: 'empty',
         generatedAt: '2026-11-11T12:00:00.000Z',
         request: 2,
-        findingReviews: {}
+        findingReviews: {},
+        repairHistory: []
       }
     }
   ]);
@@ -687,7 +689,8 @@ test('live backend results replace unavailable dashboard data without inventing 
       request: 2,
       vulnerabilities: [{ findingId: 'finding-1' }],
       explanations: [{ findingId: 'finding-1', analysisAvailable: true }],
-      findingReviews: {}
+      findingReviews: {},
+      repairHistory: []
     }
   });
 
@@ -741,21 +744,22 @@ test('focusSection posts only valid section names to the webview', () => {
   harness.controller.dispose();
 });
 
-test('demo mode toggling validates input and rebuilds state', async () => {
+test('demo messages are ignored and never rebuild the dashboard with sample data', async () => {
   const harness = createHarness();
   const panel = harness.controller.open();
 
   await panel.send({ type: 'setDemoMode', enabled: true });
-  assert.deepEqual(harness.stateCalls, ['empty', 'demo']);
-  assert.equal(panel.postedMessages.at(-1).state.dataMode, 'demo');
-
   await panel.send({ type: 'setDemoMode', enabled: false });
-  assert.deepEqual(harness.stateCalls, ['empty', 'demo', 'empty']);
-  assert.equal(panel.postedMessages.at(-1).state.dataMode, 'empty');
-
   await panel.send({ type: 'setDemoMode', enabled: 'yes' });
-  assert.deepEqual(harness.stateCalls, ['empty', 'demo', 'empty']);
-  assert.ok(harness.logger.entries.some((entry) => entry.level === 'warn'));
+
+  assert.deepEqual(harness.stateCalls, ['state']);
+  assert.deepEqual(panel.postedMessages, []);
+  assert.ok(
+    harness.logger.entries.some(
+      (entry) => entry.message === 'Ignored an unknown dashboard message.'
+    )
+  );
+  assert.equal(harness.controller.buildCurrentState().dataMode, 'empty');
 
   harness.controller.dispose();
 });
@@ -787,6 +791,54 @@ test('finding review decisions are validated, persisted, and published', async (
 
   await restoredPanel.send({ type: 'setFindingReviewed', findingId: 42, reviewed: true });
   assert.ok(restored.logger.entries.some((entry) => entry.level === 'warn'));
+
+  harness.controller.dispose();
+  restored.controller.dispose();
+});
+
+test('repair history records only observed proposal, application, and verification results', async () => {
+  const stored = new Map();
+  const memento = {
+    get(key, fallback) {
+      return stored.has(key) ? stored.get(key) : fallback;
+    },
+    update(key, value) {
+      stored.set(key, value);
+      return undefined;
+    }
+  };
+  const harness = createHarness({ memento, approval: 'Apply Fix' });
+  const panel = harness.controller.open();
+  const historyKey = 'bugdhor.dashboard.repairHistory';
+
+  await harness.controller.recordRepairResult(repairResponse(), repairRequest());
+  let history = stored.get(historyKey);
+  assert.equal(history.length, 1);
+  assert.equal(history[0].status, 'proposed');
+  assert.equal(history[0].approvalStatus, 'pending');
+  assert.equal(history[0].applicationStatus, 'not-applied');
+  assert.equal(history[0].verificationStatus, 'not-run');
+  assert.equal(history[0].verifiedAt, undefined);
+
+  await harness.controller.acceptRepair({ repairId: 'repair-1' });
+  history = stored.get(historyKey);
+  assert.equal(history[0].status, 'accepted');
+  assert.equal(history[0].approvalStatus, 'approved');
+  assert.equal(history[0].applicationStatus, 'applied');
+  assert.equal(history[0].verificationStatus, 'not-run');
+  assert.equal(history[0].verifiedAt, undefined);
+
+  await harness.controller.recordVerificationResult(verificationResponse({ verdict: 'passed' }), {
+    repairId: 'repair-1'
+  });
+  history = stored.get(historyKey);
+  assert.equal(history[0].verificationStatus, 'passed');
+  assert.equal(typeof history[0].verifiedAt, 'string');
+  assert.equal(panel.postedMessages.at(-1).state.repairHistory[0].verificationStatus, 'passed');
+
+  const restored = createHarness({ memento });
+  assert.equal(restored.controller.repairHistory[0].verificationStatus, 'passed');
+  assert.equal(restored.controller.repairHistory[0].applicationStatus, 'applied');
 
   harness.controller.dispose();
   restored.controller.dispose();

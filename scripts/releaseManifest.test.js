@@ -116,6 +116,86 @@ async function startFakeGitHub(t, manifest) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
+test('missing required evidence produces a blocked NO-GO manifest with explicit blockers', (t) => {
+  const { evidenceDir, outputDir } = createWorkspace(t);
+  const missingFile = 'integration-macos-latest.json';
+  const missingGate = 'integration-macos-latest';
+  fs.rmSync(path.join(evidenceDir, missingFile));
+
+  const { manifest, outputPath, sidecarPath } = generateManifest(evidenceDir, outputDir);
+
+  assert.equal(manifest.decision, 'NO-GO');
+  assert.doesNotThrow(() => validateManifest(manifest));
+
+  const gate = manifest.gates[missingGate];
+  assert.equal(gate.status, 'blocked');
+  assert.equal(gate.evidence_path, `evidence/${missingFile}`);
+  assert.match(gate.evidence_sha256, /^[0-9a-f]{64}$/);
+  assert.match(gate.detail, /Required evidence file integration-macos-latest\.json is missing/);
+  assert.match(gate.detail, /synthetic in-memory evidence/);
+
+  const blocker = manifest.blockers.find(({ gate: name }) => name === missingGate);
+  assert.ok(blocker, `missing gate ${missingGate} must have a blocker`);
+  assert.equal(blocker.status, 'blocked');
+  assert.match(blocker.reason, /integration-macos-latest\.json is missing/);
+  assert.deepEqual(
+    manifest.blockers.map(({ gate: name }) => name).sort(),
+    [...EXTERNAL_BLOCKERS.map(({ gate }) => gate), missingGate].sort()
+  );
+
+  assert.equal(fs.existsSync(path.join(evidenceDir, missingFile)), false);
+  assert.deepEqual(fs.readdirSync(outputDir).sort(), [
+    'release-gate-manifest.json',
+    'release-gate-manifest.json.sha256'
+  ]);
+  assert.ok(fs.existsSync(outputPath));
+  assert.ok(fs.existsSync(sidecarPath));
+});
+
+test('missing python evidence is blocked without fabricated metrics', (t) => {
+  const { evidenceDir, outputDir } = createWorkspace(t);
+  fs.rmSync(path.join(evidenceDir, 'python-tests.json'));
+  fs.rmSync(path.join(evidenceDir, 'python-sca.json'));
+
+  const { manifest } = generateManifest(evidenceDir, outputDir);
+
+  assert.equal(manifest.decision, 'NO-GO');
+  assert.doesNotThrow(() => validateManifest(manifest));
+  for (const gate of ['python-tests', 'python-sca']) {
+    assert.equal(manifest.gates[gate].status, 'blocked');
+    assert.match(manifest.gates[gate].detail, /synthetic in-memory evidence/);
+    assert.ok(manifest.blockers.some((blocker) => blocker.gate === gate));
+  }
+  assert.equal(manifest.gates['python-tests'].test_count, undefined);
+  assert.equal(manifest.gates['python-sca'].lock_sha256, undefined);
+});
+
+test('present evidence is still strictly validated when another required file is missing', (t) => {
+  const { evidenceDir, outputDir } = createWorkspace(t);
+  fs.rmSync(path.join(evidenceDir, 'integration-macos-latest.json'));
+  writeEvidence(evidenceDir, 'unit-macos-latest', { commit_sha: 'c'.repeat(40) });
+
+  assert.throws(
+    () => generateManifest(evidenceDir, outputDir),
+    /unit-macos-latest commit_sha does not match the expected commit/
+  );
+});
+
+test('verifier never accepts synthetic blocked evidence, even in report-only mode', async (t) => {
+  const { evidenceDir, outputDir } = createWorkspace(t);
+  fs.rmSync(path.join(evidenceDir, 'integration-macos-latest.json'));
+  const { manifest } = generateManifest(evidenceDir, outputDir);
+
+  await assert.rejects(
+    () =>
+      verifyReleaseManifest(manifest, {
+        ...parseArgs([], {}),
+        allowNoGo: true
+      }),
+    /mandatory gate integration-macos-latest is not pass/
+  );
+});
+
 test('missing external evidence produces an explicit NO-GO manifest', (t) => {
   const { evidenceDir, outputDir } = createWorkspace(t);
   const { manifest } = generateManifest(evidenceDir, outputDir);

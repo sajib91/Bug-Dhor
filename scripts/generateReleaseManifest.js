@@ -389,6 +389,36 @@ function computeSha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+function missingEvidenceDetail(key, file) {
+  return (
+    `Required evidence file ${file} is missing; gate ${key} is blocked with ` +
+    `synthetic in-memory evidence (no CI evidence file was written).`
+  );
+}
+
+function createMissingRequiredEvidence(key, file, validationOptions, generatedAt) {
+  const raw = {
+    schema_version: SCHEMA_VERSION,
+    gate: key,
+    status: 'blocked',
+    commit_sha: validationOptions.commitSha,
+    run_id: validationOptions.runId,
+    run_url: validationOptions.runUrl,
+    generated_at: generatedAt,
+    detail: missingEvidenceDetail(key, file)
+  };
+  // The identity fields are already validated above. Do not run the full
+  // evidence validator here: it would require python-specific metrics that do
+  // not exist when their evidence file is missing. The manifest gate entry is
+  // still schema-validated, and the detail makes the synthetic source explicit.
+  assert(
+    raw.detail.length <= MAX_REASON_LENGTH,
+    `missing evidence detail for ${key} is too long`
+  );
+  const bytes = Buffer.from(`${JSON.stringify(raw)}\n`, 'utf8');
+  return { raw, hash: computeSha256(bytes), synthetic: true };
+}
+
 function parseArgs(argv, env) {
   const options = {
     evidenceDir: env.RELEASE_EVIDENCE_DIR || '',
@@ -473,10 +503,10 @@ function generate(options, now = new Date()) {
     throw new Error(`cannot read evidence directory ${options.evidenceDir}: ${error.message}`);
   }
   const expectedFiles = new Set(GATE_DEFINITIONS.map(({ file }) => file));
-  for (const file of expectedFiles) {
-    assert(files.includes(file), `missing required evidence file ${file}`);
-  }
-
+  // Missing required evidence is no longer a generation failure. It is turned
+  // into synthetic blocked evidence below, which keeps the manifest schema-valid
+  // while making the gate and the overall decision explicitly NO-GO. Every
+  // evidence file that is present is still validated with the same strict rules.
   const validationOptions = {
     commitSha,
     runId,
@@ -501,7 +531,13 @@ function generate(options, now = new Date()) {
       throw new Error(`${file} is not valid JSON`);
     }
     validateEvidence(raw, validationOptions);
-    rawByFile.set(file, { raw, hash: computeSha256(bytes) });
+    rawByFile.set(file, { raw, hash: computeSha256(bytes), synthetic: false });
+  }
+
+  for (const { key, file } of GATE_DEFINITIONS) {
+    if (!rawByFile.has(file)) {
+      rawByFile.set(file, createMissingRequiredEvidence(key, file, validationOptions, generatedAt));
+    }
   }
 
   const gates = {};
@@ -509,7 +545,7 @@ function generate(options, now = new Date()) {
   const trackedGates = new Set();
   const externalEvidence = [];
   for (const { key, file } of GATE_DEFINITIONS) {
-    const { raw, hash } = rawByFile.get(file);
+    const { raw, hash, synthetic } = rawByFile.get(file);
     const entry = {
       status: raw.status,
       evidence_path: `evidence/${file}`,
@@ -526,7 +562,14 @@ function generate(options, now = new Date()) {
       entry.detail = raw.detail;
     }
     gates[key] = entry;
-    if (raw.status !== 'pass') {
+    if (synthetic) {
+      blockers.push({
+        gate: key,
+        status: raw.status,
+        reason: `Required evidence file ${file} is missing; gate ${key} is blocked and cannot pass.`
+      });
+      trackedGates.add(key);
+    } else if (raw.status !== 'pass') {
       blockers.push({
         gate: key,
         status: raw.status,

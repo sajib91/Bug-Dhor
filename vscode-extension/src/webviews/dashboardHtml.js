@@ -156,9 +156,6 @@ ${buildNavigation()}
             <button type="button" class="button button--ghost" id="review-fixes-button">
               Review Fixes
             </button>
-            <button type="button" class="button button--secondary" id="demo-button">
-              Load demo preview
-            </button>
             <button type="button" class="button button--ghost" id="logs-button">
               Show logs
             </button>

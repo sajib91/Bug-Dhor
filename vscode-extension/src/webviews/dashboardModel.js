@@ -77,10 +77,6 @@ const DASHBOARD_SECTIONS = Object.freeze([
   })
 ]);
 
-const DEMO_NOTICE =
-  'Demo data: illustrative interface values only. Not produced by a scan or security engine. ' +
-  'SAE activations, feature effects, and verification results are not simulated.';
-
 /**
  * Commands the dashboard may request. Only engine-backed commands are listed;
  * the panel controller independently rejects anything outside its allowlist.
@@ -298,10 +294,30 @@ function createEmptyDashboardState(options = {}) {
     schemaVersion: DASHBOARD_SCHEMA_VERSION,
     dataMode: 'empty',
     generatedAt: options.generatedAt ?? new Date().toISOString(),
-    demoNotice: '',
     sections: DASHBOARD_SECTIONS,
     actions: DASHBOARD_ACTIONS,
     engine: normalizeEngine(options.engine),
+    // All of these are unknown until the extension host supplies observed data.
+    // A missing value is never replaced with a zero or a sample record.
+    workspace: {
+      available: false,
+      name: null,
+      path: null,
+      folders: []
+    },
+    inventory: {
+      available: false,
+      totalFiles: null,
+      languages: {},
+      truncated: null
+    },
+    scanStatus: {
+      discoveredFiles: null,
+      scannedFiles: null,
+      pendingFiles: null,
+      failedFiles: null,
+      failedScans: null
+    },
     summary: {
       totalFindings: null,
       severity: { critical: null, high: null, medium: null, low: null },
@@ -320,6 +336,7 @@ function createEmptyDashboardState(options = {}) {
     steering: unavailableSteeringState(),
     explanations: [],
     repairs: [],
+    repairHistory: [],
     recommendations: [],
     recommendationHistory: [],
     feedback: emptyFeedbackState(),
@@ -329,282 +346,17 @@ function createEmptyDashboardState(options = {}) {
   };
 }
 
-const DEMO_VULNERABILITIES = Object.freeze([
-  {
-    id: 'DEMO-001',
-    title: 'SQL injection in user lookup',
-    summary: 'A request parameter is concatenated into a SQL query.',
-    severity: 'critical',
-    cwe: 'CWE-89',
-    file: 'src/auth/session.ts',
-    line: 84,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-002',
-    title: 'SQL injection in report filter',
-    summary: 'A report filter reaches a query without parameterization.',
-    severity: 'critical',
-    cwe: 'CWE-89',
-    file: 'src/api/reports.py',
-    line: 142,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-003',
-    title: 'Reflected XSS in search results',
-    summary: 'The search term is written into HTML without escaping.',
-    severity: 'high',
-    cwe: 'CWE-79',
-    file: 'src/web/search.js',
-    line: 57,
-    status: 'triaged'
-  },
-  {
-    id: 'DEMO-004',
-    title: 'Stored XSS in comment rendering',
-    summary: 'Comment bodies are inserted as raw markup.',
-    severity: 'high',
-    cwe: 'CWE-79',
-    file: 'src/web/comments.jsx',
-    line: 121,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-005',
-    title: 'Path traversal in file download',
-    summary: 'A user-supplied filename is joined to a storage root without containment.',
-    severity: 'high',
-    cwe: 'CWE-22',
-    file: 'src/files/download.py',
-    line: 63,
-    status: 'in-review'
-  },
-  {
-    id: 'DEMO-006',
-    title: 'Hardcoded vendor API token',
-    summary: 'A credential-like literal is committed in an integration module.',
-    severity: 'high',
-    cwe: 'CWE-798',
-    file: 'src/integrations/vendor.py',
-    line: 19,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-007',
-    title: 'SQL concatenation in admin query',
-    summary: 'An admin filter is built with string formatting.',
-    severity: 'medium',
-    cwe: 'CWE-89',
-    file: 'src/admin/queries.py',
-    line: 88,
-    status: 'triaged'
-  },
-  {
-    id: 'DEMO-008',
-    title: 'XSS in profile biography',
-    summary: 'A profile field is rendered into a template without escaping.',
-    severity: 'medium',
-    cwe: 'CWE-79',
-    file: 'src/web/profile.js',
-    line: 73,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-009',
-    title: 'Path traversal in template loader',
-    summary: 'Template names are resolved without a containment check.',
-    severity: 'medium',
-    cwe: 'CWE-22',
-    file: 'src/templates/loader.py',
-    line: 41,
-    status: 'in-review'
-  },
-  {
-    id: 'DEMO-010',
-    title: 'Hardcoded database password',
-    summary: 'A database password literal is used as a fallback.',
-    severity: 'medium',
-    cwe: 'CWE-798',
-    file: 'src/db/config.py',
-    line: 27,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-011',
-    title: 'Unsafe YAML deserialization',
-    summary: 'Untrusted YAML is loaded with a permissive loader.',
-    severity: 'medium',
-    cwe: 'CWE-502',
-    file: 'src/jobs/serializer.py',
-    line: 112,
-    status: 'triaged'
-  },
-  {
-    id: 'DEMO-012',
-    title: 'XML external entity expansion',
-    summary: 'The XML parser enables external entities.',
-    severity: 'medium',
-    cwe: 'CWE-611',
-    file: 'src/importers/xml_reader.py',
-    line: 36,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-013',
-    title: 'Second SQL filter in metrics endpoint',
-    summary: 'A metrics dimension is concatenated into a query.',
-    severity: 'medium',
-    cwe: 'CWE-89',
-    file: 'src/metrics/query.py',
-    line: 95,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-014',
-    title: 'SQL string assembled in migration helper',
-    summary: 'A migration helper concatenates a table name.',
-    severity: 'low',
-    cwe: 'CWE-89',
-    file: 'src/db/migrate.py',
-    line: 54,
-    status: 'triaged'
-  },
-  {
-    id: 'DEMO-015',
-    title: 'Unescaped error message in HTML',
-    summary: 'An error detail is rendered into a status banner.',
-    severity: 'low',
-    cwe: 'CWE-79',
-    file: 'src/web/errors.js',
-    line: 31,
-    status: 'open'
-  },
-  {
-    id: 'DEMO-016',
-    title: 'Path join without containment check',
-    summary: 'A local asset path is joined without normalization.',
-    severity: 'low',
-    cwe: 'CWE-22',
-    file: 'src/assets/paths.py',
-    line: 22,
-    status: 'in-review'
-  },
-  {
-    id: 'DEMO-017',
-    title: 'Committed test credential',
-    summary: 'A fixture contains a credential-like literal.',
-    severity: 'low',
-    cwe: 'CWE-798',
-    file: 'tests/fixtures/auth.py',
-    line: 14,
-    status: 'triaged'
-  },
-  {
-    id: 'DEMO-018',
-    title: 'Insecure deserialization fallback',
-    summary: 'A cache fallback uses a permissive deserializer.',
-    severity: 'low',
-    cwe: 'CWE-502',
-    file: 'src/cache/fallback.py',
-    line: 67,
-    status: 'open'
-  }
-]);
-
 /**
  * @param {{
- *   settings?: Partial<typeof DEFAULT_SETTINGS>,
- *   engine?: { status?: string, label?: string, detail?: string },
- *   generatedAt?: string
- * }} [options]
- */
-function createDemoDashboardState(options = {}) {
-  const generatedAt = options.generatedAt ?? new Date().toISOString();
-  const baseTime = new Date(generatedAt).getTime();
-  const hoursAgo = (hours) => new Date(baseTime - hours * 60 * 60 * 1000).toISOString();
-
-  const empty = createEmptyDashboardState({ ...options, generatedAt });
-
-  return {
-    ...empty,
-    dataMode: 'demo',
-    demoNotice: DEMO_NOTICE,
-    summary: {
-      totalFindings: 18,
-      severity: { critical: 2, high: 4, medium: 7, low: 5 },
-      categories: {},
-      statuses: {},
-      lastScanAt: hoursAgo(2),
-      workspaceName: 'demo-workspace'
-    },
-    vulnerabilityDistribution: [
-      { key: 'critical', label: 'Critical', count: 2 },
-      { key: 'high', label: 'High', count: 4 },
-      { key: 'medium', label: 'Medium', count: 7 },
-      { key: 'low', label: 'Low', count: 5 }
-    ],
-    cweDistribution: [
-      { cwe: 'CWE-89', label: 'SQL Injection', count: 5 },
-      { cwe: 'CWE-79', label: 'Cross-site Scripting', count: 4 },
-      { cwe: 'CWE-22', label: 'Path Traversal', count: 3 },
-      { cwe: 'CWE-798', label: 'Hardcoded Credentials', count: 3 },
-      { cwe: 'CWE-502', label: 'Unsafe Deserialization', count: 2 },
-      { cwe: 'CWE-611', label: 'XML External Entity', count: 1 }
-    ],
-    scanHistory: [
-      {
-        id: 'DEMO-SCAN-3',
-        startedAt: hoursAgo(2),
-        scope: 'Workspace',
-        status: 'completed',
-        findings: 18,
-        durationMs: 42000
-      },
-      {
-        id: 'DEMO-SCAN-2',
-        startedAt: hoursAgo(26),
-        scope: 'Selection: src/auth/session.ts',
-        status: 'completed',
-        findings: 3,
-        durationMs: 1800
-      },
-      {
-        id: 'DEMO-SCAN-1',
-        startedAt: hoursAgo(72),
-        scope: 'Current file: src/api/reports.py',
-        status: 'partial',
-        findings: 2,
-        durationMs: 950
-      }
-    ],
-    vulnerabilities: DEMO_VULNERABILITIES.map((finding) => ({ ...finding })),
-    sae: unavailableSaeState(),
-    featureInteractions: unavailableInteractionState(),
-    steering: unavailableSteeringState(),
-    explanations: [],
-    repairs: [],
-    verification: {
-      ...notRunVerificationState(),
-      summary: 'Demo preview only. No verification checks were executed.'
-    },
-    reports: []
-  };
-}
-
-/**
- * @param {{
- *   dataMode?: 'empty' | 'demo' | 'live',
+ *   dataMode?: 'empty' | 'live',
  *   settings?: Partial<typeof DEFAULT_SETTINGS>,
  *   engine?: { status?: string, label?: string, detail?: string },
  *   generatedAt?: string
  * }} [options]
  */
 function buildDashboardState(options = {}) {
-  const { dataMode = 'empty' } = options;
-  if (dataMode === 'demo') {
-    return createDemoDashboardState(options);
-  }
+  // There is no sample-data mode. The panel overlays only results that the
+  // extension host observed; this function never invents a scan result.
   return createEmptyDashboardState(options);
 }
 
@@ -612,14 +364,12 @@ module.exports = {
   DASHBOARD_SCHEMA_VERSION,
   DASHBOARD_SECTIONS,
   DASHBOARD_ACTIONS,
-  DEMO_NOTICE,
   ENGINE_UNAVAILABLE,
   DEFAULT_SETTINGS,
   LOG_LEVELS,
   normalizeSettings,
   normalizeEngine,
   createEmptyDashboardState,
-  createDemoDashboardState,
   emptyFeedbackState,
   buildDashboardState
 };

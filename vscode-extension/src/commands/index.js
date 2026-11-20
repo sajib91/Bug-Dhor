@@ -76,6 +76,7 @@ function assertCompleteRegistry(registry) {
  *   engineManager?: import('../engine/engineManager').EngineManager,
  *   getRecommendationSettings?: () => object,
  *   getRepositorySettings?: () => object,
+ *   engineHooks?: object,
  *   trustGate?: { assertCapability: (operation?: string) => void },
  *   gitRunner?: (cwd: string, args: string[], timeoutMs: number) => Promise<string>,
  *   phase6Runner?: (command: string, args: string[], options: object) => Promise<{ stdout: string, stderr: string }>
@@ -94,6 +95,7 @@ function registerCommands({
   engineManager,
   getRecommendationSettings,
   getRepositorySettings,
+  engineHooks,
   trustGate,
   gitRunner,
   phase6Runner
@@ -132,6 +134,7 @@ function registerCommands({
     getSettings: getRecommendationSettings,
     getRepositorySettings:
       getRepositorySettings ?? (() => ({ backendUrl: 'http://127.0.0.1:8765' })),
+    engineHooks,
     trustGate,
     gitRunner,
     phase6Runner

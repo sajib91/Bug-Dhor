@@ -60,7 +60,7 @@ The extension **does not start or supervise** the backend process. A separately 
 | Assistant/provider adapters | A–F taxonomy, documented provider access, provenance, discovery failures | **Partial** — adapter contracts and validation exist; live hosted/local targets are unavailable in this workspace |
 | `SecurityEngineService` | Versioned HTTP transport, bearer token, timeouts, cancellation, strict response validation | **Fully** |
 | `DiagnosticController` | Validates findings, workspace containment, native diagnostics, hover, Quick Fix | **Fully** |
-| Dashboard/views | Eleven sections, strict CSP, backend state only, explicitly labelled demo data | **Fully** for rendering and state handling |
+| Dashboard/views | Eleven sections, strict CSP, observed workspace and backend state only, no demo data | **Fully** for rendering and state handling |
 | Patch approval | Workspace edits only after explicit approval and hash revalidation | **Fully** for the approval workflow; no automatic application |
 
 Editor monitoring is observation of ordinary VS Code document events. It is **not** direct access to an AI assistant or a model. Source text is shared only when both automatic monitoring consent and the general source-sharing setting permit it. Workspace scans send folder metadata only.

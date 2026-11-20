@@ -64,13 +64,33 @@ function reportFailure({ vscode, logger }, commandTitle, error, expected) {
  *   definition: { title: string, progressTitle: string },
  *   prepare: (context?: { token: import('vscode').CancellationToken, progress: import('vscode').Progress<{ message?: string }> }) => object | Promise<object>,
  *   invoke: (request: object, context: { token: import('vscode').CancellationToken, progress: import('vscode').Progress<{ message?: string }> }) => Promise<unknown>,
- *   onResult?: (result: unknown, request: object) => void | Promise<void>
+ *   onRequest?: (event: { definition: object, request: object, startedAt: string }) => unknown | Promise<unknown>,
+ *   onResult?: (result: unknown, request: object, meta?: unknown) => void | Promise<void>,
+ *   onError?: (event: { error: unknown, request: object, meta?: unknown }) => void | Promise<void>
  * }} command
  * @returns {Promise<unknown>}
  */
-async function runEngineCommand(dependencies, { definition, prepare, invoke, onResult }) {
+async function runEngineCommand(
+  dependencies,
+  { definition, prepare, invoke, onRequest, onResult, onError }
+) {
   const { vscode, logger } = dependencies;
   let cancellationToken;
+  let requestMeta;
+  let lastRequest;
+
+  /** Hooks are observability only; a hook failure must never alter a scan. */
+  async function callHook(hook, ...args) {
+    if (typeof hook !== 'function') {
+      return undefined;
+    }
+    try {
+      return await hook(...args);
+    } catch (error) {
+      logger.warn(`Command observer failed: ${redactText(error)}`);
+      return undefined;
+    }
+  }
   try {
     dependencies.trustGate?.assertCapability?.('sourceAnalysis');
     return await vscode.window.withProgress(
@@ -89,19 +109,23 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke, onR
         // potentially slow local work can report progress and observe the same
         // cancellation token as the backend request.
         const request = await prepare({ token, progress });
+        lastRequest = request;
         if (token.isCancellationRequested) {
           logger.info(`${definition.title} cancelled.`);
           return undefined;
         }
+        requestMeta = await callHook(onRequest, {
+          definition,
+          request,
+          startedAt: new Date().toISOString()
+        });
         progress.report({ message: 'Contacting the Bug Dhor backend.' });
         const result = await invoke(request, { token, progress });
         if (token.isCancellationRequested) {
           logger.info(`${definition.title} cancelled.`);
           return undefined;
         }
-        if (onResult) {
-          await onResult(result, request);
-        }
+        await callHook(onResult, result, request, requestMeta);
         return result;
       }
     );
@@ -110,6 +134,7 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke, onR
       logger.info(`${definition.title} cancelled.`);
       return undefined;
     }
+    await callHook(onError, { error, request: lastRequest, meta: requestMeta, definition });
     reportFailure(dependencies, definition.title, error, error instanceof CommandValidationError);
     return undefined;
   }

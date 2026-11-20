@@ -294,6 +294,9 @@ function buildLiveScanHistoryEntry({
     scope,
     status: validStatus,
     findings: accepted.length,
+    ...(Number.isInteger(resultRecord.filesScanned)
+      ? { filesScanned: resultRecord.filesScanned }
+      : {}),
     ...(typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0
       ? { durationMs }
       : {})

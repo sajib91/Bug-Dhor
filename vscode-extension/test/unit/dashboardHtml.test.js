@@ -59,6 +59,7 @@ test('dashboard shell loads the local stylesheet and nonce-authorized script', (
   );
   assert.ok(html.includes('Skip to dashboard content'));
   assert.ok(html.includes('Bug Dhor Security Dashboard'));
+  assert.ok(!/\bdemo\b/i.test(html), 'the dashboard shell must not offer demo data');
 });
 
 test('dashboard shell renders all eleven accessible navigation tabs', () => {

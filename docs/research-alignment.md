@@ -143,7 +143,7 @@ If any item is missing, the capability is **unavailable**. There is no fallback 
 
 - Production code paths must never generate synthetic activations, synthetic feature values, or synthetic feature labels.
 - Unit tests may use toy SAE tensors to validate arithmetic. Such fixtures are stored under `tests/fixtures/`, marked `synthetic-test-only`, and cannot be registered in the production registry.
-- Demo mode, if ever added, must be visibly labelled `synthetic demo` and must not write to experiment records or capability discovery.
+- The extension dashboard must not provide a demo mode. Synthetic or illustrative data belongs only in isolated test fixtures and must never enter runtime state, capability discovery, or experiment records.
 
 ### 4.5 Feature cards and labelling
 

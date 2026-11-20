@@ -15,6 +15,8 @@ const DASHBOARD_VIEW_TYPE = 'bugdhor.dashboard';
 const DASHBOARD_TITLE = 'Bug Dhor Security Dashboard';
 const SETTINGS_QUERY = 'bugdhor';
 const FINDING_REVIEWS_KEY = 'bugdhor.dashboard.findingReviews';
+const REPAIR_HISTORY_KEY = 'bugdhor.dashboard.repairHistory';
+const MAX_REPAIR_HISTORY = 100;
 const MAX_REPLACEMENT_BYTES = 2 * 1024 * 1024;
 
 function hashText(text) {
@@ -115,7 +117,7 @@ class DashboardPanelController {
    *   vscode: import('vscode'),
    *   extensionUri: import('vscode').Uri,
    *   logger: import('../logging/output').Logger,
-   *   getState?: (dataMode: 'empty' | 'demo') => object,
+   *   getState?: () => object,
    *   feedback?: import('../feedback/feedbackController').FeedbackController,
    *   memento?: { get: (key: string, fallback: unknown) => unknown, update: (key: string, value: unknown) => unknown }
    * }} options
@@ -135,12 +137,11 @@ class DashboardPanelController {
     this.extensionUri = extensionUri;
     this.logger = logger;
     this.getState = getState ?? (() => createEmptyDashboardState());
-    this.dataMode = 'empty';
     this.liveData = {};
     this.repairRecords = new Map();
-    this.repairHistory = [];
     this.feedback = feedback ?? null;
     this.memento = memento ?? null;
+    this.repairHistory = this.loadRepairHistory();
     this.findingReviews = this.loadFindingReviews();
     this.recommendationHistory = [];
     /** @type {import('vscode').WebviewPanel | undefined} */
@@ -176,6 +177,73 @@ class DashboardPanelController {
       this.logger.warn(`Unable to restore reviewed finding state: ${redactError(error)}`);
     }
     return reviews;
+  }
+
+  /**
+   * Restore only repair records that were explicitly written by a real repair
+   * operation. Malformed entries are discarded instead of being shown as
+   * history. This state is local to extension storage and never sent to the
+   * backend.
+   *
+   * @returns {object[]}
+   */
+  loadRepairHistory() {
+    if (!this.memento || typeof this.memento.get !== 'function') {
+      return [];
+    }
+    try {
+      const stored = this.memento.get(REPAIR_HISTORY_KEY, []);
+      if (!Array.isArray(stored)) {
+        return [];
+      }
+      return stored
+        .filter(
+          (entry) =>
+            entry &&
+            typeof entry === 'object' &&
+            !Array.isArray(entry) &&
+            typeof entry.id === 'string' &&
+            entry.id.length > 0 &&
+            typeof entry.timestamp === 'string' &&
+            typeof entry.status === 'string'
+        )
+        .slice(0, MAX_REPAIR_HISTORY)
+        .map((entry) => ({ ...entry }));
+    } catch (error) {
+      this.logger.warn(`Unable to restore repair history: ${redactError(error)}`);
+      return [];
+    }
+  }
+
+  /**
+   * Persist the observed repair history. Any storage failure is logged; it
+   * never turns a real operation into a fabricated success.
+   */
+  persistRepairHistory() {
+    if (!this.memento || typeof this.memento.update !== 'function') {
+      return;
+    }
+    void Promise.resolve(this.memento.update(REPAIR_HISTORY_KEY, this.repairHistory)).catch(
+      (error) => {
+        this.logger.warn(`Unable to persist repair history: ${redactError(error)}`);
+      }
+    );
+  }
+
+  /**
+   * Add or replace one repair-history record using only observed values.
+   *
+   * @param {Record<string, any>} entry
+   */
+  recordRepairHistory(entry) {
+    if (!entry || typeof entry.id !== 'string' || entry.id.length === 0) {
+      return;
+    }
+    this.repairHistory = [
+      { ...entry },
+      ...this.repairHistory.filter((item) => item.id !== entry.id)
+    ].slice(0, MAX_REPAIR_HISTORY);
+    this.persistRepairHistory();
   }
 
   /**
@@ -291,13 +359,6 @@ class DashboardPanelController {
       case 'refresh':
         this.refresh();
         break;
-      case 'setDemoMode':
-        if (typeof message.enabled !== 'boolean') {
-          this.logger.warn('Ignored a malformed dashboard data-mode request.');
-          return;
-        }
-        this.setDataMode(message.enabled ? 'demo' : 'empty');
-        break;
       case 'executeCommand':
         await this.executeDashboardCommand(message.command);
         break;
@@ -391,19 +452,6 @@ class DashboardPanelController {
       return;
     }
     await this.executeDashboardCommand(COMMANDS.scanCurrentFile);
-  }
-
-  /**
-   * @param {'empty' | 'demo'} dataMode
-   */
-  setDataMode(dataMode) {
-    this.dataMode = dataMode === 'demo' ? 'demo' : 'empty';
-    if (!this.panel) {
-      return;
-    }
-    this.state = this.buildCurrentState();
-    this.postState();
-    this.logger.debug(`Dashboard data mode: ${this.dataMode}.`);
   }
 
   refresh() {
@@ -504,9 +552,14 @@ class DashboardPanelController {
       cwe: request.finding?.cwe ?? result.metadata?.cwe ?? null
     };
     this.repairRecords.set(repairId, record);
-    this.repairHistory.unshift({
+    this.recordRepairHistory({
       id: repairId,
+      findingId: record.findingId,
+      filePath: record.filePath,
+      patch: record.patch,
       status: 'proposed',
+      approvalStatus: 'pending',
+      applicationStatus: 'not-applied',
       verificationStatus: record.verificationStatus,
       timestamp: new Date().toISOString()
     });
@@ -556,11 +609,14 @@ class DashboardPanelController {
       record.cwe = record.cwe ?? result.cwe ?? null;
     }
 
-    this.repairHistory = this.repairHistory.map((entry) =>
-      entry.id === record.id
-        ? { ...entry, verificationStatus: record.verificationStatus, verifiedAt: record.verifiedAt }
-        : entry
-    );
+    const historyEntry = this.repairHistory.find((entry) => entry.id === record.id);
+    if (historyEntry) {
+      this.recordRepairHistory({
+        ...historyEntry,
+        verificationStatus: record.verificationStatus,
+        verifiedAt: record.verifiedAt
+      });
+    }
     this.updateRepairState(record);
   }
 
@@ -817,6 +873,17 @@ class DashboardPanelController {
     record.appliedText = patchedText;
     record.status = 'accepted';
     record.selectedCandidateId = candidate?.candidateId ?? 'full-text';
+    const appliedHistory = this.repairHistory.find((entry) => entry.id === record.id);
+    if (appliedHistory) {
+      this.recordRepairHistory({
+        ...appliedHistory,
+        approvedPatch: candidate?.patch ?? record.patch,
+        approvalStatus: 'approved',
+        applicationStatus: 'applied',
+        status: 'accepted',
+        appliedAt: new Date().toISOString()
+      });
+    }
     // Only this explicit, approved application path is recorded as an
     // extension-authored patch. Editor events are never treated as evidence.
     this.feedback?.recordAppliedPatch?.({
@@ -925,6 +992,15 @@ class DashboardPanelController {
       return;
     }
     record.status = status;
+    const historyEntry = this.repairHistory.find((entry) => entry.id === repairId);
+    if (historyEntry) {
+      this.recordRepairHistory({
+        ...historyEntry,
+        status,
+        approvalStatus: status === 'rejected' ? 'rejected' : historyEntry.approvalStatus,
+        applicationStatus: status === 'stale' ? 'not-applied' : historyEntry.applicationStatus
+      });
+    }
     this.updateRepairState(record);
   }
 
@@ -1022,16 +1098,15 @@ class DashboardPanelController {
   }
 
   buildCurrentState() {
-    const base = this.getState(this.dataMode);
+    const base = this.getState();
     const findingReviews = Object.fromEntries(this.findingReviews);
-    if (this.dataMode !== 'empty' || Object.keys(this.liveData).length === 0) {
-      return { ...base, findingReviews };
-    }
+    const observed = Object.keys(this.liveData).length > 0;
     return {
       ...base,
       ...this.liveData,
+      ...(observed ? { dataMode: 'live' } : {}),
       findingReviews,
-      dataMode: 'live'
+      repairHistory: this.repairHistory.map((entry) => ({ ...entry }))
     };
   }
 
@@ -1087,7 +1162,6 @@ class DashboardPanelController {
     this.state = undefined;
     this.liveData = {};
     this.repairRecords.clear();
-    this.repairHistory = [];
     this.recommendationHistory = [];
     this.disposeListeners();
     this.logger.debug('Closed the Bug Dhor security dashboard.');

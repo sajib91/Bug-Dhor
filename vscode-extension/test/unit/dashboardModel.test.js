@@ -9,11 +9,9 @@ const {
   DASHBOARD_SCHEMA_VERSION,
   DASHBOARD_SECTIONS,
   DASHBOARD_ACTIONS,
-  DEMO_NOTICE,
   ENGINE_UNAVAILABLE,
   buildDashboardState,
   createEmptyDashboardState,
-  createDemoDashboardState,
   normalizeEngine,
   normalizeSettings
 } = require('../../src/webviews/dashboardModel');
@@ -78,7 +76,7 @@ test('empty dashboard state reports unknowns as null, never zero', () => {
 
   assert.equal(state.schemaVersion, DASHBOARD_SCHEMA_VERSION);
   assert.equal(state.dataMode, 'empty');
-  assert.equal(state.demoNotice, '');
+  assert.equal(state.demoNotice, undefined);
   assert.equal(state.generatedAt, '2026-11-11T12:00:00.000Z');
   assert.equal(state.sections, DASHBOARD_SECTIONS);
   assert.equal(state.actions, DASHBOARD_ACTIONS);
@@ -91,6 +89,26 @@ test('empty dashboard state reports unknowns as null, never zero', () => {
   });
   assert.equal(state.summary.lastScanAt, null);
   assert.equal(state.summary.workspaceName, null);
+  assert.deepEqual(state.workspace, {
+    available: false,
+    name: null,
+    path: null,
+    folders: []
+  });
+  assert.deepEqual(state.inventory, {
+    available: false,
+    totalFiles: null,
+    languages: {},
+    truncated: null
+  });
+  assert.deepEqual(state.scanStatus, {
+    discoveredFiles: null,
+    scannedFiles: null,
+    pendingFiles: null,
+    failedFiles: null,
+    failedScans: null
+  });
+  assert.deepEqual(state.repairHistory, []);
   assert.deepEqual(state.vulnerabilityDistribution, []);
   assert.deepEqual(state.cweDistribution, []);
   assert.deepEqual(state.scanHistory, []);
@@ -118,78 +136,50 @@ test('empty dashboard state reports unknowns as null, never zero', () => {
   assert.deepEqual(state.engine, ENGINE_UNAVAILABLE);
 });
 
-test('demo dashboard state is explicitly labelled and internally consistent', () => {
-  const state = createDemoDashboardState({ generatedAt: '2026-11-11T12:00:00.000Z' });
+test('dashboard state contains no sample findings, scan history, or research results', () => {
+  const state = createEmptyDashboardState({ generatedAt: '2026-11-11T12:00:00.000Z' });
 
-  assert.equal(state.dataMode, 'demo');
-  assert.equal(state.demoNotice, DEMO_NOTICE);
-  assert.match(state.demoNotice, /Demo data/);
-  assert.match(state.demoNotice, /not produced by a scan/i);
-  assert.equal(state.summary.totalFindings, 18);
-  assert.equal(state.vulnerabilities.length, 18);
-  assert.equal(
-    state.summary.severity.critical +
-      state.summary.severity.high +
-      state.summary.severity.medium +
-      state.summary.severity.low,
-    state.summary.totalFindings
-  );
-
-  for (const severity of ['critical', 'high', 'medium', 'low']) {
-    assert.equal(
-      state.vulnerabilities.filter((finding) => finding.severity === severity).length,
-      state.summary.severity[severity]
-    );
-  }
-
-  assert.equal(
-    state.vulnerabilityDistribution.reduce((sum, item) => sum + item.count, 0),
-    state.summary.totalFindings
-  );
-  assert.equal(
-    state.cweDistribution.reduce((sum, item) => sum + item.count, 0),
-    state.summary.totalFindings
-  );
-
-  for (const item of state.cweDistribution) {
-    assert.equal(
-      state.vulnerabilities.filter((finding) => finding.cwe === item.cwe).length,
-      item.count,
-      `${item.cwe} count must match the demo findings`
-    );
-  }
-
-  assert.equal(state.scanHistory.length, 3);
-  assert.ok(state.scanHistory.every((scan) => typeof scan.startedAt === 'string'));
-});
-
-test('demo mode does not simulate SAE, interaction, steering, repair, or verification results', () => {
-  const state = createDemoDashboardState({ generatedAt: '2026-11-11T12:00:00.000Z' });
-
+  assert.equal(state.summary.totalFindings, null);
+  assert.equal(state.scanStatus.scannedFiles, null);
+  assert.equal(state.scanStatus.pendingFiles, null);
+  assert.equal(state.scanStatus.failedFiles, null);
+  assert.deepEqual(state.scanHistory, []);
+  assert.deepEqual(state.vulnerabilities, []);
+  assert.deepEqual(state.cweDistribution, []);
+  assert.deepEqual(state.vulnerabilityDistribution, []);
+  assert.deepEqual(state.repairHistory, []);
+  assert.deepEqual(state.explanations, []);
+  assert.deepEqual(state.repairs, []);
+  assert.deepEqual(state.recommendations, []);
+  assert.deepEqual(state.reports, []);
   assert.equal(state.sae.available, false);
   assert.deepEqual(state.sae.features, []);
   assert.equal(state.featureInteractions.available, false);
   assert.deepEqual(state.featureInteractions.items, []);
   assert.equal(state.steering.available, false);
   assert.deepEqual(state.steering.controls, []);
-  assert.deepEqual(state.explanations, []);
-  assert.deepEqual(state.repairs, []);
-  assert.deepEqual(state.reports, []);
   assert.equal(state.verification.status, 'not-run');
   assert.deepEqual(state.verification.checks, []);
   assert.equal(state.verification.executionSandbox.available, false);
-  assert.match(state.verification.summary, /Demo preview only/);
+  assert.ok(!/\bdemo\b/i.test(JSON.stringify(state)), 'no demo marker may be serialized');
 });
 
-test('buildDashboardState selects the requested data mode', () => {
+test('buildDashboardState never invents live or demo data', () => {
   const generatedAt = '2026-11-11T12:00:00.000Z';
   const empty = buildDashboardState({ dataMode: 'empty', generatedAt });
-  const demo = buildDashboardState({ dataMode: 'demo', generatedAt });
-  const fallback = buildDashboardState({ dataMode: 'live', generatedAt });
+  const live = buildDashboardState({ dataMode: 'live', generatedAt });
+  const unsupported = buildDashboardState({ dataMode: 'demo', generatedAt });
 
-  assert.equal(empty.dataMode, 'empty');
-  assert.equal(demo.dataMode, 'demo');
-  assert.equal(fallback.dataMode, 'empty', 'live data must not be invented');
+  for (const state of [empty, live, unsupported]) {
+    assert.equal(state.dataMode, 'empty');
+    assert.equal(state.demoNotice, undefined);
+    assert.equal(state.summary.totalFindings, null);
+    assert.equal(state.summary.lastScanAt, null);
+    assert.deepEqual(state.vulnerabilities, []);
+    assert.deepEqual(state.scanHistory, []);
+    assert.deepEqual(state.repairHistory, []);
+    assert.ok(!/\bdemo\b/i.test(JSON.stringify(state)), 'no demo marker may be serialized');
+  }
 });
 
 test('settings and engine normalization reject unsupported values', () => {

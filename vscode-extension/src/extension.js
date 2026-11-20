@@ -9,6 +9,9 @@ const { registerCommands } = require('./commands');
 const { registerSidebarView } = require('./webviews/sidebarView');
 const { DashboardPanelController } = require('./webviews/dashboardPanel');
 const { buildDashboardState } = require('./webviews/dashboardModel');
+const { createWorkspaceSnapshotProvider } = require('./webviews/workspaceSnapshot');
+const { ScanStatusTracker, pathKey } = require('./webviews/scanStatusTracker');
+const { evaluateFileEligibility } = require('./monitoring/fileFilter');
 const {
   appendLiveScanHistory,
   buildLiveScanDashboardPatch,
@@ -235,12 +238,20 @@ function activate(context) {
     logger,
     feedback,
     memento: context.globalState,
-    getState: (dataMode) =>
+    getState: () =>
       buildDashboardState({
-        dataMode,
         settings: trustGate.sanitizeSettings(readSettings())
       })
   });
+
+  // Workspace and scan values are never guessed. Both providers begin with
+  // unknown values and are updated only from VS Code APIs and backend responses.
+  const workspaceSnapshot = createWorkspaceSnapshotProvider({
+    vscode,
+    logger,
+    getSettings: () => getRepositorySettings(trustGate)
+  });
+  const scanStatus = new ScanStatusTracker();
 
   /** @returns {object} */
   function engineViewStatus(status) {
@@ -262,6 +273,41 @@ function activate(context) {
 
   /** @type {() => void} */
   let publishRuntimeState = () => {};
+
+  const SCAN_SERVICE_METHODS = new Set(['scanFile', 'scanSelection', 'scanWorkspace']);
+
+  /** @param {unknown} definition */
+  function isScanOperation(definition) {
+    return Boolean(definition && SCAN_SERVICE_METHODS.has(definition.serviceMethod));
+  }
+
+  const engineHooks = {
+    /** @param {{ definition: object, request: object, startedAt: string }} event */
+    onRequest: ({ definition, request }) => {
+      if (!isScanOperation(definition)) {
+        return undefined;
+      }
+      const meta = scanStatus.begin({ request, definition });
+      publishRuntimeState();
+      return meta;
+    },
+    /** @param {unknown} result @param {object} request @param {unknown} meta */
+    onResult: (result, request, meta) => {
+      if (!meta) {
+        return;
+      }
+      scanStatus.complete({ result, request, meta });
+      publishRuntimeState();
+    },
+    /** @param {{ error: unknown, request?: object, meta?: unknown, definition: object }} event */
+    onError: ({ error, request, meta, definition }) => {
+      if (!isScanOperation(definition)) {
+        return;
+      }
+      scanStatus.fail({ error, request, meta });
+      publishRuntimeState();
+    }
+  };
 
   const engineManager = new EngineManager({
     service,
@@ -295,6 +341,13 @@ function activate(context) {
       // the dashboard never re-parses the raw backend response. Scoped scans
       // replace only their own findings; an unscoped scan replaces the set.
       liveFindings = mergeLiveFindings(liveFindings, findings, event?.scopeUris ?? []);
+      // Diagnostic publication happens only after a validated backend response.
+      // It also covers background monitoring, which does not use command hooks.
+      scanStatus.complete({
+        result: event?.response,
+        scopeUris: event?.scopeUris ?? [],
+        meta: { keys: [] }
+      });
       const generatedAt = new Date().toISOString();
       const historyEntry = buildLiveScanHistoryEntry({
         result: event?.response,
@@ -359,6 +412,7 @@ function activate(context) {
     engineManager,
     getRecommendationSettings: () => getRecommendationSettings(trustGate),
     getRepositorySettings: () => getRepositorySettings(trustGate),
+    engineHooks,
     trustGate
   });
   const sidebarRegistration = registerSidebarView(context, logger);
@@ -383,6 +437,8 @@ function activate(context) {
     const monitorStats = monitor.getStats();
     dashboard.updateLiveState({
       engine: engineViewStatus(engineManager.getStatus()),
+      ...workspaceSnapshot.getSnapshot(),
+      scanStatus: scanStatus.getState(),
       monitoring: {
         enabled: monitorStats.enabled === true,
         registeredEvents: monitorStats.registeredEvents === true,
@@ -400,6 +456,76 @@ function activate(context) {
     });
   };
   publishRuntimeState();
+
+  async function refreshWorkspaceSnapshot() {
+    const patch = await workspaceSnapshot.refresh();
+    scanStatus.updateInventory({
+      available: patch.inventory.available,
+      files: workspaceSnapshot.getDiscoveredPaths().map((fsPath) => ({ fsPath }))
+    });
+    dashboard.updateLiveState(patch);
+    publishRuntimeState();
+    return patch;
+  }
+
+  /**
+   * Feed the dashboard's pending counts from real VS Code file events. The
+   * existing WorkspaceMonitor still owns debouncing and scan deduplication; this
+   * tracker only records which observed paths are awaiting a backend result.
+   */
+  function observeEditorEvent(type, uris) {
+    const settings = getMonitoringSettings(trustGate);
+    const folders = vscode.workspace?.workspaceFolders ?? [];
+    const eligible = (uris ?? [])
+      .map((uri) => pathKey(uri))
+      .filter((fsPath) => fsPath !== null)
+      .filter((fsPath) => {
+        const pathSettings = { ...settings, excludeGlobs: settings.excludeGlobs };
+        return evaluateFileEligibility({
+          fsPath,
+          settings: pathSettings,
+          workspaceFolders: folders,
+          requireWorkspace: true
+        }).eligible;
+      })
+      .map((fsPath) => ({ fsPath }));
+    if (eligible.length === 0) {
+      return;
+    }
+    scanStatus.observeEvent({ type, uris: eligible });
+    publishRuntimeState();
+  }
+
+  /** @type {Array<{ dispose: () => void }>} */
+  const fileEventSubscriptions = [];
+  const workspaceEvents = vscode.workspace;
+  const observedEvents = [
+    ['onDidCreateFiles', (event) => observeEditorEvent('create', event?.files ?? [])],
+    ['onDidDeleteFiles', (event) => observeEditorEvent('delete', event?.files ?? [])],
+    [
+      'onDidRenameFiles',
+      (event) => {
+        const oldUris = Array.isArray(event?.oldUri) ? event.oldUri : [event?.oldUri];
+        const newUris = Array.isArray(event?.newUri) ? event.newUri : [event?.newUri];
+        observeEditorEvent('rename', [...oldUris, ...newUris]);
+      }
+    ],
+    ['onDidChangeTextDocument', (event) => observeEditorEvent('change', [event?.document?.uri])],
+    ['onDidSaveTextDocument', (document) => observeEditorEvent('save', [document?.uri])]
+  ];
+  for (const [method, listener] of observedEvents) {
+    if (typeof workspaceEvents?.[method] === 'function') {
+      fileEventSubscriptions.push(workspaceEvents[method](listener));
+    }
+  }
+  const workspaceFolderSubscription =
+    typeof workspaceEvents?.onDidChangeWorkspaceFolders === 'function'
+      ? workspaceEvents.onDidChangeWorkspaceFolders(() => {
+          void refreshWorkspaceSnapshot();
+        })
+      : { dispose() {} };
+
+  void refreshWorkspaceSnapshot();
 
   const settingsSubscription = onSettingsChanged((event) => {
     if (event.affectsConfiguration('bugdhor.logging.level')) {
@@ -424,6 +550,13 @@ function activate(context) {
       void checkBackendHealth();
     }
     monitor.updateSettings(getMonitoringSettings(trustGate));
+    if (
+      event.affectsConfiguration('bugdhor.repository') ||
+      event.affectsConfiguration('bugdhor.monitoring') ||
+      event.affectsConfiguration('bugdhor.scan')
+    ) {
+      void refreshWorkspaceSnapshot();
+    }
     if (event.affectsConfiguration('bugdhor.assistant')) {
       assistantHooks.updateSettings(getAssistantSettings(trustGate));
       if (trustGate.isTrusted()) {
@@ -445,6 +578,7 @@ function activate(context) {
     }
     monitor.updateSettings(getMonitoringSettings(trustGate));
     assistantHooks.updateSettings(getAssistantSettings(trustGate));
+    void refreshWorkspaceSnapshot();
     publishRuntimeState();
     dashboard.refresh();
   });
@@ -462,6 +596,8 @@ function activate(context) {
     trustGate,
     commandRegistry,
     monitor,
+    workspaceFolderSubscription,
+    ...fileEventSubscriptions,
     feedbackSubscription,
     feedback
   );
@@ -499,7 +635,9 @@ function activate(context) {
     assistantRegistry,
     assistantHooks,
     engineManager,
-    trustGate
+    trustGate,
+    workspaceSnapshot,
+    scanStatus
   };
 }
 

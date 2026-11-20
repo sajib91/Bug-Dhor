@@ -1,6 +1,6 @@
 # Bug Dhor — Software Architecture
 
-**Status:** Phase 0 architecture approved for implementation, with a partial Phase 1 implementation. The extension shell, command registration, dashboard, backend-result diagnostics, versioned FastAPI API, and live local HTTP transport exist. File/workspace inspection, parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification are implemented and integrated. SAE, counterfactual, and activation-steering modules exist but are not wired into the orchestrator; those stages report explicit `unavailable`/`partial` statuses. No trained multi-view detector, calibrated probability, real model/SAE artifact, benchmark run, or Docker-backed execution has been validated. The dashboard renders backend state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results.
+**Status:** Phase 0 architecture approved for implementation, with a partial Phase 1 implementation. The extension shell, command registration, dashboard, backend-result diagnostics, versioned FastAPI API, and live local HTTP transport exist. File/workspace inspection, parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification are implemented and integrated. SAE, counterfactual, and activation-steering modules exist but are not wired into the orchestrator; those stages report explicit `unavailable`/`partial` statuses. No trained multi-view detector, calibrated probability, real model/SAE artifact, benchmark run, or Docker-backed execution has been validated. The dashboard renders only observed VS Code workspace state and validated backend state, with no demo or sample data; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results.
 **Version:** 0.1.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
@@ -132,7 +132,7 @@ Bug Dhor/
 │   │   │   └── index.js             # provider registration + disposal
 │   │   ├── webviews/
 │   │   │   ├── dashboardPanel.js    # singleton dashboard panel + message allowlist
-│   │   │   ├── dashboardModel.js    # 11 sections, actions, empty/demo state
+│   │   │   ├── dashboardModel.js    # 11 sections, actions, empty/live state
 │   │   │   ├── dashboardHtml.js     # accessible shell + nonce CSP
 │   │   │   ├── sidebarView.js       # Activity Bar launcher provider
 │   │   │   ├── sidebarHtml.js       # launcher markup
@@ -304,7 +304,7 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | `commands/utilityCommands.js` | Perform a live backend health check, report reachability and unavailable analysis, and open the output channel | Claim the engine or analysis is available |
 | `views/*` | Findings tree, job tree, status bar; map backend resources to VS Code items | Recompute scores locally |
 | `webviews/dashboardPanel.js` | Own the singleton dashboard panel, local-resource roots, per-render nonce CSP, validated messages, allowlisted command execution, refresh, and disposal | Execute arbitrary command IDs or arguments, write files, or apply patches |
-| `webviews/dashboardModel.js` | Define the 11-section navigation, action metadata, empty state, explicitly labeled demo state, and unavailable capability schemas | Invent findings, features, probabilities, causal effects, repairs, or verification results |
+| `webviews/dashboardModel.js` | Define the 11-section navigation, action metadata, empty state, validated live state, and unavailable capability schemas | Invent findings, features, probabilities, causal effects, repairs, or verification results |
 | `webviews/dashboardHtml.js` | Render the accessible shell, escaped inline state JSON, and local stylesheet/script references | Use inline executable code, remote content, or unescaped state |
 | `webviews/sidebarView.js` | Resolve the Activity Bar launcher, validate its single `openDashboard` message, and open the panel | Expose analysis data or execute commands from the sidebar |
 | `webviews/sidebarHtml.js` | Render launcher markup with a nonce CSP and local assets | Load scripts other than the launcher |
@@ -895,14 +895,13 @@ The implemented dashboard uses validated messages rather than a generic request 
 |---|---|---|
 | `ready` | none | Post the current dashboard state. |
 | `refresh` | none | Rebuild the current state and post it. |
-| `setDemoMode` | `enabled: boolean` | Switch between the empty and explicitly labeled demo state. |
 | `executeCommand` | `command: string` | Execute only a command with a declared engine service method, with no arguments. |
 | `openSettings` | none | Open VS Code settings filtered to `bugdhor`. |
 | `showLogs` | none | Reveal the Bug Dhor output channel. |
 
 The host sends `{ type: 'state', state }` and `{ type: 'notice', level, message }`. The initial state is also embedded in the document as escaped `application/json` data. Unknown or malformed messages are logged and ignored. The panel rejects command IDs outside its allowlist and never accepts command arguments from the webview.
 
-The dashboard state schema carries `schemaVersion`, `dataMode` (`empty`, `demo`, or `live`), canonical sections and actions, engine metadata, summary counts, distributions, scan history, findings, SAE/interaction/steering capability states, explanations, repairs, verification, reports, and read-only settings. `live` currently resolves to the empty state because the dashboard is not connected to the backend; the dashboard does not invent live results.
+The dashboard state schema carries `schemaVersion`, `dataMode` (`empty` or `live`), canonical sections and actions, engine metadata, workspace and inventory metadata, scan status, summary counts, distributions, scan history, findings, SAE/interaction/steering capability states, explanations, repairs, repair history, verification, reports, and read-only settings. `empty` contains only explicit unknowns; `live` is produced by overlaying values observed from VS Code APIs, file events, and validated backend responses. The dashboard never invents scan or repair results.
 
 The planned job/file protocol uses a richer `{ type, requestId, payload }` envelope. When implemented, it must extend the allowlist explicitly: `runCounterfactual`, `runSteering`, `openFile`, `requestRepair`, `applyRepair`, and `cancelJob`. File paths from the webview will be resolved relative to the registered project and revalidated; the webview never receives the API token.
 

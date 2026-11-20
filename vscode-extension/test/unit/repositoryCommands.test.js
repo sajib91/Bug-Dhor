@@ -179,17 +179,20 @@ function createHarness(options = {}) {
   const fake = createVscode(options.rootPaths ?? [], options);
   const registry = createRegistry();
   const serviceCalls = [];
+  const publications = [];
   const service = {
     scanWorkspace: async (request, context) => {
       serviceCalls.push({ request, context });
-      return {
-        analysisAvailable: true,
-        status: 'ok',
-        findings: [],
-        filesScanned: request.filePaths?.length ?? 0,
-        scope: { uris: [] },
-        stages: []
-      };
+      return (
+        options.serviceResult ?? {
+          analysisAvailable: true,
+          status: 'ok',
+          findings: [],
+          filesScanned: request.filePaths?.length ?? 0,
+          scope: { uris: [] },
+          stages: []
+        }
+      );
     }
   };
   const defaultSettings = {
@@ -206,18 +209,24 @@ function createHarness(options = {}) {
     ...(options.settings ?? {})
   };
   const logger = createLogger();
+  const diagnostics = {
+    publishScanResult(result, details) {
+      publications.push({ result, details });
+    },
+    ...(options.diagnostics ?? {})
+  };
 
   registerRepositoryCommands({
     vscode: fake.vscode,
     service,
     logger,
     registry,
-    diagnostics: options.diagnostics ?? {},
+    diagnostics,
     getRepositorySettings: () => defaultSettings,
     gitRunner: options.gitRunner
   });
 
-  return { ...fake, registry, serviceCalls, logger, settings: defaultSettings };
+  return { ...fake, registry, serviceCalls, publications, logger, settings: defaultSettings };
 }
 
 async function createWorkspace(files, { gitignore } = {}) {
@@ -277,9 +286,46 @@ test('full repository scan sends only eligible explicit paths across multi-root 
     assert.ok(
       harness.progressReports.some((report) => String(report.message).includes('Discovered'))
     );
+    assert.equal(harness.publications.length, 1);
+    assert.deepEqual(harness.publications[0].result, result);
+    assert.deepEqual(
+      harness.publications[0].details.scopeUris.sort(),
+      [
+        createUri(path.join(first, 'packages/api/handler.py')).toString(),
+        createUri(path.join(first, 'packages/web/app.js')).toString(),
+        createUri(path.join(first, 'src/app.py')).toString(),
+        createUri(path.join(second, 'lib/util.py')).toString()
+      ].sort()
+    );
   } finally {
     await removeWorkspace(first);
     await removeWorkspace(second);
+  }
+});
+
+test('unavailable repository results are reported as unavailable and never published as clean scans', async () => {
+  const root = await createWorkspace({ 'src/app.py': 'value = 1\n' });
+  const harness = createHarness({
+    rootPaths: [root],
+    serviceResult: {
+      analysisAvailable: false,
+      status: 'unavailable',
+      findings: [],
+      filesScanned: 0,
+      scope: { uris: [] },
+      stages: []
+    }
+  });
+
+  try {
+    const result = await harness.registry.execute(COMMANDS.scanRepository);
+
+    assert.equal(result.analysisAvailable, false);
+    assert.equal(harness.publications.length, 0);
+    assert.equal(harness.warningMessages.length, 1);
+    assert.match(harness.warningMessages[0], /analysis is unavailable/i);
+  } finally {
+    await removeWorkspace(root);
   }
 });
 

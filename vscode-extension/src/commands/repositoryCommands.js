@@ -187,8 +187,27 @@ function registerRepositoryCommands(context) {
     );
   };
 
-  const onResult = (result) =>
+  /**
+   * Repository scans send metadata and paths; the backend reads files itself.
+   * Publish only the findings actually returned by that backend response, and
+   * scope diagnostics to the exact paths the response was asked to cover.
+   *
+   * @param {unknown} result
+   * @param {object} request
+   */
+  const onResult = (result, request) => {
     reportScanAvailability({ vscode, logger }, 'Repository scan', result);
+    if (!result || typeof result !== 'object' || result.analysisAvailable !== true) {
+      return;
+    }
+    const scopeUris =
+      typeof vscode.Uri?.file === 'function'
+        ? (Array.isArray(request?.filePaths) ? request.filePaths : [])
+            .filter((filePath) => typeof filePath === 'string')
+            .map((filePath) => vscode.Uri.file(filePath).toString())
+        : [];
+    diagnostics.publishScanResult(result, { scopeUris });
+  };
 
   for (const id of [COMMANDS.scanRepository, COMMANDS.rescanAll]) {
     disposables.push(

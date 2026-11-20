@@ -50,9 +50,12 @@
     'info'
   ]);
   const safeCommandPattern = /^bugdhor\.[A-Za-z][A-Za-z0-9]*$/;
-  const demoFallbackNotice =
-    'Demo data is shown for interface preview only. It was not produced by a scan or security ' +
-    'engine, and no SAE, interaction, explanation, repair, or verification result is simulated.';
+  const ENGINE_UNAVAILABLE_MESSAGE =
+    'Security Engine is not connected. Automatic scanning is unavailable.';
+  const NO_WORKSPACE_MESSAGE = 'No VS Code workspace is currently open.';
+  const NO_SCAN_MESSAGE = 'No security scan has been performed yet.';
+  const NO_VULNERABILITIES_MESSAGE = 'No vulnerabilities detected in the scanned files.';
+  const NO_REPAIRS_MESSAGE = 'No repair operations have been performed.';
   const SVG_NAMESPACE = ['http', '://www.w3.org/2000/svg'].join('');
 
   const content = document.getElementById('dashboard-content');
@@ -62,7 +65,6 @@
   const dataModeBadge = document.getElementById('data-mode-badge');
   const lastUpdated = document.getElementById('last-updated');
   const refreshButton = document.getElementById('refresh-button');
-  const demoButton = document.getElementById('demo-button');
   const logsButton = document.getElementById('logs-button');
   const startEngineButton = document.getElementById('start-engine-button');
   const debugProjectButton = document.getElementById('debug-project-button');
@@ -170,13 +172,6 @@
     if (refreshButton) {
       refreshButton.addEventListener('click', () => {
         sendMessage({ type: 'refresh' });
-      });
-    }
-
-    if (demoButton) {
-      demoButton.addEventListener('click', () => {
-        const enabled = !state || state.dataMode !== 'demo';
-        sendMessage({ type: 'setDemoMode', enabled });
       });
     }
 
@@ -336,22 +331,38 @@
     const source = isRecord(raw) ? raw : {};
     const summary = isRecord(source.summary) ? source.summary : {};
     const severity = isRecord(summary.severity) ? summary.severity : {};
-    const demoNotice =
-      typeof source.demoNotice === 'string' && source.demoNotice.length > 0
-        ? source.demoNotice
-        : '';
+    const workspace = isRecord(source.workspace) ? source.workspace : {};
+    const inventory = isRecord(source.inventory) ? source.inventory : {};
+    const scanStatus = isRecord(source.scanStatus) ? source.scanStatus : {};
 
     return {
       schemaVersion: numberOrNull(source.schemaVersion),
-      dataMode:
-        source.dataMode === 'demo' || source.dataMode === 'live' ? source.dataMode : 'empty',
+      dataMode: source.dataMode === 'live' ? 'live' : 'empty',
       generatedAt: stringOrNull(source.generatedAt),
-      demoNotice,
       sections: arrayOfRecords(source.sections),
       actions: arrayOfRecords(source.actions),
       engine: isRecord(source.engine) ? source.engine : {},
       monitoring: isRecord(source.monitoring) ? source.monitoring : {},
       counters: isRecord(source.counters) ? source.counters : {},
+      workspace: {
+        available: workspace.available === true,
+        name: stringOrNull(workspace.name),
+        path: stringOrNull(workspace.path),
+        folders: arrayOfRecords(workspace.folders)
+      },
+      inventory: {
+        available: inventory.available === true,
+        totalFiles: numberOrNull(inventory.totalFiles),
+        languages: countMap(inventory.languages),
+        truncated: typeof inventory.truncated === 'boolean' ? inventory.truncated : null
+      },
+      scanStatus: {
+        discoveredFiles: numberOrNull(scanStatus.discoveredFiles),
+        scannedFiles: numberOrNull(scanStatus.scannedFiles),
+        pendingFiles: numberOrNull(scanStatus.pendingFiles),
+        failedFiles: numberOrNull(scanStatus.failedFiles ?? scanStatus.failedScans),
+        failedScans: numberOrNull(scanStatus.failedScans)
+      },
       summary: {
         totalFindings: numberOrNull(summary.totalFindings),
         severity: {
@@ -406,9 +417,6 @@
       dataModeBadge.textContent = 'State unavailable';
       dataModeBadge.className = 'badge badge--warning';
     }
-    if (demoButton) {
-      demoButton.disabled = true;
-    }
     if (!content) {
       return;
     }
@@ -429,14 +437,11 @@
     }
 
     if (dataModeBadge) {
-      if (state.dataMode === 'demo') {
-        dataModeBadge.textContent = 'Demo data';
-        dataModeBadge.className = 'badge badge--warning';
-      } else if (state.dataMode === 'live') {
-        dataModeBadge.textContent = 'Live data';
+      if (state.dataMode === 'live') {
+        dataModeBadge.textContent = 'Observed data';
         dataModeBadge.className = 'badge badge--info';
       } else {
-        dataModeBadge.textContent = 'No scan data';
+        dataModeBadge.textContent = 'Not scanned yet';
         dataModeBadge.className = 'badge badge--neutral';
       }
     }
@@ -452,17 +457,11 @@
       }
     }
 
-    if (demoButton) {
-      const demo = state.dataMode === 'demo';
-      demoButton.hidden = state.dataMode === 'live';
-      demoButton.disabled = false;
-      demoButton.textContent = demo ? 'Clear demo data' : 'Load demo preview';
-      demoButton.setAttribute('aria-pressed', demo ? 'true' : 'false');
-    }
-
     const engine = isRecord(state.engine) ? state.engine : {};
-    const engineLabel =
-      typeof engine.label === 'string' && engine.label.length > 0
+    const engineOffline = engine.status === 'offline' || engine.status === 'unavailable';
+    const engineLabel = engineOffline
+      ? 'Engine Offline'
+      : typeof engine.label === 'string' && engine.label.length > 0
         ? engine.label
         : 'Engine status unavailable';
 
@@ -538,12 +537,6 @@
     }
 
     clearNode(bannerSlot);
-
-    if (state && state.dataMode === 'demo') {
-      bannerSlot.appendChild(
-        banner('warning', 'Demo data preview', state.demoNotice || demoFallbackNotice, false)
-      );
-    }
 
     if (transientNotice) {
       bannerSlot.appendChild(
@@ -622,17 +615,13 @@
     if (engineMessage) {
       section.appendChild(engineMessage);
     }
+    section.appendChild(renderWorkspaceStatusCard());
     section.appendChild(renderRuntimeStatusCard());
 
     const summary = state.summary;
     const total = summary.totalFindings;
     const hasData = typeof total === 'number' && Number.isFinite(total);
-    const dataNote =
-      state.dataMode === 'demo'
-        ? 'Illustrative demo value'
-        : hasData
-          ? 'Latest completed scan'
-          : 'No scan data';
+    const dataNote = hasData ? 'Latest completed scan' : 'Not scanned yet';
 
     const kpis = el('div', 'kpi-grid');
     kpis.appendChild(kpi('Total findings', total, dataNote));
@@ -645,6 +634,15 @@
       kpis.appendChild(kpi(severityLabels[severity], count, note, severityTones[severity]));
     }
     section.appendChild(kpis);
+    if (!hasData) {
+      section.appendChild(
+        emptyState(
+          '—',
+          'Not scanned yet',
+          `${NO_SCAN_MESSAGE} No result is inferred or substituted.`
+        )
+      );
+    }
     section.appendChild(renderInsectFindingsCard());
 
     const distributionGrid = el('div', 'split-grid');
@@ -674,23 +672,92 @@
     return section;
   }
 
+  function renderWorkspaceStatusCard() {
+    const workspace = state.workspace ?? {};
+    const inventory = state.inventory ?? {};
+    const rows = el('div', 'technical-list');
+
+    if (!workspace.available) {
+      rows.appendChild(el('p', 'text-muted', NO_WORKSPACE_MESSAGE));
+    } else {
+      rows.appendChild(
+        el('div', 'technical-row', `Workspace: ${textOrDash(workspace.name, 'Data unavailable')}`)
+      );
+      rows.appendChild(
+        el('div', 'technical-row', `Directory: ${textOrDash(workspace.path, 'Data unavailable')}`)
+      );
+      const folders = arrayOfRecords(workspace.folders);
+      if (folders.length > 1) {
+        for (const folder of folders) {
+          rows.appendChild(
+            el(
+              'div',
+              'technical-row',
+              `Folder: ${textOrDash(folder.name)} — ${textOrDash(folder.path)}`
+            )
+          );
+        }
+      }
+    }
+
+    rows.appendChild(
+      el(
+        'div',
+        'technical-row',
+        `Discovered source files: ${
+          inventory.available ? formatNumber(inventory.totalFiles) : 'Data unavailable'
+        }`
+      )
+    );
+    if (inventory.truncated === true) {
+      rows.appendChild(
+        el('div', 'technical-row', 'Discovery was truncated at the configured file limit.')
+      );
+    }
+
+    return card(
+      'Current workspace',
+      'Values come from the folders open in VS Code and a real file discovery pass.',
+      rows
+    );
+  }
+
   function renderRuntimeStatusCard() {
     const monitoring = state.monitoring ?? {};
     const counters = state.counters ?? {};
+    const scan = state.scanStatus ?? {};
     const rows = el('div', 'technical-list');
     const values = [
-      ['Monitoring', monitoring.enabled === true ? 'Active' : 'Off'],
+      ['Discovered files', scan.discoveredFiles],
+      ['Scanned files', scan.scannedFiles],
+      ['Pending files', scan.pendingFiles],
+      ['Failed files', scan.failedFiles],
+      ['Failed scans', scan.failedScans],
       ['Scans completed', numberOrNull(monitoring.completed)],
       ['Findings tracked', numberOrNull(counters.findings)],
       ['Background alerts', numberOrNull(monitoring.notifications)],
       ['Repair records', numberOrNull(counters.repairs)]
     ];
     for (const [label, value] of values) {
-      rows.appendChild(el('div', 'technical-row', `${label}: ${formatNumber(value)}`));
+      rows.appendChild(
+        el(
+          'div',
+          'technical-row',
+          `${label}: ${typeof value === 'number' ? formatNumber(value) : 'Data unavailable'}`
+        )
+      );
     }
+    const lastScanAt = stringOrNull(state.summary.lastScanAt);
+    rows.appendChild(
+      el(
+        'div',
+        'technical-row',
+        `Last scan: ${lastScanAt ? formatDateTime(lastScanAt) : 'Not scanned yet'}`
+      )
+    );
     return card(
-      'Live assistant status',
-      'Counters reflect real recorded events from this editor session.',
+      'Scan status',
+      'Counters reflect only completed scans, observed file events, and recorded repair operations.',
       rows
     );
   }
@@ -925,11 +992,13 @@
     body.appendChild(counts);
 
     if (findings.length === 0) {
+      const scanCompleted =
+        state.summary.totalFindings === 0 || stringOrNull(state.summary.lastScanAt) !== null;
       body.appendChild(
         emptyState(
           '—',
-          'No finding insects',
-          'No scan findings are loaded. Insects appear only when the backend reports a finding.'
+          scanCompleted ? 'No vulnerabilities detected' : 'Not scanned yet',
+          scanCompleted ? NO_VULNERABILITIES_MESSAGE : NO_SCAN_MESSAGE
         )
       );
       return card('Finding insects', description, body);
@@ -1016,12 +1085,15 @@
     ]);
 
     if (state.vulnerabilities.length === 0) {
+      const scanCompleted =
+        state.summary.totalFindings === 0 || stringOrNull(state.summary.lastScanAt) !== null;
       section.appendChild(
         emptyState(
           '—',
-          'No findings available',
-          'No vulnerability findings have been recorded for this workspace. Run a scan once the ' +
-            'security engine is connected. No findings are inferred by the dashboard.'
+          scanCompleted ? 'No vulnerabilities detected' : 'Not scanned yet',
+          scanCompleted
+            ? NO_VULNERABILITIES_MESSAGE
+            : `${NO_SCAN_MESSAGE} No findings are inferred by the dashboard.`
         )
       );
       return section;
@@ -2657,6 +2729,10 @@
         renderEvidenceRecords(state.repairHistory, 'No repair history recorded.')
       );
       section.appendChild(history);
+    } else {
+      section.appendChild(
+        emptyState('—', 'No repair history', `${NO_REPAIRS_MESSAGE} No operation is simulated.`)
+      );
     }
 
     renderRecommendationCards(section);
@@ -3167,7 +3243,7 @@
       return emptyState(
         '—',
         'No scan history',
-        'No scan run has been recorded. Starting this dashboard does not start a scan.'
+        `${NO_SCAN_MESSAGE} Starting this dashboard does not start a scan.`
       );
     }
 
@@ -3339,12 +3415,9 @@
     }
     const detail =
       typeof engine.detail === 'string' && engine.detail.length > 0
-        ? engine.detail
-        : 'The local security engine is not reachable. No result is produced.';
-    const title =
-      typeof engine.label === 'string' && engine.label.length > 0
-        ? engine.label
-        : 'Analysis capabilities unavailable';
+        ? `${ENGINE_UNAVAILABLE_MESSAGE} ${engine.detail}`
+        : ENGINE_UNAVAILABLE_MESSAGE;
+    const title = 'Security Engine is not connected';
     return callout(title, detail, 'warning');
   }
 
@@ -3700,13 +3773,7 @@
   }
 
   function dataModeBadgeText(mode) {
-    if (mode === 'demo') {
-      return 'Demo data';
-    }
-    if (mode === 'live') {
-      return 'Live data';
-    }
-    return 'No scan data';
+    return mode === 'live' ? 'Observed data' : 'Not scanned yet';
   }
 
   function el(tagName, className, text) {

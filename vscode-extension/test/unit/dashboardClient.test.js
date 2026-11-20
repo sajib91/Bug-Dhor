@@ -40,19 +40,32 @@ test('dashboard client renders all eleven dashboard sections', () => {
 
   assert.ok(source.includes("sendMessage({ type: 'ready' })"));
   assert.ok(source.includes("type: 'refresh'"));
-  assert.ok(source.includes("type: 'setDemoMode'"));
   assert.ok(source.includes("type: 'executeCommand'"));
   assert.ok(source.includes("type: 'openSettings'"));
   assert.ok(source.includes("type: 'showLogs'"));
+  assert.ok(!source.includes("type: 'setDemoMode'"), 'demo mode must not exist in the client');
 });
 
-test('dashboard client labels demo and unavailability states honestly', () => {
-  assert.match(source, /Demo data/);
+test('dashboard client uses exact honest unavailability states and forbids demo data', () => {
+  for (const message of [
+    'No VS Code workspace is currently open.',
+    'No security scan has been performed yet.',
+    'No vulnerabilities detected in the scanned files.',
+    'Security Engine is not connected. Automatic scanning is unavailable.',
+    'No repair operations have been performed.',
+    'Data unavailable',
+    'Not scanned yet',
+    'No vulnerabilities detected'
+  ]) {
+    assert.ok(source.includes(message), `${message} must be rendered`);
+  }
   assert.match(source, /not real-world causal claims/i);
   assert.match(source, /Not run is not a pass/i);
   assert.match(source, /No activation values are inferred/i);
   assert.match(source, /The dashboard never applies a patch itself/i);
   assert.match(source, /not probabilities/i);
+  assert.ok(!/\bdemo\b/i.test(source), 'the dashboard client must not contain demo data');
+  assert.ok(!source.includes('DEMO_'), 'demo constants must not remain in the client');
 });
 
 test('dashboard client renders explainability evidence sections and source navigation', () => {
@@ -113,9 +126,10 @@ test('dashboard client renders real findings as clickable, status-aware insects'
     'function openFindingLocation',
     "type: 'openLocation'",
     'Finding insects',
-    'No finding insects',
+    'Each insect represents one finding returned by a scan.',
     'The dashboard never generates insects without backend findings.',
     'Resolved findings stop moving.',
+    'No vulnerabilities detected in the scanned files.',
     'vulnerabilities: arrayOfRecords(source.vulnerabilities)',
     'finding.startLine'
   ]) {
