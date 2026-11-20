@@ -352,16 +352,26 @@ async function run() {
   assert.equal(completedAnalyses(pasted.uri)[0].kind, 'function');
   assert.ok(completedAnalyses(pasted.uri)[0].changedLines >= 7);
 
-  // Saving flushes immediately with a file-level scan and supersedes any
-  // pending debounced edit for the same document.
-  const saved = await openMonitoringFile('saved.py', 'value = 1\n');
-  assert.equal(await applyReplace(saved.document, new vscode.Range(0, 0, 0, 9), 'value = 2'), true);
-  assert.equal(await saved.document.save(), true);
-  await waitForMonitor(() => completedAnalyses(saved.uri).length === 1);
-  await delay(500);
-  assert.equal(completedAnalyses(saved.uri).length, 1);
-  assert.equal(completedAnalyses(saved.uri)[0].reason, 'save');
-  assert.equal(completedAnalyses(saved.uri)[0].kind, 'file');
+  // Saving flushes immediately with a file-level scan. Enable onSaveOnly for
+  // this scenario so a slow CI runner cannot let the debounced change scan
+  // finish before the save event; superseding a pending change scan is covered
+  // deterministically by the realtimeMonitor unit tests.
+  await configuration.update('monitoring.onSaveOnly', true, vscode.ConfigurationTarget.Global);
+  try {
+    const saved = await openMonitoringFile('saved.py', 'value = 1\n');
+    assert.equal(
+      await applyReplace(saved.document, new vscode.Range(0, 0, 0, 9), 'value = 2'),
+      true
+    );
+    assert.equal(await saved.document.save(), true);
+    await waitForMonitor(() => completedAnalyses(saved.uri).length === 1);
+    await delay(500);
+    assert.equal(completedAnalyses(saved.uri).length, 1);
+    assert.equal(completedAnalyses(saved.uri)[0].reason, 'save');
+    assert.equal(completedAnalyses(saved.uri)[0].kind, 'file');
+  } finally {
+    await configuration.update('monitoring.onSaveOnly', false, vscode.ConfigurationTarget.Global);
+  }
 
   // Edits to different documents are tracked independently.
   const concurrentA = await openMonitoringFile('concurrent-a.py', 'a = 0\n');
