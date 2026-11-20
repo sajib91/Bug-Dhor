@@ -27,10 +27,19 @@ const {
   validatePythonExecutable
 } = require('../../src/engine/engineRuntime');
 
-const EXTENSION_PATH = '/extension';
+// Use real absolute paths on every platform. The runtime code deliberately
+// normalizes extension/storage paths with path.resolve; root-relative POSIX
+// literals such as "/extension" become drive-relative paths on Windows and
+// would otherwise make these fixtures disagree with the implementation.
+const FILESYSTEM_ROOT = path.parse(process.cwd()).root;
+const absolute = (...segments) => path.resolve(FILESYSTEM_ROOT, ...segments);
+
+const EXTENSION_PATH = absolute('extension');
+const REPOSITORY_PATH = absolute('repository');
+const HOME_DIRECTORY = absolute('home', 'test');
 const ENGINE_ROOT = path.join(EXTENSION_PATH, 'engine');
 const MODULE_ROOT = path.join(ENGINE_ROOT, 'src');
-const PYTHON = '/opt/python3/bin/python3';
+const PYTHON = absolute('opt', 'python3', 'bin', 'python3');
 const MANIFEST = path.join(ENGINE_ROOT, 'pyproject.toml');
 const REQUIREMENTS = path.join(ENGINE_ROOT, 'requirements-runtime.txt');
 const RUNTIME_REQUIREMENTS_CONTENT = 'fastapi>=0.115,<1\npydantic>=2.8,<3\n';
@@ -182,13 +191,13 @@ function createManager(options = {}) {
     context: {
       extensionPath: EXTENSION_PATH,
       repositoryRoot: options.repositoryRoot,
-      globalStoragePath: '/storage'
+      globalStoragePath: absolute('storage')
     },
     getSettings: () => settings,
     spawn,
     fileSystem,
     platform: 'darwin',
-    environment: options.environment ?? { HOME: '/home/test' },
+    environment: options.environment ?? { HOME: HOME_DIRECTORY },
     delay: options.delay ?? (async () => {})
   });
   return { manager, service, logger, engineProcess, spawnCalls: calls, fileSystem };
@@ -236,7 +245,7 @@ test('Python discovery rejects shell syntax and workspace-derived executables', 
   const candidates = discoverPythonCandidates({
     configured: PYTHON,
     platform: 'darwin',
-    environment: { BUGDHOR_PYTHON: 'python3', HOME: '/home/test' },
+    environment: { BUGDHOR_PYTHON: 'python3', HOME: HOME_DIRECTORY },
     fileSystem
   });
   assert.deepEqual(candidates.slice(0, 3), [PYTHON, 'python3', 'python']);
@@ -244,16 +253,15 @@ test('Python discovery rejects shell syntax and workspace-derived executables', 
 
 test('engine source discovery prefers bundled files and falls back to development files', () => {
   const fileSystem = createFileSystem();
+  const developmentEngineRoot = path.join(REPOSITORY_PATH, 'security-engine');
   const developmentMain = path.join(
-    '/repository',
-    'security-engine',
+    developmentEngineRoot,
     'src',
     'bugdhor',
     '__main__.py'
   );
   const developmentApp = path.join(
-    '/repository',
-    'security-engine',
+    developmentEngineRoot,
     'src',
     'bugdhor',
     'api',
@@ -264,7 +272,7 @@ test('engine source discovery prefers bundled files and falls back to developmen
 
   const options = {
     extensionPath: EXTENSION_PATH,
-    repositoryRoot: '/repository',
+    repositoryRoot: REPOSITORY_PATH,
     fileSystem
   };
   assert.deepEqual(discoverEngineSource(options), {
@@ -275,15 +283,14 @@ test('engine source discovery prefers bundled files and falls back to developmen
     source: 'bundled'
   });
 
-  const developmentEngineRoot = path.join('/repository', 'security-engine');
   fileSystem.files.add(path.join(developmentEngineRoot, 'pyproject.toml'));
   fileSystem.files.add(path.join(developmentEngineRoot, 'requirements-runtime.txt'));
   fileSystem.files.delete(path.join(MODULE_ROOT, 'bugdhor', '__main__.py'));
   assert.deepEqual(discoverEngineSource(options), {
-    engineRoot: path.join('/repository', 'security-engine'),
-    moduleRoot: path.join('/repository', 'security-engine', 'src'),
-    manifestPath: path.join('/repository', 'security-engine', 'pyproject.toml'),
-    requirementsPath: path.join('/repository', 'security-engine', 'requirements-runtime.txt'),
+    engineRoot: developmentEngineRoot,
+    moduleRoot: path.join(developmentEngineRoot, 'src'),
+    manifestPath: path.join(developmentEngineRoot, 'pyproject.toml'),
+    requirementsPath: path.join(developmentEngineRoot, 'requirements-runtime.txt'),
     source: 'development'
   });
 });
@@ -345,7 +352,8 @@ test('managed runtime installs from the absolute engine root without editable re
   clearRuntimeInstallCache();
   const calls = [];
   const phases = [];
-  const runtimePython = path.join('/storage', 'engine-runtime', 'bin', 'python');
+  const runtimeDirectory = absolute('storage', 'engine-runtime');
+  const runtimePython = path.join(runtimeDirectory, 'bin', 'python');
   let runtimeExists = false;
   const fileSystem = {
     existsSync(target) {
@@ -375,7 +383,7 @@ test('managed runtime installs from the absolute engine root without editable re
 
   const options = {
     python: 'python3',
-    runtimeDirectory: path.join('/storage', 'engine-runtime'),
+    runtimeDirectory,
     engineRoot: ENGINE_ROOT,
     requirementsPath: REQUIREMENTS,
     platform: 'darwin',
@@ -391,7 +399,7 @@ test('managed runtime installs from the absolute engine root without editable re
   assert.deepEqual(
     calls.map((call) => call.args),
     [
-      ['-m', 'venv', path.join('/storage', 'engine-runtime')],
+      ['-m', 'venv', runtimeDirectory],
       [
         '-m',
         'pip',
@@ -424,7 +432,7 @@ test('managed runtime rejects a file URL requirements path and a developer requi
     () =>
       ensureManagedRuntime({
         python: 'python3',
-        runtimeDirectory: '/storage/engine-runtime',
+        runtimeDirectory: absolute('storage', 'engine-runtime'),
         requirementsPath: 'file:///extension/engine/requirements-runtime.txt',
         engineRoot: ENGINE_ROOT,
         platform: 'darwin',
@@ -438,13 +446,14 @@ test('managed runtime rejects a file URL requirements path and a developer requi
   );
 
   const fileSystem = createFileSystem();
-  fileSystem.files.add(path.join('/storage/other-runtime', 'bin', 'python'));
+  const otherRuntimeDirectory = absolute('storage', 'other-runtime');
+  fileSystem.files.add(path.join(otherRuntimeDirectory, 'bin', 'python'));
   fileSystem.readFileSync = () => '-e .[dev,ml]\n';
   await assert.rejects(
     () =>
       ensureManagedRuntime({
         python: 'python3',
-        runtimeDirectory: '/storage/other-runtime',
+        runtimeDirectory: otherRuntimeDirectory,
         requirementsPath: REQUIREMENTS,
         engineRoot: ENGINE_ROOT,
         platform: 'darwin',
@@ -458,7 +467,8 @@ test('managed runtime rejects a file URL requirements path and a developer requi
 test('managed runtime install failures include captured stdout and stderr', async () => {
   clearRuntimeInstallCache();
   const fileSystem = createFileSystem();
-  const runtimePython = path.join('/storage/failing-runtime', 'bin', 'python');
+  const failingRuntimeDirectory = absolute('storage', 'failing-runtime');
+  const runtimePython = path.join(failingRuntimeDirectory, 'bin', 'python');
   fileSystem.files.add(runtimePython);
   const spawn = (command, args) => {
     if (args[0] === '-c') {
@@ -474,7 +484,7 @@ test('managed runtime install failures include captured stdout and stderr', asyn
     () =>
       ensureManagedRuntime({
         python: 'python3',
-        runtimeDirectory: '/storage/failing-runtime',
+        runtimeDirectory: failingRuntimeDirectory,
         engineRoot: ENGINE_ROOT,
         requirementsPath: REQUIREMENTS,
         platform: 'darwin',
@@ -570,7 +580,11 @@ test('a managed engine starts once with a fixed argv and only its owned child is
   assert.deepEqual(engineCall.options.stdio, ['ignore', 'pipe', 'pipe']);
   assert.equal(engineCall.options.env.BUGDHOR_HOST, '127.0.0.1');
   assert.equal(engineCall.options.env.BUGDHOR_PORT, '8765');
-  assert.match(engineCall.options.env.PYTHONPATH, new RegExp(`^${MODULE_ROOT}`));
+  assert.equal(
+    engineCall.options.env.PYTHONPATH,
+    MODULE_ROOT,
+    'PYTHONPATH must use the absolute module root from the installed engine'
+  );
 
   const status = harness.manager.getStatus();
   assert.equal(status.state, ENGINE_STATES.ONLINE);
@@ -681,7 +695,8 @@ test('duplicate engine managers are rejected per endpoint key', () => {
 
 test('startup publishes preparing-runtime, installing-dependencies and starting-engine states', async () => {
   const fileSystem = createFileSystem();
-  const runtimePython = path.join('/storage', 'engine-runtime', 'bin', 'python');
+  const runtimeDirectory = absolute('storage', 'engine-runtime');
+  const runtimePython = path.join(runtimeDirectory, 'bin', 'python');
   const harness = createManager({
     fileSystem,
     probeCode: 1,
@@ -734,13 +749,17 @@ test('scan failures are classified and keep the backend request id', () => {
 });
 
 test('environment builder uses an absolute module root for PYTHONPATH', () => {
+  const existingPythonPath = absolute('existing');
   const environment = buildEngineEnvironment({
-    environment: { PATH: '/usr/bin', PYTHONPATH: '/existing' },
+    environment: { PATH: absolute('usr', 'bin'), PYTHONPATH: existingPythonPath },
     host: '127.0.0.1',
     port: 8765,
     moduleRoot: MODULE_ROOT
   });
-  assert.equal(environment.PYTHONPATH, [MODULE_ROOT, '/existing'].join(path.delimiter));
+  assert.equal(
+    environment.PYTHONPATH,
+    [MODULE_ROOT, existingPythonPath].join(path.delimiter)
+  );
   assert.equal(
     buildEngineEnvironment({ environment: {}, host: 'x', port: 1, moduleRoot: 'relative' })
       .PYTHONPATH,
