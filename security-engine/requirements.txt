@@ -13,6 +13,16 @@
 # environments (used by CI and release validation):
 #   python -m pip install --require-hashes -r requirements.lock.txt
 #
+# Regenerate the lock on Linux x86_64 with Python 3.11 and pip-tools 7.7.0
+# (the host macOS Python must not be used):
+#   bash scripts/generate-security-engine-lock.sh
+#
+# The lock pins the official PyTorch 2.15.0 CPU wheel from download.pytorch.org
+# (not the CUDA-linked PyPI wheel). CI audits it with:
+#   pip-audit --require-hashes -r requirements.lock.txt --strict --disable-pip
+# --disable-pip is required because pip-audit's PyPI service cannot query the
+# local version 2.15.0+cpu; every locked package is still audited under --strict.
+#
 # Analyzer CLIs (Semgrep/Bandit) are deliberately excluded from this lock.
 # Install them separately in a disposable analyzer environment; mcp/Semgrep
 # transitive pins have known advisories and are not part of the runtime closure.

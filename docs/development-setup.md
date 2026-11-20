@@ -150,6 +150,29 @@ Copy-Item .env.example .env
 
 Do not run both the setup script and the manual commands against the same environment unless you intend to reinstall. The setup script reuses an existing `.venv` and leaves an existing `.env` unchanged.
 
+### Regenerating the CI hash lock
+
+`security-engine/requirements.lock.txt` is the single lockfile used by both
+`.github/workflows/python-sca.yml` and the `python-sca` job in
+`.github/workflows/extension-tests.yml`. Regenerate it only from a clean Linux
+x86_64 runner with Python 3.11 and `pip-tools==7.7.0`:
+
+```bash
+python3.11 -m pip install "pip-tools==7.7.0"
+bash scripts/generate-security-engine-lock.sh
+```
+
+The script pins the official CPU-only `torch-2.15.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl`
+from the PyTorch CPU index via `--find-links` and verifies that no CUDA, NVIDIA,
+or Triton dependencies enter the lock. It normalizes the committed pin to the
+PyPI-visible base version `2.15.0` so `pip-audit` can query vulnerability data;
+the hash and `--find-links` URL still guarantee the CPU wheel is installed.
+
+CI installs with `pip install --require-hashes -r requirements.lock.txt` and
+audits with `pip-audit --require-hashes -r requirements.lock.txt --strict --disable-pip`.
+`--disable-pip` freezes the fully resolved lock instead of re-resolving the
+`+cpu` local version, and does not skip any package or relax `--strict`.
+
 ## 6. Dependency profiles
 
 | Goal                                                      | Command                                   | Verification status                                         |
