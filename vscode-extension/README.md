@@ -8,7 +8,7 @@ diagnostics, hover explanations, and proposal-only repair workflows. It does **n
 the backend, and it does not fabricate findings, model activations, risk probabilities, or security
 guarantees.
 
-> **Release status:** Version `0.1.0` is prepared as a release candidate. The repository MIT
+> **Release status:** Version `0.2.0` is prepared as a release candidate. The repository MIT
 > license is present, but publication remains blocked by open Phase 04 security findings,
 > Marketplace publisher verification, and owner-side Trusted Publishing configuration. The intended
 > identifier is `sajib91.bug-dhor`; do not assume the listing is live yet.
@@ -101,7 +101,7 @@ code --install-extension sajib91.bug-dhor
 
 Or open **Extensions**, search for `Bug-Dhor`, and choose the publisher `sajib91`. Verify the
 publisher identity before installing. A local VSIX can also be installed for evaluation with
-`code --install-extension bug-dhor-0.1.0.vsix`.
+`code --install-extension bug-dhor-0.2.0.vsix`.
 
 Installing the extension alone is not sufficient: continue with the separate backend installation
 below.

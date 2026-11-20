@@ -2,7 +2,7 @@
 
 This checklist covers packaging the Bug Dhor VS Code extension as a VSIX. It
 does **not** publish to the Marketplace. The manifest uses the approved
-publisher `sajib91`, extension ID `bug-dhor`, version `0.1.0`, public GitHub
+publisher `sajib91`, extension ID `bug-dhor`, version `0.2.0`, public GitHub
 repository URLs, and the repository MIT license. Every build remains a release
 candidate until the Phase 04 security gates, publisher verification, and
 owner-side Trusted Publishing setup are resolved.
@@ -105,7 +105,7 @@ Build a candidate archive and inspect it:
 
 ```bash
 npm --workspace vscode-extension run package:vsix
-python -m zipfile -l vscode-extension/bug-dhor-0.1.0.vsix
+python -m zipfile -l vscode-extension/bug-dhor-0.2.0.vsix
 ```
 
 Confirm the archive does **not** contain:
@@ -225,7 +225,7 @@ file exists, is non-zero, and contains the expected files from section 5.
 Record the SHA-256 checksum for the artifact you intend to distribute:
 
 ```bash
-shasum -a 256 vscode-extension/bug-dhor-0.1.0.vsix
+shasum -a 256 vscode-extension/bug-dhor-0.2.0.vsix
 ```
 
 ## 8. Clean VS Code installation verification
@@ -239,7 +239,7 @@ CODE_BIN="$(command -v code || true)"
 if [ -z "$CODE_BIN" ] && [ -x "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" ]; then
   CODE_BIN="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
 fi
-"$CODE_BIN" --extensions-dir "$TMP_EXT_DIR" --install-extension vscode-extension/bug-dhor-0.1.0.vsix
+"$CODE_BIN" --extensions-dir "$TMP_EXT_DIR" --install-extension vscode-extension/bug-dhor-0.2.0.vsix
 "$CODE_BIN" --extensions-dir "$TMP_EXT_DIR" --list-extensions --show-versions
 ```
 
@@ -259,8 +259,8 @@ false` is still possible when a stage produces no result; it is reported as
 - No finding is fabricated when analysis is unavailable.
 
 A clean installation was verified in the current macOS environment by installing
-`bug-dhor-0.1.0.vsix` into a temporary `--extensions-dir` with a temporary
-`--user-data-dir`; the result listed as `sajib91.bug-dhor@0.1.0`. The temporary
+`bug-dhor-0.2.0.vsix` into a temporary `--extensions-dir` with a temporary
+`--user-data-dir`; the result listed as `sajib91.bug-dhor@0.2.0`. The temporary
 profile was removed afterward. Interactive activation checks still need to be
 repeated in the target VS Code version and OS.
 
@@ -312,7 +312,7 @@ from a previous build.
 | Commands and activation events consistent            | Unit suite + manifest inspection                                      | Pass (27 commands)                                 |
 | Webview assets present and packaged                  | Archive listing                                                       | Pass                                               |
 | `.vscodeignore` excludes dev files, secrets, weights | Archive listing                                                       | Pass                                               |
-| Version updated consistently                         | `package.json` + manifest test                                        | Pass (0.1.0)                                       |
+| Version updated consistently                         | `package.json` + manifest test                                        | Pass (0.2.0)                                       |
 | Backend unit/API suite                               | `cd security-engine && ../.venv/bin/python -m pytest -q`              | Prior run: 638 pass; rerun required                |
 | Backend starts locally                               | `../.venv/bin/python -m bugdhor --host 127.0.0.1 --port 8765`         | Pass (started in prior verification)               |
 | Backend health reachable                             | `curl http://127.0.0.1:8765/api/v1/health`                            | Pass (HTTP 200 in prior verification)              |
@@ -321,7 +321,7 @@ from a previous build.
 | Extension Host integration                           | `npm --workspace vscode-extension run test:integration`               | Pass                                               |
 | Installed VSIX smoke test                            | `npm --workspace vscode-extension run test:integration:vsix`          | Pass                                               |
 | VSIX builds cleanly                                  | `npm --workspace vscode-extension run package:vsix`                   | Pass (237 entries, 484,799 bytes)                  |
-| Clean VS Code install                                | Temporary `--extensions-dir` install                                  | Pass (listed `sajib91.bug-dhor@0.1.0`)             |
+| Clean VS Code install                                | Temporary `--extensions-dir` install                                  | Pass (listed `sajib91.bug-dhor@0.2.0`)             |
 | Interactive activation/UI checks                     | Launch the installed extension and run a command                      | Verify per machine                                 |
 | Marketplace documentation                            | `vscode-extension/README.md` and `CHANGELOG.md`                       | Pass                                               |
 | Marketplace license field                            | MIT `LICENSE` + manifest `license`                                    | Pass                                               |
@@ -385,7 +385,7 @@ After a confirmed run succeeds, verify all of the following:
 - The Marketplace listing at
   `https://marketplace.visualstudio.com/items?itemName=sajib91.bug-dhor` shows
   the expected version.
-- `npx @vscode/vsce show sajib91.bug-dhor --json` reports version `0.1.0` (or
+- `npx @vscode/vsce show sajib91.bug-dhor --json` reports version `0.2.0` (or
   the intentionally released version).
 - VS Code **Extensions → Install from VSIX…** or the Marketplace install flow
   reports extension ID `sajib91.bug-dhor`.
@@ -396,7 +396,7 @@ must confirm it.
 ### 11.5 User installation
 
 Install the Marketplace item `sajib91.bug-dhor`, or a locally built
-`vscode-extension/bug-dhor-0.1.0.vsix`. Then install and start the Python
+`vscode-extension/bug-dhor-0.2.0.vsix`. Then install and start the Python
 backend separately as documented in
 [the user guide](user-guide.md#5-installation-instructions) and the
 [Marketplace README](../vscode-extension/README.md). The VSIX must not contain

@@ -1,7 +1,7 @@
 # Bug Dhor — Software Architecture
 
 **Status:** Phase 0 architecture approved for implementation, with a partial Phase 1 implementation. The extension shell, command registration, dashboard, backend-result diagnostics, versioned FastAPI API, and live local HTTP transport exist. File/workspace inspection, parsing, AST/CFG/DFG/taint analysis, heuristic evidence fusion, evidence-grounded explanation, proposal-only repair, and independent static/functional verification are implemented and integrated. SAE, counterfactual, and activation-steering modules exist but are not wired into the orchestrator; those stages report explicit `unavailable`/`partial` statuses. No trained multi-view detector, calibrated probability, real model/SAE artifact, benchmark run, or Docker-backed execution has been validated. The dashboard renders only observed VS Code workspace state and validated backend state, with no demo or sample data; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results.
-**Version:** 0.1.0
+**Version:** 0.2.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
 

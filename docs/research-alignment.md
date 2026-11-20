@@ -1,7 +1,7 @@
 # Bug Dhor — Research Alignment and Integrity Contract
 
 **Status:** Phase 0 approved. No experiments have been run and no results are reported.
-**Version:** 0.1.0
+**Version:** 0.2.0
 **Date:** 2026-11-10
 **Companion document:** [architecture.md](architecture.md)
 

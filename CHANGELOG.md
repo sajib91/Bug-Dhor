@@ -3,6 +3,17 @@
 All notable changes to the Bug Dhor repository are documented here. The Marketplace-facing copy
 for the VS Code extension is [`vscode-extension/CHANGELOG.md`](vscode-extension/CHANGELOG.md).
 
+## [0.2.0] - 2026-11-20
+
+> This version has **not** been published to the Visual Studio Marketplace.
+
+- The dashboard now renders only observed VS Code workspace data, real file events, and validated
+  backend responses; demo and sample data were removed from the extension runtime and VSIX.
+- Added automatic local engine lifecycle management, bundled engine source, engine start/stop and
+  project-review commands, and explicit non-loopback source-sharing consent.
+- CI now derives VSIX names from the extension manifest and records honest blocked/NO-GO evidence
+  when required gates cannot run.
+
 ## [0.1.0] - 2026-11-19
 
 - Initial release-candidate documentation for the VS Code extension and the separately installed

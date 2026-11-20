@@ -104,5 +104,5 @@ Datasets, model weights, SAE artifacts, experiment outputs, and benchmark result
 
 ## License
 
-This repository is licensed under the [MIT License](LICENSE). Version `0.1.0` has not been
+This repository is licensed under the [MIT License](LICENSE). Version `0.2.0` has not been
 published to the Visual Studio Marketplace.

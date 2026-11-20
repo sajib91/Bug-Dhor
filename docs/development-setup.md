@@ -316,7 +316,7 @@ npm run build
 Outputs:
 
 - Python wheel: `security-engine/dist/bugdhor_engine-0.1.0-py3-none-any.whl`
-- VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`
+- VSIX: `vscode-extension/bug-dhor-0.2.0.vsix`
 
 The VSIX is built by `scripts/packageVsix.js` from a clean staging copy containing only extension sources, media, `CHANGELOG.md`, the repository MIT license, and the declared production dependency closure. This workspace-aware staging avoids `--no-dependencies` and includes `ajv` with its runtime dependencies. A current build is expected to contain roughly 236 entries; record the exact file count, size, and checksum after every rebuild. No license warning is suppressed and no bypass flag is used.
 
