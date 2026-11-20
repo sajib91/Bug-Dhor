@@ -13,6 +13,14 @@
 > or run a GitHub Actions workflow. OIDC token exchange was not verified locally; it can only be
 > verified from a correctly configured GitHub Actions run.
 
+> **Current status (2026-11-20):** This report is historical. The Phase 04 CRITICAL/HIGH code
+> findings described below were remediated and committed at
+> `7b312f9b72889a36401400d61c59a30e6afce3ce`. Hosted compatibility evidence now exists in run
+> [`44606156782`](https://github.com/sajib91/Bug-Dhor/actions/runs/44606156782), and the publish
+> validation runs `44673317664` / `44673435565` were observed. The publisher ownership and Marketplace
+> Trusted Publishing/OIDC gates remain unverified, and the decision is still **NO-GO**. Current
+> evidence is in `reports/PHASE_04_SECURITY_AUDIT.md` §12.
+
 ---
 
 ## 1. Files inspected

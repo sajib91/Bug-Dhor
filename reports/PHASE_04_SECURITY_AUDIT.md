@@ -16,9 +16,12 @@
 > documented residual-risk statement. Detailed per-finding evidence, final test output, the
 > re-audit matrix, and the release-gate disposition are in
 > `reports/PHASE_04_SECURITY_REMEDIATION.md`. The historical findings below are retained for traceability.
-> The decision line above is intentionally unchanged: publisher/Marketplace Trusted Publishing,
-> OIDC publish receipts, Windows tests, and the GitHub Actions SCA run remain unverified, and no
-> commit, push, or publish was performed.
+> The decision line above is intentionally unchanged. When this note was first written,
+> publisher/Marketplace Trusted Publishing, OIDC publish receipts, Windows tests, and the GitHub
+> Actions SCA run were unverified. **Current disposition (2026-11-20, §§12–13):** hosted Windows/macOS/Linux
+> compatibility evidence now exists, the hosted SCA run was observed and failed, the final
+> gate implementation is uncommitted, and publisher/OIDC gates remain unverified. Section 13 is the
+> final reconciliation and supersedes stale statements in §§3–11 where they conflict. No publish was performed.
 
 ---
 
@@ -419,7 +422,334 @@ Final VSIX: `vscode-extension/bug-dhor-0.1.0.vsix`, 240 entries, 492,783 bytes, 
 
 - SEC-01 through SEC-06 and all MEDIUM/LOW findings are resolved in code or carry an explicit documented residual in the remediation report.
 - Local code gates, regression tests, production dependency audit, Python SCA, and artifact checks pass.
-- Publisher ownership, Marketplace Trusted Publishing/OIDC policy and receipts, Windows tests, the GitHub Actions SCA run, and a real VS Code untrusted-host test remain unverified.
-- The security-critical new files remain untracked because no commit was permitted; a tracked-only release would omit them.
+- At the time §11 was written, publisher ownership, Marketplace Trusted Publishing/OIDC policy and receipts, Windows tests, the GitHub Actions SCA run, and a real VS Code untrusted-host test remained unverified. The local untrusted-host test has since passed and hosted three-OS compatibility evidence exists; see §12 for the current distinction.
+- The security-critical files were untracked when §11 was written; they are committed in HEAD `7b312f9b72889a36401400d61c59a30e6afce3ce`. The newer gate-manifest and untrusted-test files are the currently uncommitted change set.
 
-**Decision unchanged:** **NO-GO for publication** until every release gate, including publisher/Marketplace Trusted Publishing, is verified. No commit, push, or publish was performed.
+**Decision unchanged:** **NO-GO for publication** until every release gate, including publisher/Marketplace Trusted Publishing, is verified. No publish was performed. Section 12 records the current evidence-based status.
+
+---
+
+## 12. Current final-gate status (2026-11-20)
+
+This section adds a dated current status without rewriting the historical NO-GO findings above.
+
+### 12.1 Repository state
+
+- HEAD and `origin/main` were `7b312f9b72889a36401400d61c59a30e6afce3ce` at the start of this review.
+- The Phase 04 security remediation is committed in that HEAD; the stale claim that `core/safe_patch.py`, `core/redaction.py`, `core/persistence.py`, the extension security modules, the SCA workflow, rules, and regression suite are untracked is resolved by `git ls-tree`.
+- The final-gate implementation added during this review is **not committed**: three workflows and `vscode-extension/package.json` are modified, and four gate scripts/tests are untracked. No commit, push, tag, or publish was performed by this review.
+
+### 12.2 GitHub-hosted CI evidence actually observed
+
+| Run | Workflow / input | Hosted result | Evidence and interpretation |
+|---|---|---|---|
+| [`44606156782`](https://github.com/sajib91/Bug-Dhor/actions/runs/44606156782) | `Extension compatibility tests`, push on `7b312f9` | **Success** | All 12 jobs succeeded: lint, unit, package validation, and Extension Host + installed-VSIX integration on `macos-latest`, `windows-latest`, and `ubuntu-latest`. Log lines include `Bug Dhor Extension Host checks passed.` and `Bug Dhor VSIX smoke checks passed.` on all three OSes. This is hosted evidence for the old job names; it does not contain the new structured-manifest jobs. |
+| [`44606156254`](https://github.com/sajib91/Bug-Dhor/actions/runs/44606156254) | `Python dependency SCA`, push on `7b312f9` | **Failure** | The single job failed because `pip-compile` regenerated the lock with platform-specific `nvidia-*`, `torch`, and `triton` entries. The local empty-diff result did not reproduce on GitHub. The workflow was changed locally to install and audit the committed hash lock directly; that change has **not** been re-run on GitHub. |
+| [`44673317664`](https://github.com/sajib91/Bug-Dhor/actions/runs/44673317664) | `Publish extension (OIDC Trusted Publishing)`, `confirm_publish=false` | **Success** | Validation-only run: lint, unit checks, identity/metadata validation, clean staging, VSIX build, and integrity passed (`VSIX integrity OK: 240 entries, 491617 bytes`). The `Publish with OIDC` job was skipped. No Marketplace publish occurred. |
+| [`44673435565`](https://github.com/sajib91/Bug-Dhor/actions/runs/44673435565) | `Publish extension (OIDC Trusted Publishing)`, `confirm_publish=true` | **Failure** | Validation reached the historical prose gate and failed with `Phase 04 still records a NO-GO publication decision.` The `Publish with OIDC` job was skipped. That grep gate has been replaced locally by a structured manifest; the replacement has **not** been re-run on GitHub. |
+
+### 12.3 Local evidence completed in this review
+
+| Check | Result |
+|---|---|
+| Clean Python 3.11 environment with `security-engine[dev,ml]` plus `requirements-ast.txt` | `PYTHONPATH=src:security-engine/src python -m pytest -q`: **1106 passed in 29.10s** |
+| `npm test` | Engine-local pytest **742 passed**, extension unit tests **439 pass / 0 fail** |
+| `npm --workspace vscode-extension run test:integration:untrusted` | **Pass** — real local VS Code was spawned without `--disable-workspace-trust`; `Untrusted workspace Extension Host checks passed.` |
+| `node --check` on four new JavaScript files | Pass |
+| YAML parse of all three modified workflows | Pass |
+| Synthetic manifest evidence checks | Pass — NO-GO decision, sidecar SHA-256, decision consistency, stale-evidence rejection |
+| `git diff --check` | Pass |
+
+The root test job needed two dependency corrections: `requirements-ast.txt` supplies `tree_sitter_java/c/cpp/go`, and the `ml` extra supplies `torch`. Both are now in the modified `extension-tests.yml`; neither has hosted evidence yet.
+
+### 12.4 Publisher, Marketplace, and OIDC status
+
+- GitHub facts only: the authenticated `gh` account is `sajib91`, and `sajib91/Bug-Dhor` is a public repository owned by `sajib91`. No token value was printed or stored in a report.
+- `npx --no-install @vscode/vsce show sajib91.bug-dhor --json` returned `undefined`; no public listing metadata was available. This does **not** prove Marketplace publisher ownership either way.
+- Marketplace Trusted Publishing policy, repository/workflow policy fields, OIDC issuer/audience authorization, and an actual OIDC publish receipt remain **UNVERIFIED**.
+- Official VS Code publishing documentation requires the policy to name repository owner `sajib91`, repository `Bug-Dhor`, workflow `publish-extension.yml`, and an empty GitHub environment. The Marketplace OIDC credential expires after 15 minutes and each GitHub OIDC token can be exchanged once. The publish job alone has `id-token: write`; validation and manifest jobs do not.
+
+### 12.5 Structured release-gate manifest
+
+The grep on report prose was removed from the publish workflow and replaced by `scripts/generateReleaseManifest.js` plus `scripts/verifyReleaseManifest.js`:
+
+- 16 mandatory evidence gates: lint/unit/package/integration on three OSes, plus `python-tests`, `python-sca`, `npm-audit`, and `untrusted-workspace`.
+- Evidence JSON is machine-generated inside each CI job and validated for schema, gate name, commit SHA, run ID, run URL, TTL, and required fields. Report prose is never read.
+- The generator emits `release-gate-manifest.json` and a SHA-256 sidecar. The verifier checks freshness, hash consistency, exact commit/repository, `GO` decision, zero blockers, all gate statuses, and then rechecks the recorded run and every gate job conclusion through the GitHub Actions API before publication.
+- Three external blockers remain explicit and fail-closed: `oidc-publish-receipt`, `publisher-ownership`, and `trusted-publishing-policy`. Untrusted workspace behavior is no longer an external blocker because it is a mandatory CI gate with its own evidence artifact.
+- Manual dispatch, explicit `confirm_publish`, local/remote duplicate tag checks, Marketplace version checks, OIDC confined to the publish job, and exact validated-VSIX checksum comparison are preserved.
+
+### 12.6 Remaining unverified gates and decision
+
+Unverified: hosted execution of the modified workflows and manifest artifact; Marketplace publisher ownership; Marketplace Trusted Publishing policy; OIDC issuer/audience trust; an authorized OIDC publish receipt; Semgrep executable availability (accepted residual). The historical SCA run failed and has only a local fix awaiting hosted re-run.
+
+**Current decision remains NO-GO for publication.** Local passing checks and the successful historical compatibility run do not substitute for the unresolved external gates or for a hosted run of the new manifest implementation. No publication command was executed.
+
+---
+
+## 13. Final reconciliation and release-readiness decision (2026-11-20)
+
+**Final decision: NO-GO for publication.** This is unchanged from the original audit and §12. GO is not claimed because at least one mandatory release gate has failed on GitHub Actions, the modified workflow/manifest implementation has no hosted run, four security/release-critical files are untracked, and three Marketplace/OIDC gates are unverified.
+
+Status meanings used below:
+
+- **PASS** — verifiable evidence exists for the stated scope. “Local” or “committed workflow” scope is stated explicitly.
+- **FAIL** — an observed check failed, or a required release-control file is absent from Git.
+- **NOT VERIFIED** — no verifiable evidence is available; this is not treated as a pass.
+
+### 13.1 Reconciliation of outdated or conditional statements
+
+| Earlier statement | Final disposition |
+|---|---|
+| §3 and §9 describe SEC-01–SEC-06 as open release blockers. | Historical finding record retained. Code remediation is complete and regression-tested; see §13.2 and `PHASE_04_SECURITY_REMEDIATION.md` §§3–6. This does not authorize publication. |
+| §7.3 says Python SCA was unavailable. | Superseded. An isolated local `pip-audit --require-hashes --strict` run passed, but the hosted SCA workflow failed before install/audit. The modified workflow has not run on GitHub. |
+| §9 says “no repository license exists.” | Superseded. A root MIT `LICENSE` is present and the publish workflow verifies it. |
+| §9 and §7.1 quote 403 extension tests and 1,090 Python tests. | Superseded by the final local runs: **1,106 Python tests** and **439 extension unit tests**; root `npm test` also reports **742 engine pytest tests** passing. |
+| §11.1 records an empty `pip-compile` diff as a final local check. | Local-only and historical. Hosted run `44606156254` failed on platform-specific regeneration. The final workflow audits the committed hash lock directly and has no hosted evidence. |
+| §11.2 calls the real untrusted-host test a residual. | Locally resolved: the untrusted Extension Host test passed again on 2026-11-20. Hosted execution of the new `untrusted-workspace` CI job remains NOT VERIFIED. |
+| §11.2 says the security-critical files were untracked. | Partly superseded: the six core remediation files are tracked in HEAD, but the four final-gate scripts/tests are still untracked. |
+| §12.4 says `vsce show` returned `undefined`. | Still true, and supplemented by a direct Marketplace gallery query returning `count: 0`. Neither result proves or disproves publisher ownership. |
+| Remediation §3 SEC-12 and §5 row 18 imply a hosted-equivalent clean regeneration/SCA result. | Corrected in `PHASE_04_SECURITY_REMEDIATION.md` §10: the empty diff is local-only, hosted SCA failed, and the corrected workflow is unhosted. |
+
+### 13.2 SEC-01 through SEC-19 individual disposition
+
+| Finding | Status | Final evidence and remaining qualification |
+|---|---|---|
+| SEC-01 | **PASS** | Canonical workspace-relative `filePath`; absolute/drive/traversal paths rejected before writes; consent before temp creation; hash-unchanged regression tests. Python suite: `1106 passed in 12.19s`. |
+| SEC-02 | **PASS** | Shared patch boundary validates all targets before any write; patch-first/temp-only application; repair and recommendation original-file hash tests pass. |
+| SEC-03 | **PASS** | Deny-by-default trust policy, health-only untrusted API, 51 `machine` / 0 `machine-overridable` settings, and real VS Code untrusted-host test passed. Hosted `untrusted-workspace` CI job is separately NOT VERIFIED. |
+| SEC-04 | **PASS** | Non-loopback bind rejected unless token plus explicit HTTPS termination are configured; docs disabled in production; model and `create_app()` validation tests pass. Actual production HTTPS termination is deployment-scoped and NOT VERIFIED. |
+| SEC-05 | **PASS** | Metadata/hash-only persistence allowlist, source/prompt/patch exclusion, `0600` files and `0700` directories; persistence tests pass. |
+| SEC-06 | **PASS** | Verification snapshots skip symlinks at every level, copy with `symlinks=True`, and recheck realpath containment; regression test passes. |
+| SEC-07 | **PASS** | Direct inspection uses the source allowlist; non-source files return `415 E_UNSUPPORTED_FILE`; regression test passes. |
+| SEC-08 | **PASS** | Streaming byte-capped responses, `content-length` precheck, abort on exceed, and UTF-8-safe chunk decoding; four `apiClient` tests pass. |
+| SEC-09 | **PASS** | Shared backend/extension redaction for problems, errors, stderr, sandbox commands, and dashboard notices; redaction tests pass. |
+| SEC-10 | **PASS** | `executionExecuted` is explicit and defaults to `false`; no execution success is claimed. Residual: no current producer sets it `true`. |
+| SEC-11 | **PASS** | Pinned local Semgrep rule path with `require_local_rules=True`; `auto` rejected; test passes. A Semgrep executable scan is separately NOT VERIFIED because the local executable has a stale interpreter path. |
+| SEC-12 | **FAIL** | Hosted SCA run `44606156254` failed at lock regeneration and skipped install/audit. Local isolated `pip-audit` passed on the committed lock (`1e19c4c…`), and the workflow was corrected locally, but there is no hosted green SCA run. |
+| SEC-13 | **PASS** | Programmatic `apiKey` ignored; env-only token tests pass; no credential values exposed in reports or settings. |
+| SEC-14 | **PASS** | Realpath containment at file-operation boundaries; canonical relative API paths; path-security tests pass. |
+| SEC-15 | **PASS** | Only accepted/verified candidates may apply; failed/inconclusive states win; 2 MiB full-text cap and base-text revalidation tests pass. |
+| SEC-16 | **PASS** | Verification verdicts are recorded and surfaced with distinct status fields; no false success is claimed; dashboard tests pass. |
+| SEC-17 | **PASS** | Strict nonce CSP, escaped state, DOM-only rendering; CSP/XSS tests pass. |
+| SEC-18 | **PASS** | Capability honesty preserved; steering validation remains false over HTTP; no SAE/model-internal claim is validated; capability tests pass. |
+| SEC-19 | **PASS** | Local VSIX: 240 entries, 492,783 bytes, SHA-256 `94ccd60ab553cab8d161339b29cdf0eaa54bd780827f7ef4a37282149534efd6`, `unzip -t` clean, packaged smoke pass. Hosted validation-only run `44673317664` also reported `VSIX integrity OK: 240 entries, 491617 bytes`. No publication occurred. |
+
+### 13.3 Fresh local regression and control evidence
+
+The following commands were re-run during the final review:
+
+```text
+$ PYTHONPATH=src:security-engine/src .venv/bin/python -m pytest -q
+1106 passed in 12.19s
+
+$ npm test
+engine pytest: 742 passed in 10.33s
+extension unit tests: tests 439 / pass 439 / fail 0 / skipped 0
+
+$ npm --workspace vscode-extension run test:integration
+Bug Dhor Extension Host checks passed.
+Exit code:   0
+
+$ npm --workspace vscode-extension run test:integration:vsix
+Bug Dhor VSIX smoke checks passed.
+Exit code:   0
+
+$ npm --workspace vscode-extension run test:integration:untrusted
+Using local VS Code: /Applications/Visual Studio Code.app/Contents/MacOS/Code
+Launching VS Code with workspace trust ENABLED (no --disable-workspace-trust).
+Untrusted workspace Extension Host checks passed.
+
+$ npm audit --omit=dev --json | jq '{metadata:.metadata.vulnerabilities}'
+{"metadata":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}
+
+$ pip-audit --require-hashes -r security-engine/requirements.lock.txt --strict
+No known vulnerabilities found
+
+$ shasum -a 256 security-engine/requirements.lock.txt
+1e19c4cb7d07a2feac34a9e4810caade45c1d33ed0651da12baa9739091e4131  security-engine/requirements.lock.txt
+
+$ unzip -t vscode-extension/bug-dhor-0.1.0.vsix | tail -n 1
+No errors detected in compressed data of vscode-extension/bug-dhor-0.1.0.vsix.
+
+$ node --check <four new JavaScript files>; YAML parse <three workflows>; git diff --check
+all passed / no output from git diff --check
+```
+
+The untrusted test asserts `vscode.workspace.isTrusted === false`, verifies the trust gate blocks 11 source-bearing operations, confirms a hostile workspace `settings.json` cannot override machine-scoped settings, confirms no source marker reaches the request recorder, and confirms no workspace-supplied command marker is created.
+
+Fail-closed scan:
+
+```text
+$ rg -n 'continue-on-error|if: false|exit 0|set \+e' .github/workflows
+(no output)
+```
+
+### 13.4 Hosted CI and release authorization evidence
+
+```text
+$ gh api repos/sajib91/Bug-Dhor/actions/runs/44606156782 --jq ...
+{"conclusion":"success","event":"push","head_sha":"7b312f9b72889a36401400d61c59a30e6afce3ce","html_url":"https://github.com/sajib91/Bug-Dhor/actions/runs/44606156782","id":44606156782,"name":"Extension compatibility tests","status":"completed"}
+
+$ gh api repos/sajib91/Bug-Dhor/actions/runs/44606156254 --jq ...
+{"conclusion":"failure","event":"push","head_sha":"7b312f9b72889a36401400d61c59a30e6afce3ce","html_url":"https://github.com/sajib91/Bug-Dhor/actions/runs/44606156254","id":44606156254,"name":"Python dependency SCA","status":"completed"}
+```
+
+Hosted compatibility run `44606156782` had 12 successful jobs, including:
+
+```text
+135850284172  Lint (windows-latest)                 completed  success
+135850284340  Unit tests (windows-latest)            completed  success
+135850284393  Package validation (windows-latest)    completed  success
+135850776566  Extension integration (windows-latest) completed  success
+135850776601  Extension integration (ubuntu-latest)  completed  success
+135850776691  Extension integration (macos-latest)   completed  success
+```
+
+Windows job log evidence:
+
+```text
+> bug-dhor@0.1.0 test:integration
+> node test/integration/runTest.js
+Bug Dhor Extension Host checks passed.
+Extension host test runner exit code: 0
+Exit code:   0
+
+> bug-dhor@0.1.0 test:integration:vsix
+Bug Dhor VSIX smoke checks passed.
+Exit code:   0
+```
+
+SCA job `135850281317` in run `44606156254`:
+
+```text
+Install SCA tooling                     completed  success
+Verify the hash lock is current         completed  failure
+Install dependencies with hash verification completed  skipped
+Audit locked dependencies               completed  skipped
+```
+
+Failure lines included `diff -u requirements.lock.txt /tmp/bugdhor-requirements.lock.txt`, added platform-specific `nvidia-*`/`triton` packages, and `##[error]Process completed with exit code 1.` This is a workflow failure, not a dependency vulnerability result.
+
+Publish validation evidence:
+
+```text
+44673317664  confirm_publish=false  success  Publish with OIDC: skipped
+44673435565  confirm_publish=true   failure  Publish with OIDC: skipped
+```
+
+The confirmed-publish failure was the fail-closed guard:
+
+```text
+Phase 04 still records a NO-GO publication decision.
+##[error]Process completed with exit code 1.
+```
+
+The local replacement verifier still requires `manifest.decision === 'GO'`, `blockers.length === 0`, all 16 gates passing, and a fresh GitHub API recheck of the recorded run and job conclusions.
+
+### 13.5 Tracked-file status
+
+Six core remediation files are tracked in HEAD:
+
+```text
+security-engine/src/bugdhor/core/persistence.py
+security-engine/src/bugdhor/core/redaction.py
+security-engine/src/bugdhor/core/safe_patch.py
+security-engine/tests/api/test_security_remediation.py
+vscode-extension/src/security/trustGate.js
+vscode-extension/src/security/trustPolicy.js
+```
+
+The following required final-gate files are **not tracked**:
+
+```text
+scripts/generateReleaseManifest.js
+scripts/verifyReleaseManifest.js
+vscode-extension/test/integration/runUntrustedTest.js
+vscode-extension/test/integration/untrustedWorkspace.js
+```
+
+Exact verification:
+
+```text
+$ git ls-files --error-unmatch <four files>
+error: pathspec 'scripts/generateReleaseManifest.js' did not match any file(s) known to git
+error: pathspec 'scripts/verifyReleaseManifest.js' did not match any file(s) known to git
+error: pathspec 'vscode-extension/test/integration/runUntrustedTest.js' did not match any file(s) known to git
+error: pathspec 'vscode-extension/test/integration/untrustedWorkspace.js' did not match any file(s) known to git
+```
+
+### 13.6 Marketplace ownership, Trusted Publishing, and OIDC
+
+GitHub facts only:
+
+```text
+$ gh api repos/sajib91/Bug-Dhor --jq '{full_name,owner:.owner.login,private,html_url,default_branch,archived}'
+{"full_name":"sajib91/Bug-Dhor","owner":"sajib91","private":false,"html_url":"https://github.com/sajib91/Bug-Dhor","default_branch":"main","archived":false}
+```
+
+Marketplace queries:
+
+```text
+$ npx --no-install @vscode/vsce show sajib91.bug-dhor --json
+undefined
+
+$ curl -fsS -X POST https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery ...
+{"count":0,"first":null}
+```
+
+These results do not establish or negate ownership of the `sajib91` publisher; publisher management is authenticated and was not used.
+
+Official documentation consulted: <https://code.visualstudio.com/api/working-with-extensions/publishing-extension>. It requires a Marketplace Trusted Publishing policy with exact repository owner `sajib91`, repository `Bug-Dhor`, workflow `publish-extension.yml`, and an empty GitHub environment when no environment is used. The Marketplace OIDC credential expires after 15 minutes, and each GitHub OIDC token can be exchanged once. The workflow grants `id-token: write` only to the `publish` job and confines `confirm_publish=true` to that job, but no policy or receipt was verified.
+
+| External gate | Status | Reason |
+|---|---|---|
+| `publisher-ownership` | **NOT VERIFIED** | No authenticated Marketplace publisher-management evidence was produced. |
+| `trusted-publishing-policy` | **NOT VERIFIED** | No verified policy record for owner/repository/workflow/environment was produced. |
+| `oidc-publish-receipt` | **NOT VERIFIED** | No successful OIDC publication occurred; the only confirmed run failed before publish. |
+| OIDC issuer/audience trust | **NOT VERIFIED** | No Marketplace-side trust configuration evidence was produced. |
+
+### 13.7 Final release-gate matrix
+
+| Gate | Status | Evidence / qualification |
+|---|---|---|
+| SEC-01 | **PASS** | Code and regression tests. |
+| SEC-02 | **PASS** | Code and regression tests. |
+| SEC-03 | **PASS** | Code, tests, real local untrusted-host run. Hosted job listed separately. |
+| SEC-04 | **PASS** | Code and tests; production HTTPS termination is deployment-scoped and not claimed. |
+| SEC-05 | **PASS** | Code and regression tests. |
+| SEC-06 | **PASS** | Code and regression tests. |
+| SEC-07 | **PASS** | Source allowlist and regression test. |
+| SEC-08 | **PASS** | Streaming byte-cap tests. |
+| SEC-09 | **PASS** | Redaction tests. |
+| SEC-10 | **PASS** | Explicit non-affirmative execution field. |
+| SEC-11 | **PASS** | Pinned local rule policy; Semgrep execution separately NOT VERIFIED. |
+| SEC-12 | **FAIL** | Hosted SCA run failed; local fix only. |
+| SEC-13 | **PASS** | Env-only credential tests. |
+| SEC-14 | **PASS** | Realpath containment tests. |
+| SEC-15 | **PASS** | Candidate and full-text cap tests. |
+| SEC-16 | **PASS** | Verification-state tests. |
+| SEC-17 | **PASS** | CSP/XSS tests. |
+| SEC-18 | **PASS** | Capability-honesty tests. |
+| SEC-19 | **PASS** | VSIX integrity and smoke checks. |
+| All mandated regression suites (local) | **PASS** | 1,106 Python; 742 engine pytest; 439 extension; host/VSIX/untrusted integration. |
+| Windows CI on committed workflow | **PASS** | Run `44606156782`, job `135850776566`. |
+| Windows/manifest CI on modified working tree | **NOT VERIFIED** | No hosted run; changes are uncommitted. |
+| GitHub Actions SCA on committed workflow | **FAIL** | Run `44606156254`. |
+| GitHub Actions SCA on corrected working tree | **NOT VERIFIED** | Local `pip-audit` passed; no hosted re-run. |
+| VS Code untrusted behavior (local host) | **PASS** | Real Extension Host with workspace trust enabled. |
+| `untrusted-workspace` hosted CI gate | **NOT VERIFIED** | New job has no hosted run. |
+| Structured manifest generation/verification (local) | **PASS** | Syntax, YAML, synthetic gate cases, fail-closed logic. |
+| Structured manifest hosted artifact | **NOT VERIFIED** | No hosted run for modified workflow. |
+| `oidc-publish-receipt` | **NOT VERIFIED** | No successful OIDC publish. |
+| `publisher-ownership` | **NOT VERIFIED** | Authenticated Marketplace evidence absent. |
+| `trusted-publishing-policy` | **NOT VERIFIED** | Marketplace policy evidence absent. |
+| Core remediation files tracked | **PASS** | Six files verified in HEAD. |
+| All required final-gate files tracked | **FAIL** | Four files are untracked. |
+| Fail-closed authorization preserved | **PASS** | Historical guard failure plus local verifier assertions; no bypass flags found. |
+| Repository license | **PASS** | Root MIT `LICENSE` present and validated. |
+| Tracked credential-like content scan | **PASS** | Word-boundary scan found only deliberate masked test-fixture values in `tests/test_explain_repair_ai.py`. Earlier `risk-*` matches were substring false positives; no live secret value was printed or stored. |
+| VSIX rebuild/integrity | **PASS** | Local and hosted validation evidence; artifact is not published. |
+| No commit/push/tag/publish | **PASS** | No such command was executed in this review. |
+
+**Final decision remains NO-GO for publication.** The four blocker classes are: hosted SCA FAIL/unhosted fix, unhosted modified workflow and manifest, untracked final-gate files, and unverified Marketplace/OIDC external gates. No publication command was executed.

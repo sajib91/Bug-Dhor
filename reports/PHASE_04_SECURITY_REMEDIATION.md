@@ -4,7 +4,7 @@
 **Repository:** https://github.com/sajib91/Bug-Dhor.git
 **Scope:** All 19 findings in `reports/PHASE_04_SECURITY_AUDIT.md`, covering the VS Code extension and separately distributed Python backend.
 **Release decision:** **NO-GO for publication** — code remediation is complete and locally verified, but external release gates are not verified.
-**Commit state:** All changes remain uncommitted. No commit, push, or publish was performed.
+**Commit state:** The Phase 04 security remediation is committed in HEAD `7b312f9b72889a36401400d61c59a30e6afce3ce`. The final-gate implementation added during the 2026-11-20 review is uncommitted (§9). Final reconciliation and current gate statuses are in §10 and audit §13. No commit, push, tag, or publish was performed by that review.
 
 > This is an internal source review and automated-check report. It is not a penetration test, certification, compliance attestation, CVE-free guarantee, or externally validated security audit. External gates that cannot be verified locally are listed in §7. The exact NO-GO decision in `reports/PHASE_04_SECURITY_AUDIT.md` is preserved.
 
@@ -22,7 +22,7 @@ All 19 Phase 04 findings have been addressed in code or formally documented with
 
 Final local verification is green: **1,106 Python tests**, **439 extension tests**, extension lint, extension-host integration, packaged VSIX smoke, production npm audit, Python SCA, pip check, compileall, and VSIX archive integrity all pass. Bandit reports **0 High** findings; its 11 Medium findings are accepted/documented below. Repository-wide Ruff still reports style findings; the newly added security modules and regression suite are clean.
 
-Publication must nevertheless remain **NO-GO**. Publisher ownership, Marketplace Trusted Publishing policy/OIDC trust, an actual OIDC publish run, Windows tests, and the GitHub Actions SCA run have not been verified. Local passing checks do not substitute for those gates.
+Publication must nevertheless remain **NO-GO**. At the time this report was first written, publisher ownership, Marketplace Trusted Publishing policy/OIDC trust, an actual OIDC publish run, Windows tests, and the GitHub Actions SCA run were unverified. Current hosted evidence is mixed: the three-OS compatibility run succeeded, the SCA workflow run failed and was locally corrected without a hosted re-run, and publisher/OIDC gates remain unverified. Local passing checks do not substitute for those gates; see §9.
 
 ---
 
@@ -54,7 +54,7 @@ Publication must nevertheless remain **NO-GO**. Publisher ownership, Marketplace
 | SEC-09 | **MEDIUM** | **Resolved** | Shared redaction on both components; RFC 9457 problem title/detail/details redacted; raw exception text redacted in orchestrator, repair/recommendation stages, analyzer parsers, verification, sandbox command/stdout/stderr/detail, and dashboard notices/logs. | `core/redaction.js`, `core/redaction.py`, `api/middleware/problem.py`, `sandbox/executor.py`, `core/orchestrator.py`; tests `test_redaction_removes_secret_values`, `test_problem_details_are_redacted`, `test_sandbox_recorded_command_redacts_environment_values`, `redaction.test.js`. |
 | SEC-10 | **MEDIUM** | **Resolved with documented residual** | `executionExecuted` is now explicit in the verification schema and model and defaults to `false`; static verification cannot imply execution. | `api/schemas/verification.py`, `verification/engine.py`. Residual: no current producer sets it `true`; execution remains honestly skipped/inconclusive. |
 | SEC-11 | **MEDIUM** | **Resolved** | Semgrep defaults to a reviewed pinned local rule file with `require_local_rules=True`; `auto` is rejected; metrics disabled and version check off. | `static/semgrep.py`, `semgrep-rules/bugdhor.yml`; test `test_semgrep_uses_pinned_offline_rules_by_default`. Residual: local Semgrep executable has a stale shebang, so no Semgrep scan result is claimed. |
-| SEC-12 | **MEDIUM** | **Resolved locally** | Python 3.11 hash lock generated reproducibly with `pip-tools==7.7.0` from `--extra ml --extra dev`; analyzers excluded because Semgrep's `mcp==1.29.0` transitive pin has known advisories; CI workflow regenerates, diffs, installs with hashes, and runs `pip-audit --strict`. | `requirements.lock.txt`, `.github/workflows/python-sca.yml`, `core/capability_report.py`; isolated local SCA: empty lock diff and `No known vulnerabilities found`. Production npm audit: 0 vulnerabilities. Residual: GitHub Actions run not observed locally. |
+| SEC-12 | **MEDIUM** | **FAIL at hosted release gate; local fix only** | Python 3.11 hash lock is committed; analyzers are excluded because Semgrep's `mcp==1.29.0` transitive pin has known advisories. The original workflow regenerated and diffed the lock on the runner, which failed on GitHub with platform-specific packages. The uncommitted fix installs and audits the committed hash lock directly. | `requirements.lock.txt`, `.github/workflows/python-sca.yml`, `core/capability_report.py`; local isolated SCA: `No known vulnerabilities found`. Hosted run `44606156254` failed before install/audit; the corrected workflow has no hosted run. Production npm audit: 0 vulnerabilities. |
 | SEC-13 | **LOW** | **Resolved** | Programmatic `config.apiKey` is ignored; credentials are read only from extension-host environment variables and never written to settings, logs, or responses. | `integrations/registry.js`, `api/configurationService.js`; tests `provider registry ignores programmatic API keys from settings`, `the token is read only from the extension host environment`. |
 | SEC-14 | **LOW** | **Resolved** | Realpath containment adopted at file-operation boundaries; extension sends canonical workspace-relative `filePath`; outside/symlink-escaping paths are rejected. | `security/paths.js`, `api/securityEngineService.js`, repository inventory, git changed files, realtime monitor, workspace service, monitor filter, repository commands; `pathSecurity.test.js`. |
 | SEC-15 | **LOW** | **Resolved** | Patch-first application; only backend-accepted or independently verified candidates may be applied; explicit rejection/failed/inconclusive states win; full-text fallback capped at 2 MiB; base text revalidated immediately before apply. | `webviews/dashboardPanel.js`; tests for rejected candidate, verified full-text fallback, and >2 MiB rejection. |
@@ -100,7 +100,7 @@ Central redaction is applied to RFC 9457 problem responses, orchestrator warning
 
 - `executionExecuted: false` is explicit in the verification contract; the static engine never reports execution from a skipped path.
 - Semgrep uses `security-engine/semgrep-rules/bugdhor.yml` with `require_local_rules=True`; `auto` configuration is rejected.
-- `security-engine/requirements.lock.txt` is hash-pinned and reproducible. The SCA workflow verifies the lock with the same pip-tools version used locally, installs with `--require-hashes`, and audits with `pip-audit --strict`.
+- `security-engine/requirements.lock.txt` is hash-pinned and reproducible. The SCA workflow was originally designed to regenerate the lock and diff it, but hosted run `44606156254` failed because regeneration is platform-dependent. The workflow now installs and audits the **committed** lock with `--require-hashes` and `pip-audit --strict`; no hosted re-run has occurred yet.
 - Analyzer CLIs are excluded from the runtime lock because the Semgrep dependency chain pins `mcp==1.29.0` with known advisories. This is documented in `requirements.txt` and the workflow.
 
 ---
@@ -126,8 +126,8 @@ Central redaction is applied to RFC 9457 problem responses, orchestrator warning
 | 15 | Patch application and rollback | **Pass** | No host writes during proposal/verification; extension approval, stale snapshot detection, and applied-hash feedback retained. |
 | 16 | Functional test execution isolation | **Pass** | Temp-only trees, consent before writes, symlink-safe snapshots, Docker argv hardening, no host execution. |
 | 17 | Sensitive information in logs | **Pass** | Metadata/hash-only persistence with private modes; shared redaction across backend problem responses, stages, analyzers, sandbox, and dashboard. |
-| 18 | Dependency vulnerabilities | **Pass locally; CI unverified** | Reproducible hash lock, empty regeneration diff, `pip-audit --strict` clean, npm production audit 0. GitHub Actions run not observed. |
-| 19 | Untrusted workspace behavior | **Pass in code; host test residual** | Deny-by-default trust policy, health-only untrusted service, machine-scoped settings, sanitized settings consumers. Real VS Code untrusted-host integration test not executed. |
+| 18 | Dependency vulnerabilities | **FAIL hosted; pass locally** | Committed hash lock and local `pip-audit --strict` are clean, and npm production audit is 0. Hosted run `44606156254` failed during platform-dependent lock regeneration; the corrected audit-committed-lock workflow is uncommitted and unhosted. |
+| 19 | Untrusted workspace behavior | **Pass locally; hosted CI unverified** | Deny-by-default trust policy, health-only untrusted service, machine-scoped settings, and sanitized settings consumers. Real VS Code untrusted-host integration test passed locally with workspace trust enabled; the new hosted `untrusted-workspace` job has not run. |
 
 ---
 
@@ -145,7 +145,7 @@ Central redaction is applied to RFC 9457 problem responses, orchestrator warning
 | `npm audit --omit=dev --json` | `info 0, low 0, moderate 0, high 0, critical 0, total 0` |
 | `.venv/bin/python -m pip check` | `No broken requirements found.` |
 | `.venv/bin/python -m compileall -q security-engine/src security-engine/tests` | Exit 0 |
-| `pip-compile --no-header --allow-unsafe --generate-hashes --extra ml --extra dev ... pyproject.toml` | Exit 0; `diff -u requirements.lock.txt <regenerated>` empty |
+| `pip-compile ...` / `diff -u requirements.lock.txt <regenerated>` | Historical local-only result: empty diff. Hosted run `44606156254` failed on platform-specific regeneration; the final workflow audits the committed lock instead. |
 | `pip-audit --require-hashes -r requirements.lock.txt --strict` | `No known vulnerabilities found` |
 | `.venv/bin/python -m bandit -q -r src security-engine/src tests security-engine/tests` | Undefined 0, **Low 3536, Medium 11, High 0** |
 | `.venv/bin/python -m ruff check src security-engine tests` | 486 style findings remain; new security modules and regression suite pass a targeted Ruff check |
@@ -203,12 +203,12 @@ These items do not negate the code fixes, but they prevent a local GO claim:
 
 1. **Publisher / Marketplace Trusted Publishing not verified.** `sajib91` publisher ownership, Marketplace Trusted Publishing eligibility/policy, and the OIDC trust relationship have not been checked. No PAT or long-lived publish secret was introduced.
 2. **No publish run performed.** Receipts from an actual OIDC publish would be required; none exist.
-3. **Windows test matrix not run.** Local verification was performed on macOS only.
-4. **GitHub Actions SCA run not observed.** The local equivalent passed, but the workflow itself has not been executed in GitHub CI.
-5. **Real VS Code untrusted-host integration test not executed.** Trust behavior is covered by unit tests with fakes; a real untrusted extension host was not driven. `trustGate.assertEndpoint()` is currently unused, while the same policy is enforced in `configurationService.js`.
+3. **Windows test matrix now has hosted evidence.** Run `44606156782` succeeded on Windows, macOS, and Ubuntu. This residual is resolved for the old committed workflow; the modified workflow remains unhosted.
+4. **GitHub Actions SCA run observed and failed.** Run `44606156254` failed on platform-dependent lock regeneration. The workflow was locally changed to audit the committed lock, but that fix has no hosted run yet.
+5. **Real VS Code untrusted-host test now executed locally.** The test spawns VS Code with workspace trust enabled (never `--disable-workspace-trust`) and passed. A CI job was added locally but has not run on GitHub. `trustGate.assertEndpoint()` remains unused while the same policy is enforced in `configurationService.js`.
 6. **Semgrep executable unavailable locally.** `.venv/bin/semgrep` has a stale shebang pointing to a non-existent `CRAFT-Sec` interpreter. The pinned local rule configuration is validated by test, but no Semgrep scan result is claimed.
 7. **Execution verification remains non-affirmative.** `executionExecuted` is exposed and defaults to `false`; no current producer sets it `true`. Static verification remains inconclusive for execution rather than claiming it.
-8. **Security-critical new files are untracked.** No commit was permitted. A tracked-only release would omit `core/safe_patch.py`, `core/redaction.py`, `core/persistence.py`, the new extension security modules, SCA workflow, rules, and regression suite.
+8. **Final-gate implementation files are untracked.** The security-critical remediation files are committed in HEAD `7b312f9`; the newer manifest scripts, untrusted-host test scripts, workflow changes, and package.json script change are uncommitted and would be omitted from a tracked-only release.
 9. **Bandit Medium findings are accepted/documented:** two `torch.load` findings, two unpinned Hugging Face downloads, one hardcoded temp directory in sandbox probe code, five test-only `0.0.0.0` literals in validation tests, and one intentional vulnerable SQL fixture. No Bandit High findings remain.
 10. **Repository Ruff style findings remain.** The repository-wide run reports 486 style findings; targeted checks of the new security modules and regression suite pass. These are not treated as security findings, but the repository is not Ruff-clean.
 11. **Development npm advisories remain.** `npm audit --omit=dev` is clean; the earlier development-only advisories were not resolved by a semver-major upgrade.
@@ -218,14 +218,118 @@ These items do not negate the code fixes, but they prevent a local GO claim:
 
 ## 8. Release gate disposition
 
-| Gate from original audit | Local status | External status |
+| Gate from original audit | Local status | Current external status (2026-11-20) |
 |---|---|---|
 | Fix SEC-01/SEC-02 | Satisfied | N/A |
-| Fix SEC-03–SEC-06 | Satisfied in code | Real untrusted-host test not run |
-| Resolve/accept MEDIUM findings | Satisfied/documented | GitHub CI SCA and Semgrep executable not verified |
-| Re-run full tests and audits | Satisfied locally | Windows matrix not run |
-| Complete Python SCA | Satisfied locally using isolated tooling | GitHub Actions run not observed |
+| Fix SEC-03–SEC-06 | Satisfied in code; local untrusted-host test passed | Hosted run `44606156782` passed three-OS integration; new untrusted CI job not hosted yet |
+| Resolve/accept MEDIUM findings | Satisfied/documented | SCA workflow failed historically; Semgrep executable still unavailable |
+| Re-run full tests and audits | Satisfied locally | Windows/macOS/Linux compatibility run succeeded in hosted run `44606156782` |
+| Complete Python SCA | Satisfied locally using isolated tooling | Hosted run `44606156254` failed; local fix not yet hosted |
 | License and publisher ownership | Root MIT license present | Publisher ownership unverified |
-| Rebuild/re-verify VSIX | Satisfied | Marketplace Trusted Publishing/OIDC run unverified |
+| Rebuild/re-verify VSIX | Satisfied | Validation-only hosted run `44673317664` passed integrity (240 entries, 491617 bytes); OIDC publish unverified |
 
-Because external gates remain open, the decision remains **NO-GO for publication**. No commit, push, or publish was performed.
+Because external gates remain open, the decision remains **NO-GO for publication**. No publish was performed.
+
+---
+
+## 9. Final gate implementation status (2026-11-20)
+
+The prose grep that caused hosted run `44673435565` to fail was replaced locally by a structured release-gate manifest:
+
+- `scripts/generateReleaseManifest.js` builds evidence from 16 CI gate artifacts, validates schema/commit/run/URL/TTL fields, writes a SHA-256 sidecar, and fails closed with explicit blockers.
+- `scripts/verifyReleaseManifest.js` requires a fresh, hash-consistent `GO` manifest with zero blockers and rechecks the recorded GitHub Actions run and each gate job conclusion through the API before publication.
+- `.github/workflows/extension-tests.yml` now writes evidence for lint, unit, package, integration, Python tests, Python SCA, npm audit, and untrusted workspace behavior, then generates the manifest artifact.
+- `.github/workflows/publish-extension.yml` downloads and verifies that manifest only for `confirm_publish=true`. Manual dispatch, duplicate tag checks, Marketplace version checks, OIDC confined to the publish job, and exact validated-VSIX checksum comparison remain intact.
+- `.github/workflows/python-sca.yml` now audits the committed hash lock instead of requiring a platform-specific regeneration diff.
+
+Local validation passed: JS syntax, YAML parse, `git diff --check`, synthetic valid/stale/blocked manifest cases, 1106 Python tests in a clean Python 3.11 environment, 439 extension unit tests, and the real untrusted Extension Host test. Hosted evidence for these modified workflows does not yet exist because the changes are uncommitted.
+
+The manifest still reports **NO-GO** because `oidc-publish-receipt`, `publisher-ownership`, and `trusted-publishing-policy` remain explicit UNVERIFIED blockers. This is deliberate fail-closed behavior, not a loosened gate.
+
+---
+
+## 10. Final reconciliation and gate status (2026-11-20)
+
+This section supersedes the stale local-only SCA and untrusted-host claims in §§3, 5, 6, and 8. The full evidence and command-level record is in `PHASE_04_SECURITY_AUDIT.md` §13.
+
+### 10.1 Re-verified evidence
+
+```text
+PYTHONPATH=src:security-engine/src .venv/bin/python -m pytest -q
+1106 passed in 12.19s
+
+npm test
+engine pytest: 742 passed in 10.33s
+extension unit tests: 439 pass / 0 fail / 0 skipped
+
+npm --workspace vscode-extension run test:integration
+Bug Dhor Extension Host checks passed. Exit code: 0
+
+npm --workspace vscode-extension run test:integration:vsix
+Bug Dhor VSIX smoke checks passed. Exit code: 0
+
+npm --workspace vscode-extension run test:integration:untrusted
+Launching VS Code with workspace trust ENABLED (no --disable-workspace-trust).
+Untrusted workspace Extension Host checks passed.
+
+npm audit --omit=dev --json
+total vulnerabilities: 0
+
+pip-audit --require-hashes -r security-engine/requirements.lock.txt --strict
+No known vulnerabilities found
+lock SHA-256: 1e19c4cb7d07a2feac34a9e4810caade45c1d33ed0651da12baa9739091e4131
+
+unzip -t vscode-extension/bug-dhor-0.1.0.vsix
+No errors detected
+240 entries, 492783 bytes, SHA-256 94ccd60ab553cab8d161339b29cdf0eaa54bd780827f7ef4a37282149534efd6
+```
+
+Hosted evidence remains mixed:
+
+| Run | Result |
+|---|---|
+| `44606156782` Extension compatibility tests | **PASS** — 12/12 jobs succeeded on macOS, Windows, and Ubuntu, including Extension Host and installed-VSIX integration. |
+| `44606156254` Python dependency SCA | **FAIL** — lock regeneration failed and skipped both hash-verified install and `pip-audit`. |
+| `44673317664` publish validation, `confirm_publish=false` | **PASS** — validation and VSIX integrity passed; publish job skipped. |
+| `44673435565` publish validation, `confirm_publish=true` | **FAIL** — historical NO-GO guard fired; publish job skipped. |
+
+No hosted run exists for the modified workflows, structured manifest, or untrusted-workspace CI job because those changes remain uncommitted.
+
+### 10.2 SEC disposition
+
+| SEC | Status | SEC | Status | SEC | Status |
+|---|---|---|---|---|---|
+| SEC-01 | **PASS** | SEC-02 | **PASS** | SEC-03 | **PASS** |
+| SEC-04 | **PASS** | SEC-05 | **PASS** | SEC-06 | **PASS** |
+| SEC-07 | **PASS** | SEC-08 | **PASS** | SEC-09 | **PASS** |
+| SEC-10 | **PASS** | SEC-11 | **PASS** | SEC-12 | **FAIL** |
+| SEC-13 | **PASS** | SEC-14 | **PASS** | SEC-15 | **PASS** |
+| SEC-16 | **PASS** | SEC-17 | **PASS** | SEC-18 | **PASS** |
+| SEC-19 | **PASS** | | | | |
+
+SEC-11 PASS covers the pinned offline-rule control; actual Semgrep execution is NOT VERIFIED because the executable is unavailable. SEC-12 FAIL reflects the observed hosted SCA failure; the local fix is not hosted evidence.
+
+### 10.3 Release-readiness gates
+
+| Gate | Status | Evidence / qualification |
+|---|---|---|
+| Code remediation for SEC-01–SEC-11 and SEC-13–SEC-19 | **PASS** | Regression suites and local control evidence above. |
+| Python SCA | **FAIL** | Hosted run `44606156254` failed; local fix passed but is unhosted. |
+| Windows CI on committed workflow | **PASS** | Run `44606156782`, job `135850776566`. |
+| Windows/manifest CI on modified working tree | **NOT VERIFIED** | No hosted run. |
+| Real untrusted Extension Host behavior | **PASS** | Local VS Code launched with trust enabled; no bypass flag. |
+| Hosted untrusted-workspace gate | **NOT VERIFIED** | New CI job has no hosted run. |
+| Structured manifest local validation | **PASS** | Syntax, YAML, synthetic and fail-closed cases. |
+| Structured manifest hosted artifact | **NOT VERIFIED** | No hosted run. |
+| `publisher-ownership` | **NOT VERIFIED** | No authenticated Marketplace evidence. |
+| `trusted-publishing-policy` | **NOT VERIFIED** | No policy record for owner/repository/workflow/environment. |
+| `oidc-publish-receipt` | **NOT VERIFIED** | No successful OIDC publication. |
+| Core remediation files tracked | **PASS** | Six files verified in HEAD. |
+| All required final-gate files tracked | **FAIL** | `scripts/generateReleaseManifest.js`, `scripts/verifyReleaseManifest.js`, `vscode-extension/test/integration/runUntrustedTest.js`, and `vscode-extension/test/integration/untrustedWorkspace.js` are untracked. |
+| Fail-closed publication authorization | **PASS** | `confirm_publish=true` failed at the historical guard; local verifier requires GO, zero blockers, all gates pass, and GitHub API recheck. |
+| Repository license | **PASS** | Root MIT license present. |
+| Tracked credential-like content scan | **PASS** | Word-boundary scan found only deliberate masked test-fixture values in `tests/test_explain_repair_ai.py`; earlier `risk-*` matches were substring false positives. No live secret value was printed. |
+| VSIX integrity | **PASS** | Local and hosted validation evidence; no publish. |
+| No commit/push/tag/publish | **PASS** | No such command executed in this review. |
+
+**Final decision: NO-GO for publication.** The FAIL and NOT VERIFIED gates are mandatory. The manifest correctly preserves three external blockers and will not produce GO until they are independently evidenced and all 16 hosted gates pass.

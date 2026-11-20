@@ -735,6 +735,7 @@
     "format:check": "prettier --ignore-path ../.prettierignore --check \"**/*.{js,json,css,html,yml,yaml}\"",
     "test": "node --test test/unit/*.test.js",
     "test:integration": "node test/integration/runTest.js",
+    "test:integration:untrusted": "node test/integration/runUntrustedTest.js",
     "test:integration:vsix": "node test/integration/runVsixTest.js",
     "package": "npm run package:vsix",
     "package:prepare": "node scripts/stageRuntimeDeps.js",

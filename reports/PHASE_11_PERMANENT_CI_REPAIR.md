@@ -10,6 +10,14 @@
 > Windows and macOS behavior was **not** verified on Windows runners locally; those checks require a
 > GitHub Actions re-run. OIDC authentication was **not** verified and is not claimed working.
 
+> **Current status (2026-11-20):** This report is historical. Hosted run
+> [`44606156782`](https://github.com/sajib91/Bug-Dhor/actions/runs/44606156782) later verified the
+> three-OS fixes, and the Phase 04 CRITICAL/HIGH code findings were remediated and committed at
+> `7b312f9b72889a36401400d61c59a30e6afce3ce`. The grep gate quoted below was replaced locally by a
+> structured release-gate manifest, but publisher/Marketplace Trusted Publishing and OIDC evidence
+> remain unverified, so the decision is still **NO-GO**. Current evidence is in
+> `reports/PHASE_04_SECURITY_AUDIT.md` §12 and `reports/PHASE_04_SECURITY_REMEDIATION.md` §9.
+
 ---
 
 ## 1. Actual evidence collected
