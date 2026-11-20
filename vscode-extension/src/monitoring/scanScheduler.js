@@ -44,7 +44,9 @@ class ScanScheduler {
         ? options.setTimer
         : (callback, delay) => setTimeout(callback, delay);
     this.clearTimer =
-      typeof options.clearTimer === 'function' ? options.clearTimer : (timer) => clearTimeout(timer);
+      typeof options.clearTimer === 'function'
+        ? options.clearTimer
+        : (timer) => clearTimeout(timer);
 
     /** @type {Map<string, { key: string, task: Function, generation: number, reason: string, ready: boolean, timer?: unknown }>} */
     this.queue = new Map();
@@ -87,7 +89,12 @@ class ScanScheduler {
    * @param {{ immediate?: boolean, debounceMs?: number, reason?: string }} [options]
    */
   schedule(key, task, options = {}) {
-    if (this.disposed || typeof key !== 'string' || key.length === 0 || typeof task !== 'function') {
+    if (
+      this.disposed ||
+      typeof key !== 'string' ||
+      key.length === 0 ||
+      typeof task !== 'function'
+    ) {
       return false;
     }
 
@@ -137,7 +144,13 @@ class ScanScheduler {
       }
       this.queue.delete(key);
       this.stats.cancelled += 1;
-      this.record({ key, generation: pending.generation, reason: pending.reason, status: 'cancelled', cause });
+      this.record({
+        key,
+        generation: pending.generation,
+        reason: pending.reason,
+        status: 'cancelled',
+        cause
+      });
     }
 
     const running = this.active.get(key);

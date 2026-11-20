@@ -84,7 +84,13 @@ function applyUnifiedPatch(source, patch) {
         output.push(line.slice(1));
       } else if (line === '\\ No newline at end of file') {
         // informational marker
-      } else if (line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('@@ ')) {
+      } else if (
+        line.startsWith('--- ') ||
+        line.startsWith('+++ ') ||
+        line.startsWith('diff ') ||
+        line.startsWith('index ') ||
+        line.startsWith('@@ ')
+      ) {
         break;
       } else {
         throw new Error('The repair contains an invalid diff line.');
@@ -104,13 +110,17 @@ function applyUnifiedPatch(source, patch) {
  * @returns {string[]}
  */
 function patchFiles(patch) {
-  return [...new Set(
-    patch
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith('+++ '))
-      .map((line) => normalizePatchPath(line.slice(4).split(/\s+/)[0].replace(/^b\//, '').replace(/^a\//, '')))
-      .filter((file) => file !== '/dev/null')
-  )];
+  return [
+    ...new Set(
+      patch
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('+++ '))
+        .map((line) =>
+          normalizePatchPath(line.slice(4).split(/\s+/)[0].replace(/^b\//, '').replace(/^a\//, ''))
+        )
+        .filter((file) => file !== '/dev/null')
+    )
+  ];
 }
 
 module.exports = { applyUnifiedPatch, patchFiles };

@@ -275,9 +275,7 @@ test('full repository scan sends only eligible explicit paths across multi-root 
     assert.equal(harness.serviceCalls[0].request.workspaceFolders.length, 2);
     assert.equal(harness.serviceCalls[0].request.sourceText, undefined);
     assert.ok(
-      harness.progressReports.some((report) =>
-        String(report.message).includes('Discovered')
-      )
+      harness.progressReports.some((report) => String(report.message).includes('Discovered'))
     );
   } finally {
     await removeWorkspace(first);
@@ -347,7 +345,10 @@ test('selected folder scan is scoped to the chosen workspace folder', async () =
   const harness = createHarness({ rootPaths: [root] });
 
   try {
-    await harness.registry.execute(COMMANDS.scanSelectedFolder, createUri(path.join(root, 'packages/api')));
+    await harness.registry.execute(
+      COMMANDS.scanSelectedFolder,
+      createUri(path.join(root, 'packages/api'))
+    );
     assert.equal(harness.serviceCalls.length, 1);
     assert.deepEqual(harness.serviceCalls[0].request.filePaths, [
       path.join(root, 'packages/api/handler.py')

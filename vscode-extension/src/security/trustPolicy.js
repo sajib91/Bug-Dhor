@@ -44,6 +44,7 @@ function applyWorkspaceTrustToSettings(settings = {}, trusted = false) {
   }
   Object.assign(result, {
     sendSourceText: false,
+    allowRemoteSourceSharing: false,
     monitoringEnabled: false,
     monitoringAllowAutomaticSourceSharing: false,
     repositoryAutoScanOnWorkspaceOpen: false,
@@ -57,6 +58,7 @@ function applyWorkspaceTrustToSettings(settings = {}, trusted = false) {
     assistantSaeEnabled: false,
     assistantCounterfactualEnabled: false,
     'privacy.sendSourceText': false,
+    'privacy.allowRemoteSourceSharing': false,
     'monitoring.enabled': false,
     'monitoring.allowAutomaticSourceSharing': false,
     'repository.autoScanOnWorkspaceOpen': false,

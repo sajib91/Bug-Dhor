@@ -194,12 +194,7 @@ test('invoke builds an explicit JSON-only CLI command with a bounded timeout', a
   assert.equal(harness.calls.length, 1);
   const call = harness.calls[0];
   assert.equal(call.command, 'python3');
-  assert.deepEqual(call.args.slice(0, 4), [
-    '-m',
-    'bugdhor_ast.phase6.cli',
-    'explain',
-    '--file'
-  ]);
+  assert.deepEqual(call.args.slice(0, 4), ['-m', 'bugdhor_ast.phase6.cli', 'explain', '--file']);
   assert.ok(call.args.includes(FILE));
   assert.ok(call.args.includes('--index'));
   assert.ok(call.args.includes('1'));

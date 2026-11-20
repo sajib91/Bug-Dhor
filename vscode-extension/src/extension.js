@@ -16,6 +16,12 @@ const {
   mergeLiveFindings
 } = require('./webviews/liveFindingState');
 const { registerDiagnostics } = require('./diagnostics');
+const {
+  EngineManager,
+  ENGINE_STATES,
+  registerManager,
+  unregisterManager
+} = require('./engine/engineManager');
 const { WorkspaceMonitor } = require('./monitoring/workspaceMonitor');
 const { onSettingsChanged, readSettings } = require('./config');
 const { createProviderRegistry, SecurityHooks } = require('./integrations');
@@ -25,6 +31,9 @@ const { createTrustGate } = require('./security/trustGate');
 
 /** @type {import('./logging/output').Logger | undefined} */
 let logger;
+/** @type {import('./engine/engineManager').EngineManager | undefined} */
+let activeEngineManager;
+const ENGINE_MANAGER_KEY = 'bugdhor.local-engine';
 
 /**
  * Map extension settings to the monitoring feature's normalized input shape.
@@ -45,6 +54,8 @@ function getMonitoringSettings(trustGate) {
     notifyOnFindings: settings.monitoringNotifyOnFindings,
     excludeGlobs: settings.monitoringExcludeGlobs,
     watchWorkspaceFiles: settings.monitoringWatchWorkspaceFiles,
+    watchExternalFiles: settings.monitoringWatchExternalFiles,
+    watchRenames: settings.monitoringWatchRenames,
     scanNewFiles: settings.monitoringScanNewFiles,
     scanOnOpen: settings.monitoringScanOnOpen,
     fullScanOnWorkspaceChange: settings.monitoringFullScanOnWorkspaceChange,
@@ -54,6 +65,27 @@ function getMonitoringSettings(trustGate) {
     excludeBinaryFiles: settings.monitoringExcludeBinaryFiles,
     excludeGeneratedFiles: settings.monitoringExcludeGeneratedFiles,
     sendSourceText: settings.sendSourceText
+  };
+}
+
+/**
+ * Map extension settings to the local engine lifecycle manager. An untrusted
+ * workspace never receives a spawned process or runtime installation.
+ *
+ * @returns {object}
+ */
+function getEngineSettings(trustGate) {
+  const settings = trustGate?.sanitizeSettings?.(readSettings()) ?? readSettings();
+  return {
+    autoStart: trustGate?.isTrusted() === true && settings.autoStart,
+    manageRuntime: trustGate?.isTrusted() === true && settings.engineManageRuntime,
+    pythonPath: settings.pythonPath,
+    backendUrl: settings.backendUrl,
+    startupTimeoutMs: settings.engineStartupTimeoutMs,
+    healthPollMs: settings.engineHealthPollMs,
+    maxRestarts: settings.engineMaxRestarts,
+    restartBaseDelayMs: settings.engineRestartBaseDelayMs,
+    restartMaxDelayMs: settings.engineRestartMaxDelayMs
   };
 }
 
@@ -140,9 +172,10 @@ function getRepositorySettings(trustGate) {
 /**
  * Activate the Bug Dhor extension.
  *
- * This starts no Python process and performs no analysis. It connects to an
- * already-running backend, checks its health without sending source code, and
- * creates the dashboard, command registry, sidebar launcher, and status bar.
+ * Activation adopts or starts the bundled local engine when allowed, checks its
+ * health without sending source code, and creates the dashboard, command
+ * registry, sidebar launcher, monitoring, and status bar. Untrusted workspaces
+ * never spawn a process or perform source analysis.
  *
  * @param {import('vscode').ExtensionContext} context
  */
@@ -183,8 +216,8 @@ function activate(context) {
       const settings = trustGate.sanitizeSettings(readSettings());
       if (!isLoopbackBackendUrl(settings.backendUrl)) {
         logger.warn(
-          'bugdhor.backend.url points outside loopback. Source text is sent only for explicit ' +
-            'user-invoked commands and only when bugdhor.privacy.sendSourceText is enabled.'
+          'bugdhor.backend.url points outside loopback. Source text requires an explicit user ' +
+            'command, bugdhor.privacy.sendSourceText, and bugdhor.privacy.allowRemoteSourceSharing.'
         );
       }
       return health;
@@ -207,6 +240,47 @@ function activate(context) {
         dataMode,
         settings: trustGate.sanitizeSettings(readSettings())
       })
+  });
+
+  /** @returns {object} */
+  function engineViewStatus(status) {
+    const labels = {
+      [ENGINE_STATES.STARTING]: 'Starting local engine',
+      [ENGINE_STATES.ONLINE]: 'Local engine online',
+      [ENGINE_STATES.OFFLINE]: 'Local engine offline',
+      [ENGINE_STATES.FAILED]: 'Engine unavailable',
+      [ENGINE_STATES.STOPPING]: 'Stopping local engine'
+    };
+    return {
+      status: status.state === ENGINE_STATES.ONLINE ? 'ready' : status.state,
+      label: labels[status.state] ?? 'Engine status unavailable',
+      detail: status.detail,
+      owned: status.owned,
+      restartAttempt: status.restartAttempt
+    };
+  }
+
+  /** @type {() => void} */
+  let publishRuntimeState = () => {};
+
+  const engineManager = new EngineManager({
+    service,
+    logger,
+    context: {
+      extensionPath: context.extensionPath,
+      globalStoragePath: context.globalStoragePath
+    },
+    getSettings: () => getEngineSettings(trustGate)
+  });
+  activeEngineManager = engineManager;
+  if (!registerManager(ENGINE_MANAGER_KEY, engineManager)) {
+    logger.warn('Another Bug Dhor engine manager is already registered for this endpoint.');
+  }
+  const engineStateSubscription = engineManager.onStateChange((status) => {
+    const online = status.state === ENGINE_STATES.ONLINE;
+    statusBar.setBackendStatus(online ? 'reachable' : 'unavailable', status.detail);
+    publishRuntimeState();
+    logger.debug(`Local engine state: ${status.state}. ${status.detail}`);
   });
   /** @type {object[]} */
   let liveFindings = [];
@@ -242,6 +316,7 @@ function activate(context) {
           scanHistory
         })
       );
+      publishRuntimeState();
       feedback.afterScan({
         documentUri: findings[0]?.documentUri ?? event?.scopeUris?.[0],
         findings,
@@ -281,6 +356,7 @@ function activate(context) {
     assistantRegistry,
     assistantHooks,
     feedback,
+    engineManager,
     getRecommendationSettings: () => getRecommendationSettings(trustGate),
     getRepositorySettings: () => getRepositorySettings(trustGate),
     trustGate
@@ -303,6 +379,28 @@ function activate(context) {
     logger.warn('Workspace monitoring is disabled in an untrusted workspace.');
   }
 
+  publishRuntimeState = () => {
+    const monitorStats = monitor.getStats();
+    dashboard.updateLiveState({
+      engine: engineViewStatus(engineManager.getStatus()),
+      monitoring: {
+        enabled: monitorStats.enabled === true,
+        registeredEvents: monitorStats.registeredEvents === true,
+        scheduled: monitorStats.scheduled ?? 0,
+        completed: monitorStats.completed ?? 0,
+        skipped: monitorStats.skipped ?? 0,
+        failed: monitorStats.failed ?? 0,
+        notifications: monitorStats.notifications ?? 0
+      },
+      counters: {
+        findings: liveFindings.length,
+        scans: monitorStats.completed ?? 0,
+        repairs: dashboard.repairHistory.length
+      }
+    });
+  };
+  publishRuntimeState();
+
   const settingsSubscription = onSettingsChanged((event) => {
     if (event.affectsConfiguration('bugdhor.logging.level')) {
       logger.applySettings();
@@ -316,8 +414,13 @@ function activate(context) {
     if (
       event.affectsConfiguration('bugdhor.backend.url') ||
       event.affectsConfiguration('bugdhor.backend.requestTimeoutMs') ||
-      event.affectsConfiguration('bugdhor.backend.healthTimeoutMs')
+      event.affectsConfiguration('bugdhor.backend.healthTimeoutMs') ||
+      event.affectsConfiguration('bugdhor.engine')
     ) {
+      engineManager.updateSettings();
+      if (trustGate.isTrusted() && event.affectsConfiguration('bugdhor.engine.autoStart')) {
+        void engineManager.ensure({ reason: 'settings' });
+      }
       void checkBackendHealth();
     }
     monitor.updateSettings(getMonitoringSettings(trustGate));
@@ -327,16 +430,22 @@ function activate(context) {
         void assistantRegistry.refresh();
       }
     }
+    publishRuntimeState();
     logger.debug('Bug Dhor settings updated.');
   });
 
   const trustSubscription = trustGate.onChange(() => {
+    engineManager.updateSettings();
     if (trustGate.isTrusted()) {
       monitor.start();
       void assistantRegistry.refresh();
+      void engineManager.ensure({ reason: 'trust' });
+    } else if (engineManager.getStatus().owned) {
+      void engineManager.stop();
     }
     monitor.updateSettings(getMonitoringSettings(trustGate));
     assistantHooks.updateSettings(getAssistantSettings(trustGate));
+    publishRuntimeState();
     dashboard.refresh();
   });
 
@@ -347,6 +456,8 @@ function activate(context) {
     diagnostics,
     sidebarRegistration,
     settingsSubscription,
+    engineStateSubscription,
+    engineManager,
     trustSubscription,
     trustGate,
     commandRegistry,
@@ -355,15 +466,17 @@ function activate(context) {
     feedback
   );
 
-  if (readSettings().autoStart) {
-    logger.warn(
-      'bugdhor.backend.autoStart is reserved for a future process manager. The extension ' +
-        'connects to an already-running backend and does not start one.'
-    );
-  }
+  const startAndCheck = async () => {
+    if (trustGate.isTrusted()) {
+      await engineManager.ensure({ reason: 'activation' });
+    } else {
+      engineManager.updateSettings();
+    }
+    return checkBackendHealth();
+  };
 
   if (trustGate.isTrusted()) {
-    void checkBackendHealth().then((health) =>
+    void startAndCheck().then((health) =>
       offerWorkspaceScan({
         vscode,
         logger,
@@ -372,6 +485,8 @@ function activate(context) {
         backendReachable: Boolean(health)
       })
     );
+  } else {
+    void startAndCheck();
   }
   logger.info('Bug Dhor activated.');
 
@@ -383,6 +498,7 @@ function activate(context) {
     feedback,
     assistantRegistry,
     assistantHooks,
+    engineManager,
     trustGate
   };
 }
@@ -392,6 +508,10 @@ function activate(context) {
  * only used to record the transition.
  */
 function deactivate() {
+  if (activeEngineManager) {
+    unregisterManager(ENGINE_MANAGER_KEY);
+    activeEngineManager = undefined;
+  }
   if (logger) {
     logger.info('Bug Dhor deactivated.');
     logger = undefined;

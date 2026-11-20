@@ -140,6 +140,7 @@ function getEnvironmentToken(environment = process.env) {
  * @property {number} requestTimeoutMs
  * @property {number} healthTimeoutMs
  * @property {boolean} sendSourceText
+ * @property {boolean} allowRemoteSourceSharing
  * @property {string} token
  */
 
@@ -149,6 +150,7 @@ function getEnvironmentToken(environment = process.env) {
  *   requestTimeoutMs?: unknown,
  *   healthTimeoutMs?: unknown,
  *   sendSourceText?: unknown,
+ *   allowRemoteSourceSharing?: unknown,
  *   token?: unknown
  * }} [raw]
  * @param {{ trusted?: unknown }} [options]
@@ -182,7 +184,11 @@ function normalizeApiConfiguration(raw = {}, options = {}) {
       MIN_HEALTH_TIMEOUT_MS,
       MAX_HEALTH_TIMEOUT_MS
     ),
-    sendSourceText: trusted && raw.sendSourceText !== false,
+    sendSourceText:
+      trusted &&
+      raw.sendSourceText !== false &&
+      (isLoopbackBackendUrl(baseUrl) || raw.allowRemoteSourceSharing === true),
+    allowRemoteSourceSharing: raw.allowRemoteSourceSharing === true,
     token: normalizeToken(raw.token)
   });
 }
@@ -200,6 +206,7 @@ function readRawApiConfiguration(configuration, environment = process.env) {
     requestTimeoutMs: configuration.get('backend.requestTimeoutMs', DEFAULT_REQUEST_TIMEOUT_MS),
     healthTimeoutMs: configuration.get('backend.healthTimeoutMs', DEFAULT_HEALTH_TIMEOUT_MS),
     sendSourceText: configuration.get('privacy.sendSourceText', true),
+    allowRemoteSourceSharing: configuration.get('privacy.allowRemoteSourceSharing', false),
     token: getEnvironmentToken(environment)
   };
 }

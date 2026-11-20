@@ -393,7 +393,7 @@ test('dashboard panel opens once with local-resource and script options', () => 
 test('repair approval applies a single-file patch and keeps verification separate', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   await harness.controller.recordRepairResult(repairResponse(), repairRequest());
 
@@ -408,7 +408,7 @@ test('repair approval applies a single-file patch and keeps verification separat
 test('a rejected repair candidate cannot be applied', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   const response = repairResponse();
   response.result.metadata.candidates = [
@@ -430,7 +430,7 @@ test('a rejected repair candidate cannot be applied', async () => {
 test('a verified full-text proposal applies when no candidate patch exists', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   const response = recommendationResponse();
   response.result.selected.patch = '';
@@ -446,7 +446,7 @@ test('a verified full-text proposal applies when no candidate patch exists', asy
 test('a full-text proposal larger than 2 MiB is rejected', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   const response = recommendationResponse();
   response.result.selected.patch = '';
@@ -463,7 +463,7 @@ test('a full-text proposal larger than 2 MiB is rejected', async () => {
 test('repair approval starts verification with the stored repair identity', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   const panel = harness.controller.open();
   await harness.controller.recordRepairResult(repairResponse(), repairRequest());
@@ -516,7 +516,7 @@ test('repair proposals surface workflow, functional, and before/after evidence',
 test('repair acceptance rejects stale document content', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   await harness.controller.recordRepairResult(repairResponse(), repairRequest());
   harness.setDocumentText('const value = 9;\n');
@@ -561,7 +561,7 @@ test('an approved recommendation application records applied-patch feedback only
       recorded.push(entry);
     }
   };
-  const harness = createHarness({ approval: 'Apply Patch', feedback });
+  const harness = createHarness({ approval: 'Apply Fix', feedback });
   await harness.controller.recordRecommendationResult(recommendationResponse(), repairRequest());
 
   await harness.controller.acceptRepair({
@@ -581,7 +581,7 @@ test('an approved recommendation application records applied-patch feedback only
 test('a stale recommendation snapshot cannot record applied-patch feedback', async () => {
   const recorded = [];
   const harness = createHarness({
-    approval: 'Apply Patch',
+    approval: 'Apply Fix',
     feedback: {
       recordAppliedPatch(entry) {
         recorded.push(entry);
@@ -612,7 +612,7 @@ test('repair rejection does not modify the source', async () => {
 test('restore requires approval and restores the captured original', async () => {
   const harness = createHarness({
     documentText: 'const value = 1;\n',
-    approval: 'Apply Patch'
+    approval: 'Apply Fix'
   });
   await harness.controller.recordRepairResult(repairResponse(), repairRequest());
   await harness.controller.acceptRepair({ repairId: 'repair-1' });
@@ -690,6 +690,53 @@ test('live backend results replace unavailable dashboard data without inventing 
       findingReviews: {}
     }
   });
+
+  harness.controller.dispose();
+});
+
+test('live runtime state is merged into the dashboard without inventing fields', () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+  const patch = {
+    engine: {
+      state: 'ready',
+      detail: 'Local engine is reachable at http://127.0.0.1:8765.',
+      managed: true
+    },
+    monitoring: {
+      enabled: true,
+      registeredEvents: true,
+      scheduled: 4,
+      completed: 3,
+      skipped: 1,
+      failed: 0,
+      notifications: 2
+    },
+    counters: { findings: 7, scans: 3, repairs: 1 }
+  };
+
+  harness.controller.updateLiveState(patch);
+
+  const message = panel.postedMessages.at(-1);
+  assert.equal(message.type, 'state');
+  assert.equal(message.state.dataMode, 'live');
+  assert.deepEqual(message.state.engine, patch.engine);
+  assert.deepEqual(message.state.monitoring, patch.monitoring);
+  assert.deepEqual(message.state.counters, patch.counters);
+  assert.equal(message.state.request, 2);
+
+  harness.controller.dispose();
+});
+
+test('focusSection posts only valid section names to the webview', () => {
+  const harness = createHarness();
+  const panel = harness.controller.open();
+
+  harness.controller.focusSection('findings');
+  harness.controller.focusSection('');
+  harness.controller.focusSection(42);
+
+  assert.deepEqual(panel.postedMessages, [{ type: 'focusSection', section: 'findings' }]);
 
   harness.controller.dispose();
 });
@@ -779,6 +826,15 @@ test('dashboard commands are restricted to the engine command allowlist', async 
   assert.ok(EXECUTABLE_COMMANDS.has(COMMANDS.scanWorkspace));
   assert.ok(!EXECUTABLE_COMMANDS.has(COMMANDS.openSecurityDashboard));
   assert.ok(EXECUTABLE_COMMANDS.has(COMMANDS.verifyRepair));
+  for (const command of [
+    COMMANDS.startEngine,
+    COMMANDS.stopEngine,
+    COMMANDS.debugProject,
+    COMMANDS.viewFindings,
+    COMMANDS.reviewFixes
+  ]) {
+    assert.ok(EXECUTABLE_COMMANDS.has(command), `${command} must be executable from the dashboard`);
+  }
 
   await panel.send({ type: 'executeCommand', command: COMMANDS.openSecurityDashboard });
   await panel.send({ type: 'executeCommand', command: 'workbench.action.terminal.new' });

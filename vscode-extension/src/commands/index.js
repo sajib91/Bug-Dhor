@@ -7,6 +7,7 @@ const { registerRepositoryCommands } = require('./repositoryCommands');
 const { registerAnalysisCommands } = require('./analysisCommands');
 const { registerRepairCommands } = require('./repairCommands');
 const { registerPhase6Commands } = require('./phase6Commands');
+const { registerEngineCommands, ENGINE_COMMANDS } = require('./engineCommands');
 const { registerDashboardCommand } = require('./dashboardCommand');
 const { registerUtilityCommands, UTILITY_COMMANDS } = require('./utilityCommands');
 
@@ -20,6 +21,7 @@ const COMMAND_REGISTRARS = Object.freeze([
   registerAnalysisCommands,
   registerRepairCommands,
   registerPhase6Commands,
+  registerEngineCommands,
   registerDashboardCommand,
   registerUtilityCommands
 ]);
@@ -28,7 +30,11 @@ const COMMAND_REGISTRARS = Object.freeze([
  * @returns {Set<string>}
  */
 function expectedCommandIds() {
-  return new Set([...COMMAND_DEFINITIONS.map((definition) => definition.id), ...UTILITY_COMMANDS]);
+  return new Set([
+    ...COMMAND_DEFINITIONS.map((definition) => definition.id),
+    ...ENGINE_COMMANDS,
+    ...UTILITY_COMMANDS
+  ]);
 }
 
 /**
@@ -67,6 +73,7 @@ function assertCompleteRegistry(registry) {
  *   assistantRegistry?: ReturnType<import('../integrations/registry').createProviderRegistry>,
  *   assistantHooks?: import('../integrations/securityHooks').SecurityHooks,
  *   feedback?: import('../feedback/feedbackController').FeedbackController,
+ *   engineManager?: import('../engine/engineManager').EngineManager,
  *   getRecommendationSettings?: () => object,
  *   getRepositorySettings?: () => object,
  *   trustGate?: { assertCapability: (operation?: string) => void },
@@ -84,6 +91,7 @@ function registerCommands({
   assistantRegistry,
   assistantHooks,
   feedback,
+  engineManager,
   getRecommendationSettings,
   getRepositorySettings,
   trustGate,
@@ -120,6 +128,7 @@ function registerCommands({
     assistantRegistry,
     assistantHooks,
     feedback,
+    engineManager,
     getSettings: getRecommendationSettings,
     getRepositorySettings:
       getRepositorySettings ?? (() => ({ backendUrl: 'http://127.0.0.1:8765' })),

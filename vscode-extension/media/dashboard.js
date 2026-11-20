@@ -64,6 +64,10 @@
   const refreshButton = document.getElementById('refresh-button');
   const demoButton = document.getElementById('demo-button');
   const logsButton = document.getElementById('logs-button');
+  const startEngineButton = document.getElementById('start-engine-button');
+  const debugProjectButton = document.getElementById('debug-project-button');
+  const viewFindingsButton = document.getElementById('view-findings-button');
+  const reviewFixesButton = document.getElementById('review-fixes-button');
   const enginePill = document.getElementById('engine-pill');
   const enginePillLabel = document.getElementById('engine-pill-label');
 
@@ -144,6 +148,13 @@
         return;
       }
 
+      if (message.type === 'focusSection') {
+        if (typeof message.section === 'string' && sectionIds.includes(message.section)) {
+          activateSection(message.section, false);
+        }
+        return;
+      }
+
       if (message.type === 'notice') {
         const level =
           message.level === 'error' || message.level === 'warning' ? message.level : 'info';
@@ -173,6 +184,20 @@
       logsButton.addEventListener('click', () => {
         sendMessage({ type: 'showLogs' });
       });
+    }
+
+    const commandButtons = [
+      [startEngineButton, 'bugdhor.startEngine'],
+      [debugProjectButton, 'bugdhor.debugProject'],
+      [viewFindingsButton, 'bugdhor.viewFindings'],
+      [reviewFixesButton, 'bugdhor.reviewFixes']
+    ];
+    for (const [button, command] of commandButtons) {
+      if (button) {
+        button.addEventListener('click', () => {
+          sendMessage({ type: 'executeCommand', command });
+        });
+      }
     }
 
     if (!navList) {
@@ -325,6 +350,8 @@
       sections: arrayOfRecords(source.sections),
       actions: arrayOfRecords(source.actions),
       engine: isRecord(source.engine) ? source.engine : {},
+      monitoring: isRecord(source.monitoring) ? source.monitoring : {},
+      counters: isRecord(source.counters) ? source.counters : {},
       summary: {
         totalFindings: numberOrNull(summary.totalFindings),
         severity: {
@@ -595,6 +622,7 @@
     if (engineMessage) {
       section.appendChild(engineMessage);
     }
+    section.appendChild(renderRuntimeStatusCard());
 
     const summary = state.summary;
     const total = summary.totalFindings;
@@ -644,6 +672,27 @@
     section.appendChild(statusGrid);
 
     return section;
+  }
+
+  function renderRuntimeStatusCard() {
+    const monitoring = state.monitoring ?? {};
+    const counters = state.counters ?? {};
+    const rows = el('div', 'technical-list');
+    const values = [
+      ['Monitoring', monitoring.enabled === true ? 'Active' : 'Off'],
+      ['Scans completed', numberOrNull(monitoring.completed)],
+      ['Findings tracked', numberOrNull(counters.findings)],
+      ['Background alerts', numberOrNull(monitoring.notifications)],
+      ['Repair records', numberOrNull(counters.repairs)]
+    ];
+    for (const [label, value] of values) {
+      rows.appendChild(el('div', 'technical-row', `${label}: ${formatNumber(value)}`));
+    }
+    return card(
+      'Live assistant status',
+      'Counters reflect real recorded events from this editor session.',
+      rows
+    );
   }
 
   function renderScanSection() {
@@ -1672,7 +1721,9 @@
 
       const renderDetails = () => {
         const selected = effectItems[Number(selector.value)];
-        details.replaceChildren(selected ? renderInteractionDetails(selected) : unavailableEvidence());
+        details.replaceChildren(
+          selected ? renderInteractionDetails(selected) : unavailableEvidence()
+        );
       };
       selector.addEventListener('change', renderDetails);
       renderDetails();
@@ -1763,9 +1814,7 @@
       const value = values[index];
       const y = index * 38 + 8;
       const label =
-        item.kind === 'single'
-          ? `F ${describeFeatureValue(item)}`
-          : describeFeatureList(item);
+        item.kind === 'single' ? `F ${describeFeatureValue(item)}` : describeFeatureList(item);
       chart.appendChild(svgText(label.slice(0, 30), 4, y + 16, 'interaction-chart__label'));
       if (value === null) {
         chart.appendChild(svgText('Unavailable evidence', 220, y + 16, 'interaction-chart__muted'));
@@ -1779,9 +1828,16 @@
       bar.setAttribute('width', String(width));
       bar.setAttribute('height', '22');
       bar.setAttribute('rx', '3');
-      bar.setAttribute('class', value < 0 ? 'interaction-chart__bar interaction-chart__bar--negative' : 'interaction-chart__bar');
+      bar.setAttribute(
+        'class',
+        value < 0
+          ? 'interaction-chart__bar interaction-chart__bar--negative'
+          : 'interaction-chart__bar'
+      );
       chart.appendChild(bar);
-      chart.appendChild(svgText(formatSignedNumber(value), 560, y + 16, 'interaction-chart__value'));
+      chart.appendChild(
+        svgText(formatSignedNumber(value), 560, y + 16, 'interaction-chart__value')
+      );
     });
     const axis = svgElement('line');
     axis.setAttribute('x1', '220');
@@ -1804,7 +1860,14 @@
       const after = numericValue(item.after);
       const delta = numericValue(item.delta);
       const y = index * 46 + 8;
-      chart.appendChild(svgText(textOrDash(item.label ?? item.feature ?? item.token), 4, y + 16, 'interaction-chart__label'));
+      chart.appendChild(
+        svgText(
+          textOrDash(item.label ?? item.feature ?? item.token),
+          4,
+          y + 16,
+          'interaction-chart__label'
+        )
+      );
       if (before === null || after === null) {
         chart.appendChild(svgText('Unavailable evidence', 220, y + 16, 'interaction-chart__muted'));
         return;
@@ -1815,7 +1878,12 @@
       appendActivationBar(chart, 220, y, beforeWidth, 'Before');
       appendActivationBar(chart, 220, y + 12, afterWidth, 'After');
       chart.appendChild(
-        svgText(`Δ ${formatSignedNumber(delta ?? after - before)}`, 560, y + 16, 'interaction-chart__value')
+        svgText(
+          `Δ ${formatSignedNumber(delta ?? after - before)}`,
+          560,
+          y + 16,
+          'interaction-chart__value'
+        )
       );
     });
     return chart;
@@ -1828,7 +1896,12 @@
     bar.setAttribute('width', String(Math.max(width, 2)));
     bar.setAttribute('height', '8');
     bar.setAttribute('rx', '2');
-    bar.setAttribute('class', label === 'Before' ? 'interaction-chart__bar interaction-chart__bar--before' : 'interaction-chart__bar');
+    bar.setAttribute(
+      'class',
+      label === 'Before'
+        ? 'interaction-chart__bar interaction-chart__bar--before'
+        : 'interaction-chart__bar'
+    );
     chart.appendChild(bar);
     chart.appendChild(svgText(label, 450, y + 8, 'interaction-chart__muted'));
   }
@@ -1837,22 +1910,32 @@
     const details = el('div', 'interaction-detail-grid');
     details.appendChild(detailRow('Evidence category', evidenceLabel(item.evidenceType)));
     details.appendChild(detailRow('Outcome scale', item.outcomeScale ?? item.scale));
-    details.appendChild(detailRow('Effect', formatSignedNumber(item.effect ?? item.contrast ?? item.outcome)));
-    details.appendChild(detailRow('Uncertainty', formatUncertainty(item.uncertainty ?? item.interval ?? item.ci)));
+    details.appendChild(
+      detailRow('Effect', formatSignedNumber(item.effect ?? item.contrast ?? item.outcome))
+    );
+    details.appendChild(
+      detailRow('Uncertainty', formatUncertainty(item.uncertainty ?? item.interval ?? item.ci))
+    );
     details.appendChild(detailRow('CWE', Array.isArray(item.cwe) ? item.cwe.join(', ') : item.cwe));
 
     const examples = Array.isArray(item.examples)
       ? item.examples
-      : [...(Array.isArray(item.positiveExamples) ? item.positiveExamples : []),
-        ...(Array.isArray(item.negativeExamples) ? item.negativeExamples : [])];
+      : [
+          ...(Array.isArray(item.positiveExamples) ? item.positiveExamples : []),
+          ...(Array.isArray(item.negativeExamples) ? item.negativeExamples : [])
+        ];
     const examplesNode = el('div', 'interaction-examples');
     examplesNode.appendChild(el('h4', 'interaction-examples__title', 'Code examples'));
     if (examples.length === 0) {
-      examplesNode.appendChild(el('p', 'text-muted', 'Unavailable evidence: no code examples supplied.'));
+      examplesNode.appendChild(
+        el('p', 'text-muted', 'Unavailable evidence: no code examples supplied.')
+      );
     } else {
       for (const example of examples) {
         const pre = el('pre', 'code-example');
-        pre.textContent = isRecord(example) ? String(example.code ?? example.text ?? '') : String(example);
+        pre.textContent = isRecord(example)
+          ? String(example.code ?? example.text ?? '')
+          : String(example);
         examplesNode.appendChild(pre);
       }
     }
@@ -2207,12 +2290,16 @@
       el(
         'p',
         'mono',
-        `${location.path}:${numberOrNull(location.startLine) ?? '—'}:${numberOrNull(
-          location.startColumn
-        ) ?? '—'}`
+        `${location.path}:${numberOrNull(location.startLine) ?? '—'}:${
+          numberOrNull(location.startColumn) ?? '—'
+        }`
       )
     );
-    const button = el('button', 'button button--secondary source-location__button', 'Open source line');
+    const button = el(
+      'button',
+      'button button--secondary source-location__button',
+      'Open source line'
+    );
     button.type = 'button';
     button.addEventListener('click', () => {
       sendMessage({
@@ -2258,7 +2345,9 @@
 
   function renderGraphEvidence(graph) {
     if (!isRecord(graph)) {
-      return unavailableEvidence('Unavailable information: no AST, CFG, or DFG graph was supplied.');
+      return unavailableEvidence(
+        'Unavailable information: no AST, CFG, or DFG graph was supplied.'
+      );
     }
     const nodes = records(graph.nodes);
     const edges = records(graph.edges);
@@ -2489,7 +2578,10 @@
             definitionList(
               [
                 ['Candidate', candidate.candidateId],
-                ['Verification', candidate.verificationStatus ?? repair.verificationStatus ?? 'Not run'],
+                [
+                  'Verification',
+                  candidate.verificationStatus ?? repair.verificationStatus ?? 'Not run'
+                ],
                 ['Security improvement', candidate.securityImprovement ?? 'Unavailable'],
                 ['Functional tests', candidate.functionalTestPassRate ?? 'Unavailable'],
                 ['Regression tests', candidate.regressionTestsPassed ?? 'Unavailable']
@@ -2502,7 +2594,7 @@
             candidateCard.appendChild(diff);
           }
           const controls = el('div', 'button-row');
-          const preview = el('button', 'button button--ghost', 'View inline diff');
+          const preview = el('button', 'button button--ghost', 'Review Fix');
           preview.type = 'button';
           preview.addEventListener('click', () =>
             sendMessage({
@@ -2513,7 +2605,7 @@
           );
           controls.appendChild(preview);
           if (repair.status === 'proposed') {
-            const accept = el('button', 'button button--primary', 'Accept patch');
+            const accept = el('button', 'button button--primary', 'Apply Fix');
             accept.type = 'button';
             accept.addEventListener('click', () =>
               sendMessage({
@@ -2523,7 +2615,7 @@
               })
             );
             controls.appendChild(accept);
-            const reject = el('button', 'button button--ghost', 'Reject patch');
+            const reject = el('button', 'button button--ghost', 'Reject');
             reject.type = 'button';
             reject.addEventListener('click', () =>
               sendMessage({ type: 'rejectRepair', repairId: repair.id })
@@ -2561,7 +2653,9 @@
     if (state.repairHistory.length > 0) {
       const history = el('details', 'technical-details');
       history.appendChild(el('summary', 'technical-details__summary', 'Repair history'));
-      history.appendChild(renderEvidenceRecords(state.repairHistory, 'No repair history recorded.'));
+      history.appendChild(
+        renderEvidenceRecords(state.repairHistory, 'No repair history recorded.')
+      );
       section.appendChild(history);
     }
 
@@ -2665,7 +2759,7 @@
 
       const controls = el('div', 'button-row');
       if (recommendation.repairedCode) {
-        const preview = el('button', 'button button--ghost', 'View inline diff');
+        const preview = el('button', 'button button--ghost', 'Review Fix');
         preview.type = 'button';
         preview.addEventListener('click', () =>
           sendMessage({
@@ -2676,7 +2770,7 @@
         );
         controls.appendChild(preview);
         if (recommendation.status === 'proposed' && recommendation.requiresApproval === true) {
-          const accept = el('button', 'button button--primary', 'Accept patch');
+          const accept = el('button', 'button button--primary', 'Apply Fix');
           accept.type = 'button';
           accept.addEventListener('click', () =>
             sendMessage({
@@ -2686,7 +2780,7 @@
             })
           );
           controls.appendChild(accept);
-          const reject = el('button', 'button button--ghost', 'Reject patch');
+          const reject = el('button', 'button button--ghost', 'Reject');
           reject.type = 'button';
           reject.addEventListener('click', () =>
             sendMessage({ type: 'rejectRepair', repairId: recommendation.id })
@@ -3650,7 +3744,12 @@
       return result;
     }
     for (const [key, entry] of Object.entries(value)) {
-      if (typeof key === 'string' && key.length > 0 && typeof entry === 'number' && Number.isFinite(entry)) {
+      if (
+        typeof key === 'string' &&
+        key.length > 0 &&
+        typeof entry === 'number' &&
+        Number.isFinite(entry)
+      ) {
         result[key] = entry;
       }
     }

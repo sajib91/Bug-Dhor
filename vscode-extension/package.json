@@ -2,7 +2,7 @@
   "name": "bug-dhor",
   "displayName": "Bug-Dhor: AI Code Security Analyzer",
   "description": "Local-first security diagnostics, evidence-grounded explanations, and proposal-only repair backed by a separate Python engine.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "sajib91",
   "repository": {
     "type": "git",
@@ -39,6 +39,11 @@
   },
   "activationEvents": [
     "onStartupFinished",
+    "onCommand:bugdhor.startEngine",
+    "onCommand:bugdhor.stopEngine",
+    "onCommand:bugdhor.debugProject",
+    "onCommand:bugdhor.viewFindings",
+    "onCommand:bugdhor.reviewFixes",
     "onCommand:bugdhor.showStatus",
     "onCommand:bugdhor.showLogs",
     "onCommand:bugdhor.scanCurrentFile",
@@ -82,6 +87,31 @@
         "title": "Show Logs",
         "category": "Bug Dhor",
         "icon": "$(output)"
+      },
+      {
+        "command": "bugdhor.startEngine",
+        "title": "Start Local Engine",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.stopEngine",
+        "title": "Stop Local Engine",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.debugProject",
+        "title": "Debug Project",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.viewFindings",
+        "title": "View Findings",
+        "category": "Bug Dhor"
+      },
+      {
+        "command": "bugdhor.reviewFixes",
+        "title": "Review Fixes",
+        "category": "Bug Dhor"
       },
       {
         "command": "bugdhor.scanCurrentFile",
@@ -308,18 +338,83 @@
           "type": "boolean",
           "default": true,
           "scope": "machine",
-          "markdownDescription": "Send the active document text and selected text with explicitly user-invoked scan and analysis commands. Disable to send only file paths and ranges; the backend then reads the saved file from disk. Workspace scans never send file contents. Background monitoring also requires bugdhor.monitoring.allowAutomaticSourceSharing and never sends source text without it."
+          "markdownDescription": "Send the active document text and selected text with explicitly user-invoked scan and analysis commands. Disable to send only file paths and ranges; the backend then reads the saved file from disk. A non-loopback backend additionally requires bugdhor.privacy.allowRemoteSourceSharing. Workspace scans never send file contents. Background monitoring also requires bugdhor.monitoring.allowAutomaticSourceSharing and never sends source text without it."
+        },
+        "bugdhor.privacy.allowRemoteSourceSharing": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "markdownDescription": "Explicit consent to send source text to a non-loopback HTTPS backend. Source text is never sent to a remote backend unless this setting is enabled and bugdhor.privacy.sendSourceText is enabled. Loopback analysis is unaffected."
+        },
+        "bugdhor.engine.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Automatically detect or start the bundled local security engine when Bug Dhor activates. An already-running loopback engine is adopted instead of duplicated."
+        },
+        "bugdhor.engine.pythonPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Optional absolute path or command name for the Python 3.11+ interpreter used to run the bundled engine. Leave empty for automatic discovery. The extension always uses a fixed argv list and never executes workspace-derived commands."
+        },
+        "bugdhor.engine.manageRuntime": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Create an isolated runtime in extension storage and install declared Python dependencies when the interpreter lacks them. Package installation uses fixed arguments only."
+        },
+        "bugdhor.engine.startupTimeoutMs": {
+          "type": "number",
+          "default": 20000,
+          "minimum": 1000,
+          "maximum": 120000,
+          "scope": "machine",
+          "description": "Maximum time to wait for the local engine health endpoint after spawning it."
+        },
+        "bugdhor.engine.healthPollMs": {
+          "type": "number",
+          "default": 300,
+          "minimum": 50,
+          "maximum": 5000,
+          "scope": "machine",
+          "description": "Interval between health checks while the local engine is starting."
+        },
+        "bugdhor.engine.maxRestarts": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 10,
+          "scope": "machine",
+          "description": "Maximum number of bounded exponential-backoff restarts after an unexpected engine exit."
+        },
+        "bugdhor.engine.restartBaseDelayMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 100,
+          "maximum": 10000,
+          "scope": "machine",
+          "description": "Initial delay before the first automatic engine restart."
+        },
+        "bugdhor.engine.restartMaxDelayMs": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "scope": "machine",
+          "description": "Upper bound for automatic engine restart backoff."
         },
         "bugdhor.backend.pythonPath": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "markdownDescription": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
+          "markdownDescription": "Deprecated alias for bugdhor.engine.pythonPath."
         },
         "bugdhor.backend.autoStart": {
           "type": "boolean",
           "default": false,
-          "description": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
+          "scope": "machine",
+          "markdownDescription": "Deprecated alias for bugdhor.engine.autoStart. Explicitly set this value to override the new default."
         },
         "bugdhor.logging.level": {
           "type": "string",
@@ -352,6 +447,39 @@
           "default": false,
           "scope": "machine",
           "markdownDescription": "Enable background monitoring of Python and JavaScript document changes. Monitoring is off by default. It observes ordinary editor changes from any source and never claims to identify an AI assistant or model."
+        },
+        "bugdhor.monitoring.scanOnSave": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "markdownDescription": "Analyze eligible saved files after background monitoring detects a save. Takes precedence over the deprecated bugdhor.monitoring.onSaveOnly alias. Path-only scans are used unless source-text sharing is explicitly consented."
+        },
+        "bugdhor.scan.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/.venv/**",
+            "**/venv/**",
+            "**/__pycache__/**",
+            "**/dist/**",
+            "**/out/**",
+            "**/build/**",
+            "**/coverage/**",
+            "**/vendor/**",
+            "**/.bugdhor-data/**"
+          ],
+          "scope": "machine",
+          "markdownDescription": "Path globs excluded from automatic monitoring and scans. Takes precedence over the deprecated bugdhor.monitoring.excludeGlobs alias."
+        },
+        "bugdhor.repair.requireApproval": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Require an explicit Review Fix, Apply Fix, or Reject decision before any proposed repair modifies a source file."
         },
         "bugdhor.monitoring.allowAutomaticSourceSharing": {
           "type": "boolean",
@@ -452,6 +580,18 @@
           "default": true,
           "scope": "machine",
           "markdownDescription": "Watch official workspace file create, delete, and folder-change events. Requires bugdhor.monitoring.enabled."
+        },
+        "bugdhor.monitoring.watchExternalFiles": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Watch saved workspace source files changed outside the editor through the official VS Code file-system watcher. External changes are scanned from disk only; no shell command is executed."
+        },
+        "bugdhor.monitoring.watchRenames": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Observe official file-rename events so findings and monitoring state follow the new path."
         },
         "bugdhor.monitoring.scanNewFiles": {
           "type": "boolean",

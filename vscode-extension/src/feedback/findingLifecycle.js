@@ -115,7 +115,9 @@ class FindingLifecycle {
         firstSeenAt: new Date().toISOString()
       };
 
-      if (['patched', 'rescanning', 'verification_passed', 'rescan_clean'].includes(previousState)) {
+      if (
+        ['patched', 'rescanning', 'verification_passed', 'rescan_clean'].includes(previousState)
+      ) {
         entry.state = 'regressed';
         entry.regressedAt = new Date().toISOString();
         entry.resolvedAt = null;
@@ -138,8 +140,7 @@ class FindingLifecycle {
         ruleId: finding.ruleId ?? entry.ruleId,
         range: finding.range ?? entry.range,
         lastSeenAt: new Date().toISOString(),
-        lastSnapshotHash:
-          typeof snapshotHash === 'string' ? snapshotHash : entry.lastSnapshotHash
+        lastSnapshotHash: typeof snapshotHash === 'string' ? snapshotHash : entry.lastSnapshotHash
       });
       this.entries.set(key, entry);
     }
@@ -191,7 +192,8 @@ class FindingLifecycle {
    */
   recordPatch({ documentUri, findingId, patchHash, appliedHash, source } = {}) {
     const uri = normalizeUri(documentUri);
-    const directKey = typeof findingId === 'string' && findingId.length > 0 ? `id:${findingId}` : null;
+    const directKey =
+      typeof findingId === 'string' && findingId.length > 0 ? `id:${findingId}` : null;
     const targets = [];
     if (directKey && this.entries.has(directKey)) {
       targets.push(this.entries.get(directKey));
@@ -244,7 +246,8 @@ class FindingLifecycle {
     const entry =
       (key ? this.entries.get(key) : undefined) ??
       [...this.entries.values()].find(
-        (candidate) => normalizeUri(documentUri) && candidate.documentUri === normalizeUri(documentUri)
+        (candidate) =>
+          normalizeUri(documentUri) && candidate.documentUri === normalizeUri(documentUri)
       );
     if (!entry) {
       return { entry: undefined, resolvedNow: false };

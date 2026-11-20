@@ -85,7 +85,8 @@ class SecurityHooks {
       capability: 'B',
       requestId: typeof request?.requestId === 'string' ? request.requestId : null,
       requestHash: typeof request?.requestHash === 'string' ? request.requestHash : null,
-      modelId: typeof request?.modelId === 'string' ? request.modelId : provider.model?.id ?? null,
+      modelId:
+        typeof request?.modelId === 'string' ? request.modelId : (provider.model?.id ?? null),
       at: Date.now()
     });
     this.remember(observation);
@@ -188,7 +189,11 @@ class SecurityHooks {
       };
     }
     if (!provider || typeof provider.run !== 'function') {
-      return { status: 'unavailable', reasonCode: 'E_COUNTERFACTUAL_PROVIDER_INVALID', provider: null };
+      return {
+        status: 'unavailable',
+        reasonCode: 'E_COUNTERFACTUAL_PROVIDER_INVALID',
+        provider: null
+      };
     }
     this.optionalProviders.counterfactual = provider;
     return { status: 'available', reasonCode: null, provider };

@@ -52,7 +52,9 @@ function requireText(value, field) {
 /** @param {unknown} value @param {string} field @returns {number} */
 function requireInteger(value, field, minimum, maximum) {
   if (!Number.isInteger(value) || Number(value) < minimum || Number(value) > maximum) {
-    throw new ProviderGenerationError(`${field} must be an integer between ${minimum} and ${maximum}.`);
+    throw new ProviderGenerationError(
+      `${field} must be an integer between ${minimum} and ${maximum}.`
+    );
   }
   return Number(value);
 }
@@ -60,7 +62,9 @@ function requireInteger(value, field, minimum, maximum) {
 /** @param {unknown} value @param {string} field @returns {number} */
 function requireNumber(value, field, minimum, maximum) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) {
-    throw new ProviderGenerationError(`${field} must be a number between ${minimum} and ${maximum}.`);
+    throw new ProviderGenerationError(
+      `${field} must be a number between ${minimum} and ${maximum}.`
+    );
   }
   return value;
 }
@@ -101,7 +105,10 @@ function createGenerationRequest(input) {
     if (!['system', 'user', 'assistant'].includes(message.role)) {
       throw new ProviderGenerationError(`messages[${index}].role is not supported.`);
     }
-    return { role: message.role, content: requireText(message.content, `messages[${index}].content`) };
+    return {
+      role: message.role,
+      content: requireText(message.content, `messages[${index}].content`)
+    };
   });
 
   const stop = input.stop ?? [];
@@ -113,11 +120,7 @@ function createGenerationRequest(input) {
   const metadata = {};
   if (input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata)) {
     for (const [key, value] of Object.entries(input.metadata)) {
-      if (
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean'
-      ) {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
         metadata[key] = value;
       }
     }
@@ -163,7 +166,10 @@ function normalizeGenerationResponse(raw, context) {
     }
   }
   if (typeof text !== 'string' || text.length === 0) {
-    throw new ProviderGenerationError('The provider returned no generated text.', context.providerId);
+    throw new ProviderGenerationError(
+      'The provider returned no generated text.',
+      context.providerId
+    );
   }
 
   const rawUsage =
@@ -188,7 +194,8 @@ function normalizeGenerationResponse(raw, context) {
 
   return {
     text,
-    finishReason: typeof finishReason === 'string' && finishReason.length > 0 ? finishReason : 'unknown',
+    finishReason:
+      typeof finishReason === 'string' && finishReason.length > 0 ? finishReason : 'unknown',
     usage,
     provenance: {
       providerId: requireText(context.providerId, 'providerId'),

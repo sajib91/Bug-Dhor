@@ -97,11 +97,16 @@ function fullTextRepairAllowed(record) {
  * never accepts arbitrary command IDs or command arguments from the webview.
  */
 const EXECUTABLE_COMMANDS = Object.freeze(
-  new Set(
-    COMMAND_DEFINITIONS.filter((definition) => definition.serviceMethod).map(
+  new Set([
+    ...COMMAND_DEFINITIONS.filter((definition) => definition.serviceMethod).map(
       (definition) => definition.id
-    )
-  )
+    ),
+    COMMANDS.startEngine,
+    COMMANDS.stopEngine,
+    COMMANDS.debugProject,
+    COMMANDS.viewFindings,
+    COMMANDS.reviewFixes
+  ])
 );
 
 class DashboardPanelController {
@@ -238,6 +243,17 @@ class DashboardPanelController {
 
     this.logger.info('Opened the Bug Dhor security dashboard.');
     return panel;
+  }
+
+  /**
+   * Ask the webview to activate one of its canonical sections.
+   *
+   * @param {string} section
+   */
+  focusSection(section) {
+    if (this.panel && typeof section === 'string' && section.length > 0) {
+      this.panel.webview.postMessage({ type: 'focusSection', section });
+    }
   }
 
   /**
@@ -733,11 +749,11 @@ class DashboardPanelController {
       return;
     }
     const approval = await this.vscode.window.showWarningMessage(
-      'Apply this Bug Dhor repair patch to the source file?',
+      'Review the Bug Dhor fix, then apply it to the source file?',
       { modal: true },
-      'Apply Patch'
+      'Apply Fix'
     );
-    if (approval !== 'Apply Patch') {
+    if (approval !== 'Apply Fix') {
       return;
     }
     const document = await this.vscode.workspace.openTextDocument(

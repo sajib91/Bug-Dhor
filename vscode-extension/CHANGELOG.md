@@ -3,6 +3,35 @@
 All notable changes to the Bug Dhor VS Code extension are documented here. This is the
 Marketplace-facing changelog for `sajib91.bug-dhor`.
 
+## [0.2.0] - 2026-11-20
+
+> This version has **not** been published to the Visual Studio Marketplace.
+
+### Added
+
+- Automatic local engine lifecycle management with loopback-first adoption, fixed-argument
+  spawning, bounded restarts, and an explicit Stop Local Engine command.
+- Project Debug, View Findings, and Review Fixes entry points in the Command Palette, sidebar, and
+  dashboard quick actions.
+- Bundled engine source and declared requirements in the VSIX, staged only from the repository's
+  `security-engine` directory into extension-controlled paths.
+- Path-only saved-file monitoring when source-text consent is absent, official rename and external
+  file-change events, duplicate alert suppression, and live engine/monitoring counters.
+- Separate opt-in consent before source text is sent to a non-loopback HTTPS backend.
+
+### Changed
+
+- Repair decisions use the canonical labels Review Fix, Apply Fix, and Reject; source edits still
+  require an explicit approval decision.
+- Legacy `bugdhor.backend.autoStart` and `bugdhor.backend.pythonPath` settings remain supported as
+  explicit overrides of the new engine settings.
+
+### Known limitations
+
+- Background monitoring remains off by default.
+- Unsaved in-memory edits are not analyzed without both automatic source-sharing consents.
+- Only Python and JavaScript are eligible for background monitoring.
+
 ## [0.1.0] - 2026-11-19
 
 > Initial release-candidate documentation. This version has **not** been published to the

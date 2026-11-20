@@ -25,10 +25,16 @@ function toFindingContext(finding) {
   const documentUri = source.documentUri;
   const range = source.range;
   if (typeof findingId !== 'string' || findingId.length === 0) {
-    throw new CommandValidationError('The Bug Dhor finding has no usable identifier.', 'E_FINDING_REQUIRED');
+    throw new CommandValidationError(
+      'The Bug Dhor finding has no usable identifier.',
+      'E_FINDING_REQUIRED'
+    );
   }
   if (typeof documentUri !== 'string' || documentUri.length === 0 || !range) {
-    throw new CommandValidationError('The Bug Dhor finding has no usable location.', 'E_FINDING_REQUIRED');
+    throw new CommandValidationError(
+      'The Bug Dhor finding has no usable location.',
+      'E_FINDING_REQUIRED'
+    );
   }
   const result = { findingId, documentUri, range };
   if (typeof source.cwe === 'string') {
@@ -53,7 +59,11 @@ function buildSecurityEvidence(finding) {
     }
   ];
   if (typeof finding.evidence === 'string' && finding.evidence.length > 0) {
-    evidence.push({ type: 'backend_evidence', claimKind: 'observation', description: finding.evidence });
+    evidence.push({
+      type: 'backend_evidence',
+      claimKind: 'observation',
+      description: finding.evidence
+    });
   }
   if (typeof finding.explanation === 'string' && finding.explanation.length > 0) {
     evidence.push({
@@ -182,15 +192,8 @@ function selectFinding(diagnostics, documentUri, editor) {
  * ) => Promise<object>}
  */
 function createSecureCodeGenerator(dependencies) {
-  const {
-    vscode,
-    service,
-    diagnostics,
-    assistantRegistry,
-    assistantHooks,
-    getSettings,
-    logger
-  } = dependencies;
+  const { vscode, service, diagnostics, assistantRegistry, assistantHooks, getSettings, logger } =
+    dependencies;
 
   return async function generateSecureCodeWorkflow(request, context = {}) {
     const editor = request.editor ?? vscode.window?.activeTextEditor;

@@ -38,14 +38,17 @@ test('every row uses official document observation and no attribution', () => {
 });
 
 test('matrix lists only official workspace events', () => {
-  assert.deepEqual([...WORKSPACE_EVENTS], [
-    'onDidOpenTextDocument',
-    'onDidChangeTextDocument',
-    'onDidSaveTextDocument',
-    'onDidCreateFiles',
-    'onDidDeleteFiles',
-    'onDidChangeWorkspaceFolders'
-  ]);
+  assert.deepEqual(
+    [...WORKSPACE_EVENTS],
+    [
+      'onDidOpenTextDocument',
+      'onDidChangeTextDocument',
+      'onDidSaveTextDocument',
+      'onDidCreateFiles',
+      'onDidDeleteFiles',
+      'onDidChangeWorkspaceFolders'
+    ]
+  );
 });
 
 test('rendered markdown is honest about attribution and private APIs', () => {

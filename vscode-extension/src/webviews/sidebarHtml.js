@@ -5,7 +5,7 @@ const { escapeAttribute } = require('./html');
 
 /**
  * Build the sidebar webview. The sidebar is a small launcher for the full
- * editor-area dashboard. Its only script posts a single allowlisted message.
+ * editor-area dashboard. Its only script posts a small allowlist of action messages.
  *
  * @param {{
  *   cspSource: string,
@@ -51,17 +51,23 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
         <button type="button" class="primary-button" id="open-dashboard">
           Open Security Dashboard
         </button>
+        <div class="welcome-actions">
+          <button type="button" class="secondary-button" id="start-engine">Start Engine</button>
+          <button type="button" class="secondary-button" id="debug-project">Debug Project</button>
+          <button type="button" class="secondary-button" id="view-findings">View Findings</button>
+          <button type="button" class="secondary-button" id="review-fixes">Review Fixes</button>
+        </div>
       </header>
 
       <section class="card" aria-labelledby="engine-heading">
         <h2 id="engine-heading">Engine status</h2>
         <p class="status">
           <span class="status-dot" aria-hidden="true"></span>
-          <span>Not connected</span>
+          <span>Managed locally</span>
         </p>
         <p>
-          The extension connects to the local security engine when it is running. The dashboard
-          reports unavailable capabilities explicitly and renders only supplied backend results.
+          Bug Dhor detects an already-running loopback engine or starts its bundled engine when the
+          workspace is trusted. Only a reachable backend supplies analysis results.
         </p>
       </section>
 

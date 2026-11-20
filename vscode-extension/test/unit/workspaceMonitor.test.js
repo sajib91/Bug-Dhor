@@ -52,9 +52,14 @@ function createHarness(settings = {}, options = {}) {
     create: [],
     delete: [],
     folders: [],
-    close: []
+    close: [],
+    rename: [],
+    externalCreate: [],
+    externalChange: [],
+    externalDelete: []
   };
   const disposables = [];
+  const watcherGlobs = [];
   const calls = [];
   const published = [];
   const cleared = [];
@@ -65,15 +70,18 @@ function createHarness(settings = {}, options = {}) {
   function subscribe(name) {
     return (listener) => {
       listeners[name].push(listener);
-      const disposable = { disposed: false, dispose() { this.disposed = true; } };
+      const disposable = {
+        disposed: false,
+        dispose() {
+          this.disposed = true;
+        }
+      };
       disposables.push(disposable);
       return disposable;
     };
   }
 
-  const workspaceFolders = [
-    { name: 'workspace', index: 0, uri: createUri('/workspace') }
-  ];
+  const workspaceFolders = [{ name: 'workspace', index: 0, uri: createUri('/workspace') }];
   const vscode = {
     workspace: {
       workspaceFolders,
@@ -104,7 +112,21 @@ function createHarness(settings = {}, options = {}) {
       onDidCreateFiles: subscribe('create'),
       onDidDeleteFiles: subscribe('delete'),
       onDidChangeWorkspaceFolders: subscribe('folders'),
-      onDidCloseTextDocument: subscribe('close')
+      onDidCloseTextDocument: subscribe('close'),
+      onDidRenameFiles: subscribe('rename'),
+      createFileSystemWatcher(glob) {
+        watcherGlobs.push(glob);
+        const watcher = {
+          dispose() {
+            this.disposed = true;
+          },
+          onDidCreate: subscribe('externalCreate'),
+          onDidChange: subscribe('externalChange'),
+          onDidDelete: subscribe('externalDelete')
+        };
+        disposables.push(watcher);
+        return watcher;
+      }
     },
     window: {
       showWarningMessage(message) {
@@ -143,11 +165,21 @@ function createHarness(settings = {}, options = {}) {
     }
   };
   const logger = {
-    trace(message) { loggerEntries.push(message); },
-    debug(message) { loggerEntries.push(message); },
-    info(message) { loggerEntries.push(message); },
-    warn(message) { loggerEntries.push(message); },
-    error(message) { loggerEntries.push(message); }
+    trace(message) {
+      loggerEntries.push(message);
+    },
+    debug(message) {
+      loggerEntries.push(message);
+    },
+    info(message) {
+      loggerEntries.push(message);
+    },
+    warn(message) {
+      loggerEntries.push(message);
+    },
+    error(message) {
+      loggerEntries.push(message);
+    }
   };
 
   const monitor = new WorkspaceMonitor({
@@ -186,6 +218,7 @@ function createHarness(settings = {}, options = {}) {
     vscode,
     listeners,
     disposables,
+    watcherGlobs,
     calls,
     published,
     cleared,
@@ -196,7 +229,10 @@ function createHarness(settings = {}, options = {}) {
     change: (document, contentChanges) => fire('change', { document, contentChanges }),
     save: (document) => fire('save', document),
     delete: (files) => fire('delete', { files }),
-    folders: (event) => fire('folders', event)
+    folders: (event) => fire('folders', event),
+    rename: (event) => fire('rename', event),
+    externalCreate: (uri) => fire('externalCreate', uri),
+    externalChange: (uri) => fire('externalChange', uri)
   };
 }
 
@@ -390,6 +426,66 @@ test('updateSettings cancels outstanding work when monitoring is disabled', asyn
     await delay(180);
     assert.equal(harness.calls.length, 0);
     assert.equal(harness.monitor.getStats().pending, 0);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('official rename events clear the old path and scan the new path', async () => {
+  const harness = createHarness();
+  harness.monitor.start();
+  const oldUri = createUri('/workspace/src/old.py');
+  const newUri = createUri('/workspace/src/renamed.py');
+  try {
+    harness.rename({ files: [{ oldUri, newUri }] });
+    await waitUntil(() => harness.calls.some((call) => call.request.filePath === newUri.fsPath));
+
+    assert.equal(harness.monitor.getStats().workspace.renames, 1);
+    assert.ok(harness.cleared.includes(oldUri.toString()));
+    assert.equal(harness.calls.at(-1).method, 'scanFile');
+    assert.equal(harness.calls.at(-1).request.filePath, newUri.fsPath);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('the external watcher scans created and externally changed files', async () => {
+  const harness = createHarness();
+  harness.monitor.start();
+  const createdUri = createUri('/workspace/src/external-created.py');
+  const changedUri = createUri('/workspace/src/external-changed.py');
+  try {
+    assert.deepEqual(harness.watcherGlobs, ['**/*']);
+    harness.externalCreate(createdUri);
+    await waitUntil(() =>
+      harness.calls.some((call) => call.request.filePath === createdUri.fsPath)
+    );
+
+    harness.externalChange(changedUri);
+    await waitUntil(() =>
+      harness.calls.some((call) => call.request.filePath === changedUri.fsPath)
+    );
+
+    assert.equal(harness.monitor.getStats().workspace.createdFiles, 1);
+    assert.equal(harness.monitor.getStats().workspace.externalChanges, 1);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('an external watcher event for a recent editor save does not scan twice', async () => {
+  const harness = createHarness();
+  harness.monitor.start();
+  const document = createDocument({ version: 4, isDirty: false });
+  try {
+    harness.save(document);
+    await waitUntil(() => harness.calls.length === 1);
+
+    harness.externalChange(document.uri);
+    await delay(80);
+
+    assert.equal(harness.calls.length, 1);
+    assert.equal(harness.monitor.getStats().workspace.externalChanges, 0);
   } finally {
     harness.monitor.dispose();
   }

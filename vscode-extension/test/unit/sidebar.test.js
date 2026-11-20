@@ -44,7 +44,11 @@ test('sidebar launcher renders local assets and the dashboard action', () => {
   );
   assert.match(html, /Open Security Dashboard/);
   assert.match(html, /Engine status/);
-  assert.match(html, /Not connected/);
+  assert.match(html, /Managed locally/);
+  assert.match(html, /Start Engine/);
+  assert.match(html, /Debug Project/);
+  assert.match(html, /View Findings/);
+  assert.match(html, /Review Fixes/);
   assert.match(html, /Analysis results appear only after a real backend scan/);
   assert.match(html, /<noscript>/);
 });
@@ -53,13 +57,26 @@ test('sidebar launcher requires a nonce', () => {
   assert.throws(() => createHtml({ nonce: 'short' }), /nonce/);
 });
 
-test('sidebar script only posts the openDashboard message', () => {
+test('sidebar script posts only the allowlisted welcome-action messages', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../../media/sidebar.js'), 'utf8');
+  const expectedBindings = [
+    ['open-dashboard', 'openDashboard'],
+    ['start-engine', 'startEngine'],
+    ['debug-project', 'debugProject'],
+    ['view-findings', 'viewFindings'],
+    ['review-fixes', 'reviewFixes']
+  ];
+  const bindings = [...source.matchAll(/\['([^']+)', '([^']+)'\]/g)].map((match) => [
+    match[1],
+    match[2]
+  ]);
 
-  assert.match(source, /postMessage\(\{ type: 'openDashboard' \}\)/);
+  assert.deepEqual(bindings, expectedBindings);
+  assert.match(source, /postMessage\(\{ type \}\)/);
   assert.ok(!source.includes('innerHTML'));
   assert.ok(!source.includes('executeCommand'));
   assert.ok(!source.includes('fetch('));
+  assert.ok(!/postMessage\([^)]*command/i.test(source));
 });
 
 test('attribute escaping prevents markup injection', () => {

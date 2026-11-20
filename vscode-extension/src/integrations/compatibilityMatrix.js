@@ -50,8 +50,7 @@ const PROVIDER_COMPATIBILITY = Object.freeze([
     D: 'conditional',
     E: 'conditional',
     F: 'conditional',
-    note:
-      'D requires a real local activation accessor; E requires D plus a validated SAE; F requires E plus a configured intervention contract.'
+    note: 'D requires a real local activation accessor; E requires D plus a validated SAE; F requires E plus a configured intervention contract.'
   },
   {
     kind: 'extension-api',
@@ -62,8 +61,7 @@ const PROVIDER_COMPATIBILITY = Object.freeze([
     D: 'conditional',
     E: 'conditional',
     F: 'conditional',
-    note:
-      'Requires an explicit official API manifest with documentation. Undocumented interfaces are never used.'
+    note: 'Requires an explicit official API manifest with documentation. Undocumented interfaces are never used.'
   }
 ]);
 
@@ -115,11 +113,18 @@ function renderCompatibilityMatrixMarkdown(records = []) {
       } |`
   );
   const legend = CAPABILITIES.map(
-    (capability) => `- **${capability} — ${CAPABILITY_DEFINITIONS[capability].name}**: ${CAPABILITY_DEFINITIONS[capability].summary}`
+    (capability) =>
+      `- **${capability} — ${CAPABILITY_DEFINITIONS[capability].name}**: ${CAPABILITY_DEFINITIONS[capability].summary}`
   );
-  return [`# Assistant integration capability matrix`, '', header, ...rows, '', '## Legend', ...legend].join(
-    '\n'
-  );
+  return [
+    `# Assistant integration capability matrix`,
+    '',
+    header,
+    ...rows,
+    '',
+    '## Legend',
+    ...legend
+  ].join('\n');
 }
 
 module.exports = {

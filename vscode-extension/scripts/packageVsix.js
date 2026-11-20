@@ -17,21 +17,40 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { extensionRoot, stageRuntimeDeps } = require('./stageRuntimeDeps');
 
-const mode = process.argv[2] === 'list' ? 'list' : 'package';
 const manifest = JSON.parse(fs.readFileSync(path.join(extensionRoot, 'package.json'), 'utf8'));
-const closure = stageRuntimeDeps();
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-vsix-'));
-const stagingDir = path.join(tempRoot, 'extension');
 
-function cleanup() {
-  fs.rmSync(tempRoot, { recursive: true, force: true });
+/** @type {string | undefined} */
+let tempRoot;
+/** @type {string | undefined} */
+let stagingDir;
+
+function createStagingDirectories() {
+  tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-vsix-'));
+  stagingDir = path.join(tempRoot, 'extension');
+  return stagingDir;
 }
 
-function prepareStaging() {
-  fs.mkdirSync(stagingDir, { recursive: true });
+function cleanup() {
+  if (tempRoot) {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    tempRoot = undefined;
+    stagingDir = undefined;
+  }
+}
+
+/**
+ * Copy the extension and its bundled engine into a VSIX staging directory.
+ * The runtime dependency closure is injected by callers so tests can stage
+ * only release files without preparing npm dependencies.
+ */
+function prepareStaging({ targetDir = stagingDir, runtimeClosure = stageRuntimeDeps() } = {}) {
+  if (!targetDir) {
+    throw new Error('A VSIX staging directory is required.');
+  }
+  fs.mkdirSync(targetDir, { recursive: true });
 
   for (const file of ['package.json', 'README.md', 'CHANGELOG.md', '.vscodeignore']) {
-    fs.copyFileSync(path.join(extensionRoot, file), path.join(stagingDir, file));
+    fs.copyFileSync(path.join(extensionRoot, file), path.join(targetDir, file));
   }
 
   const repositoryRoot = path.resolve(extensionRoot, '..');
@@ -40,20 +59,36 @@ function prepareStaging() {
       (candidate) => fs.existsSync(candidate)
     );
     if (source) {
-      fs.copyFileSync(source, path.join(stagingDir, file));
+      fs.copyFileSync(source, path.join(targetDir, file));
       break;
     }
   }
 
   for (const directory of ['src', 'media']) {
-    fs.cpSync(path.join(extensionRoot, directory), path.join(stagingDir, directory), {
+    fs.cpSync(path.join(extensionRoot, directory), path.join(targetDir, directory), {
       recursive: true
     });
   }
 
-  const stagingModules = path.join(stagingDir, 'node_modules');
+  // Ship the engine source and its declared runtime requirements. The engine
+  // is started from extension-controlled paths with a fixed argv list.
+  const engineSource = path.join(repositoryRoot, 'security-engine', 'src', 'bugdhor');
+  const engineDestination = path.join(targetDir, 'engine', 'src', 'bugdhor');
+  if (!fs.existsSync(path.join(engineSource, '__main__.py'))) {
+    throw new Error('The local engine source is missing from security-engine/src/bugdhor.');
+  }
+  fs.mkdirSync(path.dirname(engineDestination), { recursive: true });
+  fs.cpSync(engineSource, engineDestination, { recursive: true });
+  const requirements = path.join(repositoryRoot, 'security-engine', 'requirements.txt');
+  if (!fs.existsSync(requirements)) {
+    throw new Error('The local engine requirements file is missing from security-engine/.');
+  }
+  fs.mkdirSync(path.join(targetDir, 'engine'), { recursive: true });
+  fs.copyFileSync(requirements, path.join(targetDir, 'engine', 'requirements.txt'));
+
+  const stagingModules = path.join(targetDir, 'node_modules');
   fs.mkdirSync(stagingModules, { recursive: true });
-  for (const name of closure.keys()) {
+  for (const name of runtimeClosure.keys()) {
     const source = path.join(extensionRoot, 'node_modules', ...name.split('/'));
     const destination = path.join(stagingModules, ...name.split('/'));
     fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -77,7 +112,7 @@ function resolveVsce() {
   }
 }
 
-function runVsce() {
+function runVsce(mode = 'package') {
   const executable = resolveVsce();
   if (!fs.existsSync(executable)) {
     throw new Error('vsce is not installed. Run `npm ci` at the repository root first.');
@@ -90,30 +125,42 @@ function runVsce() {
   });
 }
 
-try {
-  prepareStaging();
-  const result = runVsce();
-  if (result.stdout) {
-    process.stdout.write(result.stdout);
+module.exports = {
+  cleanup,
+  createStagingDirectories,
+  prepareStaging,
+  resolveVsce,
+  runVsce
+};
+
+if (require.main === module) {
+  const mode = process.argv[2] === 'list' ? 'list' : 'package';
+  try {
+    createStagingDirectories();
+    prepareStaging();
+    const result = runVsce(mode);
+    if (result.stdout) {
+      process.stdout.write(result.stdout);
+    }
+    if (result.stderr) {
+      process.stderr.write(result.stderr);
+    }
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status !== 0) {
+      process.exitCode = result.status ?? 1;
+    } else if (mode === 'package') {
+      const vsixName = `${manifest.name}-${manifest.version}.vsix`;
+      const stagedVsix = path.join(stagingDir, vsixName);
+      const destination = path.join(extensionRoot, vsixName);
+      fs.copyFileSync(stagedVsix, destination);
+      process.stdout.write(`Wrote ${destination} (${fs.statSync(destination).size} bytes)\n`);
+    }
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+  } finally {
+    cleanup();
   }
-  if (result.stderr) {
-    process.stderr.write(result.stderr);
-  }
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    process.exitCode = result.status ?? 1;
-  } else if (mode === 'package') {
-    const vsixName = `${manifest.name}-${manifest.version}.vsix`;
-    const stagedVsix = path.join(stagingDir, vsixName);
-    const destination = path.join(extensionRoot, vsixName);
-    fs.copyFileSync(stagedVsix, destination);
-    process.stdout.write(`Wrote ${destination} (${fs.statSync(destination).size} bytes)\n`);
-  }
-} catch (error) {
-  process.stderr.write(`${error.message}\n`);
-  process.exitCode = 1;
-} finally {
-  cleanup();
 }

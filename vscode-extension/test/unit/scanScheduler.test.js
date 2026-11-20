@@ -66,14 +66,22 @@ test('honors the concurrency limit and drains queued work', async () => {
   const calls = [];
   const resolvers = [];
 
-  scheduler.schedule('a', () => {
-    calls.push('a');
-    return new Promise((resolve) => resolvers.push(resolve));
-  }, { immediate: true, reason: 'first' });
-  scheduler.schedule('b', () => {
-    calls.push('b');
-    return new Promise((resolve) => resolvers.push(resolve));
-  }, { immediate: true, reason: 'second' });
+  scheduler.schedule(
+    'a',
+    () => {
+      calls.push('a');
+      return new Promise((resolve) => resolvers.push(resolve));
+    },
+    { immediate: true, reason: 'first' }
+  );
+  scheduler.schedule(
+    'b',
+    () => {
+      calls.push('b');
+      return new Promise((resolve) => resolvers.push(resolve));
+    },
+    { immediate: true, reason: 'second' }
+  );
 
   await flush();
   assert.deepEqual(calls, ['a']);
@@ -94,14 +102,18 @@ test('cancels an in-flight task and ignores its obsolete result', async () => {
   const scheduler = new ScanScheduler({ setTimer: timers.setTimer, clearTimer: timers.clearTimer });
   const calls = [];
 
-  scheduler.schedule('workspace', ({ token }) => {
-    calls.push('first');
-    return new Promise((resolve, reject) => {
-      token.onCancellationRequested(() => {
-        reject(Object.assign(new Error('cancelled'), { name: 'AbortError' }));
+  scheduler.schedule(
+    'workspace',
+    ({ token }) => {
+      calls.push('first');
+      return new Promise((resolve, reject) => {
+        token.onCancellationRequested(() => {
+          reject(Object.assign(new Error('cancelled'), { name: 'AbortError' }));
+        });
       });
-    });
-  }, { immediate: true });
+    },
+    { immediate: true }
+  );
 
   await flush();
   scheduler.schedule('workspace', () => calls.push('second'), { debounceMs: 200 });
@@ -121,15 +133,26 @@ test('records failures but treats cancellation as an expected outcome', async ()
   const timers = createTimers();
   const scheduler = new ScanScheduler({ setTimer: timers.setTimer, clearTimer: timers.clearTimer });
 
-  scheduler.schedule('failing', () => {
-    throw new Error('backend unreachable');
-  }, { immediate: true });
+  scheduler.schedule(
+    'failing',
+    () => {
+      throw new Error('backend unreachable');
+    },
+    { immediate: true }
+  );
   await flush();
   assert.equal(scheduler.getStats().failed, 1);
 
-  scheduler.schedule('cancelled', ({ token }) => new Promise((resolve, reject) => {
-    token.onCancellationRequested(() => reject(Object.assign(new Error('cancelled'), { code: 'E_CANCELLED' })));
-  }), { immediate: true });
+  scheduler.schedule(
+    'cancelled',
+    ({ token }) =>
+      new Promise((resolve, reject) => {
+        token.onCancellationRequested(() =>
+          reject(Object.assign(new Error('cancelled'), { code: 'E_CANCELLED' }))
+        );
+      }),
+    { immediate: true }
+  );
   await flush();
   scheduler.cancel('cancelled', 'test cancellation');
   await flush();
@@ -147,5 +170,8 @@ test('dispose clears pending timers and prevents new work', () => {
   scheduler.dispose();
   assert.equal(timers.pending, 0);
   assert.equal(scheduler.getStats().pending, 0);
-  assert.equal(scheduler.schedule('workspace', () => {}), false);
+  assert.equal(
+    scheduler.schedule('workspace', () => {}),
+    false
+  );
 });

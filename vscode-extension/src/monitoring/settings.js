@@ -19,6 +19,8 @@ const DEFAULT_MONITORING_SETTINGS = Object.freeze({
   // Master switch and event coverage.
   enabled: false,
   watchWorkspaceFiles: true,
+  watchExternalFiles: true,
+  watchRenames: true,
   scanNewFiles: true,
   scanOnOpen: false,
   fullScanOnWorkspaceChange: false,
@@ -89,6 +91,11 @@ function normalizeMonitoringSettings(raw) {
       source.watchWorkspaceFiles,
       DEFAULT_MONITORING_SETTINGS.watchWorkspaceFiles
     ),
+    watchExternalFiles: booleanSetting(
+      source.watchExternalFiles,
+      DEFAULT_MONITORING_SETTINGS.watchExternalFiles
+    ),
+    watchRenames: booleanSetting(source.watchRenames, DEFAULT_MONITORING_SETTINGS.watchRenames),
     scanNewFiles: booleanSetting(source.scanNewFiles, DEFAULT_MONITORING_SETTINGS.scanNewFiles),
     scanOnOpen: booleanSetting(source.scanOnOpen, DEFAULT_MONITORING_SETTINGS.scanOnOpen),
     fullScanOnWorkspaceChange: booleanSetting(
@@ -96,7 +103,12 @@ function normalizeMonitoringSettings(raw) {
       DEFAULT_MONITORING_SETTINGS.fullScanOnWorkspaceChange
     ),
     onSaveOnly: booleanSetting(source.onSaveOnly, DEFAULT_MONITORING_SETTINGS.onSaveOnly),
-    debounceMs: integerSetting(source.debounceMs, DEFAULT_MONITORING_SETTINGS.debounceMs, 100, 10_000),
+    debounceMs: integerSetting(
+      source.debounceMs,
+      DEFAULT_MONITORING_SETTINGS.debounceMs,
+      100,
+      10_000
+    ),
     fullScanDebounceMs: integerSetting(
       source.fullScanDebounceMs,
       DEFAULT_MONITORING_SETTINGS.fullScanDebounceMs,
@@ -142,7 +154,10 @@ function normalizeMonitoringSettings(raw) {
       source.allowAutomaticSourceSharing,
       DEFAULT_MONITORING_SETTINGS.allowAutomaticSourceSharing
     ),
-    sendSourceText: booleanSetting(source.sendSourceText, DEFAULT_MONITORING_SETTINGS.sendSourceText),
+    sendSourceText: booleanSetting(
+      source.sendSourceText,
+      DEFAULT_MONITORING_SETTINGS.sendSourceText
+    ),
     notifyOnFindings: booleanSetting(
       source.notifyOnFindings,
       DEFAULT_MONITORING_SETTINGS.notifyOnFindings

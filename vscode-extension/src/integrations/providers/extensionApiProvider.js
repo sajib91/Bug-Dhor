@@ -16,7 +16,10 @@ const DOCUMENTED_API = 'official extension API declared by a local capability ma
 /** @param {unknown} value @param {string} field @returns {string} */
 function requiredString(value, field, providerId) {
   if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new ProviderConfigurationError(`Extension manifest ${field} must be a non-empty string.`, providerId);
+    throw new ProviderConfigurationError(
+      `Extension manifest ${field} must be a non-empty string.`,
+      providerId
+    );
   }
   return value.trim();
 }
@@ -51,7 +54,10 @@ function documentationUrl(value, providerId) {
  */
 function validateExtensionManifest(raw, providerId) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new ProviderConfigurationError('An extension API manifest object is required.', providerId);
+    throw new ProviderConfigurationError(
+      'An extension API manifest object is required.',
+      providerId
+    );
   }
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*\.[A-Za-z0-9][A-Za-z0-9-]*$/.test(raw.extensionId ?? '')) {
     throw new ProviderConfigurationError(
@@ -118,7 +124,11 @@ function validateExtensionManifest(raw, providerId) {
 async function createExtensionApiProvider(options) {
   const providerId = options?.providerId ?? 'extension-api';
   let rawManifest = options?.manifest;
-  if (!rawManifest && typeof options?.manifestPath === 'string' && options.manifestPath.length > 0) {
+  if (
+    !rawManifest &&
+    typeof options?.manifestPath === 'string' &&
+    options.manifestPath.length > 0
+  ) {
     const fileSystem = options.fileSystem ?? nodeFs;
     try {
       rawManifest = JSON.parse(fileSystem.readFileSync(path.resolve(options.manifestPath), 'utf8'));

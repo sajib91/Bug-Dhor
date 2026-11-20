@@ -3,10 +3,7 @@
 const { createGenerationAdapter } = require('../generation');
 const { createModelMetadata } = require('../modelMetadata');
 const { normalizeCapabilities } = require('../capabilities');
-const {
-  ProviderGenerationError,
-  ProviderUnsupportedCapabilityError
-} = require('../errors');
+const { ProviderGenerationError, ProviderUnsupportedCapabilityError } = require('../errors');
 
 const DOCUMENTED_API = 'vscode.lm.selectChatModels + LanguageModelChat.sendRequest';
 
@@ -85,7 +82,11 @@ async function createVscodeLanguageModelProvider(options) {
     capabilities,
     infer: async (request, context = {}) => {
       const Message = vscode.LanguageModelChatMessage;
-      if (!Message || typeof Message.User !== 'function' || typeof Message.Assistant !== 'function') {
+      if (
+        !Message ||
+        typeof Message.User !== 'function' ||
+        typeof Message.Assistant !== 'function'
+      ) {
         throw new ProviderGenerationError(
           'The documented LanguageModelChatMessage constructors are unavailable.',
           providerId
@@ -125,7 +126,10 @@ async function createVscodeLanguageModelProvider(options) {
         }
       }
       if (text.length === 0) {
-        throw new ProviderGenerationError('The language model returned an empty response.', providerId);
+        throw new ProviderGenerationError(
+          'The language model returned an empty response.',
+          providerId
+        );
       }
       return { text, finishReason: 'stop' };
     }

@@ -7,6 +7,7 @@ const path = require('node:path');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { COMMAND_DEFINITIONS } = require('../../src/commands/definitions');
 const { expectedCommandIds } = require('../../src/commands');
+const { ENGINE_COMMANDS } = require('../../src/commands/engineCommands');
 const { UTILITY_COMMANDS } = require('../../src/commands/utilityCommands');
 
 const extensionRoot = path.resolve(__dirname, '..', '..');
@@ -19,7 +20,7 @@ test('identity fields match the approved extension identity', () => {
   assert.equal(typeof manifest.description, 'string');
   assert.ok(manifest.description.length > 0);
   assert.equal(manifest.publisher, 'sajib91');
-  assert.equal(manifest.version, '0.1.0');
+  assert.equal(manifest.version, '0.2.0');
   assert.equal(manifest.license, 'MIT');
 });
 
@@ -44,6 +45,7 @@ test('marketplace documentation uses HTTPS images and ships a versioned changelo
   }
   assert.match(readme, /media\/icon\.png/);
   assert.doesNotMatch(readme, /media\/icon\.svg/);
+  assert.match(changelog, /## \[0\.2\.0\]/);
   assert.match(changelog, /## \[0\.1\.0\]/);
 });
 
@@ -102,6 +104,28 @@ test('commands are registered with a category and match shared IDs', () => {
   }
 });
 
+test('engine lifecycle, debug, and navigation commands are contributed', () => {
+  const commands = new Map(
+    (manifest.contributes?.commands ?? []).map((entry) => [entry.command, entry])
+  );
+  const expected = new Map([
+    [COMMANDS.startEngine, 'Start Local Engine'],
+    [COMMANDS.stopEngine, 'Stop Local Engine'],
+    [COMMANDS.debugProject, 'Debug Project'],
+    [COMMANDS.viewFindings, 'View Findings'],
+    [COMMANDS.reviewFixes, 'Review Fixes']
+  ]);
+
+  assert.deepEqual(ENGINE_COMMANDS, [...expected.keys()]);
+  for (const [command, title] of expected) {
+    assert.equal(commands.get(command)?.title, title);
+    assert.ok(
+      (manifest.activationEvents ?? []).includes(`onCommand:${command}`),
+      `${command} must activate the extension`
+    );
+  }
+});
+
 test('finding navigation commands are contributed and keyboard accessible', () => {
   const commands = new Map(
     (manifest.contributes?.commands ?? []).map((entry) => [entry.command, entry])
@@ -144,7 +168,7 @@ test('severity-specific gutter icons exist as local SVG assets', () => {
 test('command definitions are unique and match manifest titles and activation events', () => {
   assert.equal(
     COMMAND_DEFINITIONS.length,
-    expectedCommandIds().size - UTILITY_COMMANDS.length,
+    expectedCommandIds().size - UTILITY_COMMANDS.length - ENGINE_COMMANDS.length,
     'feature command definitions must match the declared registry IDs'
   );
 
@@ -208,11 +232,21 @@ test('configuration settings are declared', () => {
     'bugdhor.backend.requestTimeoutMs',
     'bugdhor.backend.healthTimeoutMs',
     'bugdhor.privacy.sendSourceText',
+    'bugdhor.privacy.allowRemoteSourceSharing',
+    'bugdhor.engine.autoStart',
+    'bugdhor.engine.pythonPath',
+    'bugdhor.engine.manageRuntime',
+    'bugdhor.engine.startupTimeoutMs',
+    'bugdhor.engine.healthPollMs',
+    'bugdhor.engine.maxRestarts',
+    'bugdhor.engine.restartBaseDelayMs',
+    'bugdhor.engine.restartMaxDelayMs',
     'bugdhor.backend.pythonPath',
     'bugdhor.backend.autoStart',
     'bugdhor.logging.level',
     'bugdhor.ui.showStatusBarItem',
     'bugdhor.monitoring.enabled',
+    'bugdhor.monitoring.scanOnSave',
     'bugdhor.monitoring.allowAutomaticSourceSharing',
     'bugdhor.monitoring.onSaveOnly',
     'bugdhor.monitoring.debounceMs',
@@ -231,6 +265,10 @@ test('configuration settings are declared', () => {
     'bugdhor.monitoring.excludeBinaryFiles',
     'bugdhor.monitoring.excludeGeneratedFiles',
     'bugdhor.monitoring.notifyOnFindings',
+    'bugdhor.monitoring.watchExternalFiles',
+    'bugdhor.monitoring.watchRenames',
+    'bugdhor.scan.exclude',
+    'bugdhor.repair.requireApproval',
     'bugdhor.repository.maxFiles',
     'bugdhor.repository.maxFileBytes',
     'bugdhor.repository.excludeGlobs',
@@ -264,6 +302,22 @@ test('configuration settings are declared', () => {
   assert.equal(properties['bugdhor.backend.requestTimeoutMs'].default, 30000);
   assert.equal(properties['bugdhor.backend.healthTimeoutMs'].default, 3000);
   assert.equal(properties['bugdhor.privacy.sendSourceText'].default, true);
+  assert.equal(properties['bugdhor.privacy.allowRemoteSourceSharing'].default, false);
+  assert.equal(properties['bugdhor.engine.autoStart'].default, true);
+  assert.equal(properties['bugdhor.engine.manageRuntime'].default, true);
+  assert.equal(properties['bugdhor.engine.pythonPath'].default, '');
+  assert.equal(properties['bugdhor.engine.startupTimeoutMs'].default, 20000);
+  assert.equal(properties['bugdhor.engine.healthPollMs'].default, 300);
+  assert.equal(properties['bugdhor.engine.maxRestarts'].default, 3);
+  assert.equal(properties['bugdhor.engine.restartBaseDelayMs'].default, 500);
+  assert.equal(properties['bugdhor.engine.restartMaxDelayMs'].default, 8000);
+  assert.equal(properties['bugdhor.monitoring.scanOnSave'].default, false);
+  assert.equal(properties['bugdhor.repair.requireApproval'].default, true);
+  assert.equal(properties['bugdhor.monitoring.watchExternalFiles'].default, true);
+  assert.equal(properties['bugdhor.monitoring.watchRenames'].default, true);
+  assert.ok(
+    properties['bugdhor.scan.exclude'].default.some((glob) => glob.includes('node_modules'))
+  );
   assert.equal(properties['bugdhor.feedback.notifyOnPatchApplied'].default, true);
   assert.equal(properties['bugdhor.feedback.notifyOnResolution'].default, true);
   assert.equal(properties['bugdhor.recommendations.runFunctionalTests'].default, true);

@@ -128,7 +128,8 @@ class FeedbackController {
   afterScan(input = {}) {
     const scopes = Array.isArray(input.scopeUris) ? [...input.scopeUris].sort().join(',') : '';
     const requestId = input.response?.requestId;
-    const scanKey = typeof requestId === 'string' && requestId.length > 0 ? `${requestId}|${scopes}` : null;
+    const scanKey =
+      typeof requestId === 'string' && requestId.length > 0 ? `${requestId}|${scopes}` : null;
     if (scanKey && scanKey === this.lastScanKey) {
       return this.getSnapshot().findings;
     }

@@ -443,3 +443,81 @@ test('dispose cancels timers and removes listeners', async () => {
   await delay(160);
   assert.equal(harness.calls.length, 0);
 });
+
+test('saved files are scanned by path only without source-sharing consent', async () => {
+  const harness = createHarness({
+    allowAutomaticSourceSharing: false,
+    sendSourceText: true
+  });
+  harness.monitor.start();
+  try {
+    const document = createDocument({ version: 2, isDirty: false });
+    harness.save(document);
+    await waitUntil(() => harness.calls.length === 1);
+
+    assert.equal(harness.calls[0].method, 'scanFile');
+    assert.equal(harness.calls[0].request.filePath, '/workspace/src/app.py');
+    assert.equal('sourceText' in harness.calls[0].request, false);
+    assert.equal('selectedText' in harness.calls[0].request, false);
+    assert.equal(harness.monitor.getStats().skipped, 0);
+    const completed = harness.monitor
+      .getStats()
+      .analyses.find((entry) => entry.status === 'completed');
+    assert.equal(completed?.detail, 'path-only');
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('unsaved edits are skipped when source-sharing consent is absent', async () => {
+  const harness = createHarness({
+    allowAutomaticSourceSharing: false,
+    sendSourceText: false
+  });
+  harness.monitor.start();
+  try {
+    harness.change(createDocument({ version: 3, isDirty: true }), [edit(0)]);
+    await delay(180);
+
+    assert.equal(harness.calls.length, 0);
+    assert.ok(harness.monitor.getStats().skipped >= 1);
+    const skipped = harness.monitor.getStats().analyses.find((entry) => entry.status === 'skipped');
+    assert.equal(skipped?.detail, 'consent-required');
+    assert.ok(
+      harness.loggerEntries.some((entry) => entry.includes('skipped unsaved background analysis'))
+    );
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('suppresses duplicate notifications for the same finding set', async () => {
+  const finding = {
+    id: 'finding-1',
+    message: 'Potential SQL injection.',
+    severity: 'high',
+    location: {
+      uri: 'file:///workspace/src/app.py',
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 9 } }
+    }
+  };
+  const harness = createHarness({ __findings: [finding] });
+  harness.monitor.start();
+  try {
+    harness.save(createDocument({ version: 2, isDirty: false, text: 'value = 2\n' }));
+    await waitUntil(() => harness.published.length === 1);
+
+    harness.save(createDocument({ version: 3, isDirty: false, text: 'value = 3\n' }));
+    await waitUntil(() => harness.published.length === 2);
+    await delay(50);
+
+    assert.equal(harness.calls.length, 2);
+    assert.equal(harness.monitor.getStats().notifications, 1);
+    assert.equal(harness.notifications.length, 1);
+    assert.ok(
+      harness.loggerEntries.some((entry) => entry.includes('duplicate finding notification'))
+    );
+  } finally {
+    harness.monitor.dispose();
+  }
+});

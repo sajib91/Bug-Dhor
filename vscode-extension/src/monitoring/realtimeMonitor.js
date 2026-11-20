@@ -173,6 +173,8 @@ class RealtimeMonitor {
     this.generations = new Map();
     /** @type {Map<string, string>} */
     this.analyzedHashes = new Map();
+    /** @type {Set<string>} */
+    this.notifiedAlerts = new Set();
 
     this.stats = {
       scheduled: 0,
@@ -351,6 +353,11 @@ class RealtimeMonitor {
     this.cancelAnalysis(uri, 'file deleted');
     this.tracker.forget(uri);
     this.analyzedHashes.delete(uri);
+    for (const key of [...this.notifiedAlerts]) {
+      if (key.startsWith(`${uri}|`)) {
+        this.notifiedAlerts.delete(key);
+      }
+    }
     try {
       this.diagnostics.clearUri?.(uri);
     } catch {
@@ -390,6 +397,11 @@ class RealtimeMonitor {
     this.cancelInFlight(uri, 'document closed');
     this.tracker.forget(uri);
     this.analyzedHashes.delete(uri);
+    for (const key of [...this.notifiedAlerts]) {
+      if (key.startsWith(`${uri}|`)) {
+        this.notifiedAlerts.delete(key);
+      }
+    }
     try {
       this.diagnostics.clearUri?.(uri);
     } catch {
@@ -400,7 +412,7 @@ class RealtimeMonitor {
   /**
    * @param {any} document
    * @param {string} uri
-   * @param {'change' | 'save' | 'rescan' | 'open' | 'create'} reason
+   * @param {'change' | 'save' | 'rescan' | 'open' | 'create' | 'external-change'} reason
    * @param {{ immediate?: boolean }} [options]
    */
   schedule(document, uri, reason, options = {}) {
@@ -432,7 +444,7 @@ class RealtimeMonitor {
    *   document: any,
    *   uri: string,
    *   generation: number,
-   *   reason: 'change' | 'save' | 'rescan' | 'open' | 'create'
+   *   reason: 'change' | 'save' | 'rescan' | 'open' | 'create' | 'external-change'
    * }} task
    */
   async runAnalysis({ document, uri, generation, reason }) {
@@ -440,7 +452,12 @@ class RealtimeMonitor {
       return;
     }
 
-    if (!this.hasSourceConsent()) {
+    const sourceConsent = this.hasSourceConsent();
+    // Without consent, only saved files are scanned. The backend reads the file
+    // from its path; no buffer text or selection is transmitted. Unsaved edits
+    // are skipped so findings can never claim to describe text not on disk.
+    const savedFileReasons = new Set(['save', 'create', 'open', 'external-change']);
+    if (!sourceConsent && !savedFileReasons.has(reason)) {
       this.stats.skipped += 1;
       this.recordAnalysis({
         uri,
@@ -452,12 +469,14 @@ class RealtimeMonitor {
       if (!this.consentWarningShown) {
         this.consentWarningShown = true;
         this.logger.info(
-          'Bug Dhor skipped background analysis: real-time monitoring requires both ' +
-            'bugdhor.monitoring.allowAutomaticSourceSharing and bugdhor.privacy.sendSourceText.'
+          'Bug Dhor skipped unsaved background analysis. Enable both ' +
+            'bugdhor.monitoring.allowAutomaticSourceSharing and bugdhor.privacy.sendSourceText ' +
+            'to analyze in-memory edits; saved files are still scanned by path only.'
         );
       }
       return;
     }
+    const pathOnly = !sourceConsent;
 
     if (!this.isEligibleDocument(document)) {
       this.stats.skipped += 1;
@@ -465,38 +484,50 @@ class RealtimeMonitor {
     }
 
     let text;
-    try {
-      text = document.getText();
-    } catch (error) {
-      this.stats.failed += 1;
-      this.logger.warn(
-        `Bug Dhor could not read the monitored document: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      return;
-    }
-    if (typeof text !== 'string') {
-      this.stats.skipped += 1;
-      return;
-    }
-
-    const byteLength = Buffer.byteLength(text, 'utf8');
-    const lines = text.split('\n');
-    if (byteLength > this.settings.maxFileBytes || lines.length > MAX_LINES_FOR_SCAN) {
-      this.stats.skipped += 1;
+    /** @type {string | undefined} */
+    let textHash;
+    if (pathOnly) {
+      textHash = undefined;
       this.recordAnalysis({
         uri,
         version: document.version,
         reason,
-        status: 'skipped',
-        detail: 'document-too-large'
+        status: 'scheduled',
+        detail: 'path-only'
       });
-      this.logger.debug('Bug Dhor skipped background analysis for an oversized document.');
-      return;
-    }
+    } else {
+      try {
+        text = document.getText();
+      } catch (error) {
+        this.stats.failed += 1;
+        this.logger.warn(
+          `Bug Dhor could not read the monitored document: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        return;
+      }
+      if (typeof text !== 'string') {
+        this.stats.skipped += 1;
+        return;
+      }
 
-    const textHash = hashText(text);
+      const byteLength = Buffer.byteLength(text, 'utf8');
+      const lines = text.split('\n');
+      if (byteLength > this.settings.maxFileBytes || lines.length > MAX_LINES_FOR_SCAN) {
+        this.stats.skipped += 1;
+        this.recordAnalysis({
+          uri,
+          version: document.version,
+          reason,
+          status: 'skipped',
+          detail: 'document-too-large'
+        });
+        this.logger.debug('Bug Dhor skipped background analysis for an oversized document.');
+        return;
+      }
+      textHash = hashText(text);
+    }
 
     // Only patches explicitly applied by this extension are recorded by the
     // feedback controller. Suppress the immediate self-induced scan once, then
@@ -521,7 +552,7 @@ class RealtimeMonitor {
       return;
     }
 
-    if (this.analyzedHashes.get(uri) === textHash) {
+    if (textHash && this.analyzedHashes.get(uri) === textHash) {
       this.stats.skipped += 1;
       this.recordAnalysis({
         uri,
@@ -546,20 +577,22 @@ class RealtimeMonitor {
     }
 
     const changeState = /** @type {any} */ (this.tracker.get(uri));
-    const plan = buildAnalysisPlan({
-      text,
-      lineCount: document.lineCount,
-      languageId: document.languageId,
-      ranges: changeState?.ranges ?? [],
-      settings: {
-        analysisScope:
-          reason === 'save' || reason === 'rescan' || reason === 'create' || reason === 'open'
-            ? 'file'
-            : this.settings.analysisScope,
-        maxChangedLines: this.settings.maxChangedLines
-      },
-      reason
-    });
+    const plan = pathOnly
+      ? { kind: 'file', changedLines: 0 }
+      : buildAnalysisPlan({
+          text,
+          lineCount: document.lineCount,
+          languageId: document.languageId,
+          ranges: changeState?.ranges ?? [],
+          settings: {
+            analysisScope:
+              reason === 'save' || reason === 'rescan' || reason === 'create' || reason === 'open'
+                ? 'file'
+                : this.settings.analysisScope,
+            maxChangedLines: this.settings.maxChangedLines
+          },
+          reason
+        });
     if (!plan) {
       this.stats.skipped += 1;
       return;
@@ -582,17 +615,18 @@ class RealtimeMonitor {
       documentUri: uri,
       languageId: document.languageId,
       documentVersion: document.version,
-      // Explicit automatic consent was verified above; no other path sends text.
-      sourceText: text
+      ...(pathOnly || typeof text !== 'string' ? {} : { sourceText: text })
     };
-    if (plan.kind !== 'file') {
+    if (plan.kind !== 'file' && text !== undefined) {
       request.selection = plan.selection;
       request.selectedText = textForPlan(text, plan);
     }
 
     const source = createCancellationTokenSource();
     this.inFlight.set(uri, { generation, source });
-    this.analyzedHashes.set(uri, textHash);
+    if (textHash && !pathOnly) {
+      this.analyzedHashes.set(uri, textHash);
+    }
 
     try {
       const response =
@@ -615,7 +649,7 @@ class RealtimeMonitor {
         documentUri: uri,
         findings,
         scopeUris: [uri],
-        snapshotHash: textHash,
+        ...(textHash && !pathOnly ? { snapshotHash: textHash } : {}),
         response
       });
       this.stats.completed += 1;
@@ -629,11 +663,12 @@ class RealtimeMonitor {
         kind: plan.kind,
         changedLines: plan.changedLines,
         published,
-        provenance
+        provenance,
+        ...(pathOnly ? { detail: 'path-only' } : {})
       });
 
       if (published > 0 && this.settings.notifyOnFindings) {
-        this.notify(document, published);
+        this.notify(document, published, findings);
       }
     } catch (error) {
       if (isCancellation(error) || generation !== this.generations.get(uri) || this.disposed) {
@@ -690,12 +725,37 @@ class RealtimeMonitor {
   }
 
   /**
+   * Notify once per distinct accepted finding set. Repeated scans that publish
+   * the same findings do not produce duplicate alerts.
+   *
    * @param {any} document
    * @param {number} count
+   * @param {object[]} [findings]
    */
-  notify(document, count) {
+  notify(document, count, findings = []) {
     if (typeof this.vscode.window?.showWarningMessage !== 'function') {
       return;
+    }
+    const uri = document?.uri?.toString?.() ?? document?.uri?.fsPath ?? 'unknown';
+    const identities = findings
+      .map((finding) =>
+        typeof finding?.id === 'string'
+          ? finding.id
+          : typeof finding?.fingerprint === 'string'
+            ? finding.fingerprint
+            : `${finding?.ruleId ?? finding?.code ?? ''}:${
+                finding?.range?.start?.line ?? ''
+              }:${finding?.range?.start?.character ?? ''}`
+      )
+      .sort();
+    const key = `${uri}|${identities.length > 0 ? identities.join(',') : `count:${count}`}`;
+    if (this.notifiedAlerts.has(key)) {
+      this.logger.debug('Bug Dhor suppressed a duplicate finding notification.');
+      return;
+    }
+    this.notifiedAlerts.add(key);
+    if (this.notifiedAlerts.size > 200) {
+      this.notifiedAlerts.delete(this.notifiedAlerts.values().next().value);
     }
     this.stats.notifications += 1;
     const fileName = path.basename(document.uri.fsPath ?? 'document');

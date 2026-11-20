@@ -1,20 +1,27 @@
 'use strict';
 
 /**
- * Sidebar launcher script.
+ * Sidebar welcome launcher script.
  *
- * The sidebar can only request that the extension open the full dashboard.
- * It cannot execute commands, read analysis data, or write source files.
+ * The sidebar can only request a small allowlist of host commands. It cannot
+ * execute arbitrary commands, read analysis data, or write source files.
  */
 (function sidebar() {
   const vscode = acquireVsCodeApi();
-  const openButton = document.getElementById('open-dashboard');
+  const bindings = [
+    ['open-dashboard', 'openDashboard'],
+    ['start-engine', 'startEngine'],
+    ['debug-project', 'debugProject'],
+    ['view-findings', 'viewFindings'],
+    ['review-fixes', 'reviewFixes']
+  ];
 
-  if (!openButton) {
-    return;
+  for (const [id, type] of bindings) {
+    const button = document.getElementById(id);
+    if (button) {
+      button.addEventListener('click', () => {
+        vscode.postMessage({ type });
+      });
+    }
   }
-
-  openButton.addEventListener('click', () => {
-    vscode.postMessage({ type: 'openDashboard' });
-  });
 })();

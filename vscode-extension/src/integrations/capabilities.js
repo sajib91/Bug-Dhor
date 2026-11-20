@@ -28,8 +28,7 @@ const CAPABILITY_DEFINITIONS = Object.freeze({
   },
   C: {
     name: 'Generation response access',
-    summary:
-      'Receives generated text or response metadata through a documented, configured API.'
+    summary: 'Receives generated text or response metadata through a documented, configured API.'
   },
   D: {
     name: 'Model internal activation access',
@@ -38,8 +37,7 @@ const CAPABILITY_DEFINITIONS = Object.freeze({
   },
   E: {
     name: 'SAE integration',
-    summary:
-      'Requires D and a separately validated SAE artifact with a documented feature mapping.'
+    summary: 'Requires D and a separately validated SAE artifact with a documented feature mapping.'
   },
   F: {
     name: 'Activation steering',
@@ -100,7 +98,9 @@ function validateCapabilities(value, options = {}) {
     errors.push('Capability E (SAE integration) requires capability D (real activation access).');
   }
   if (has('F') && !has('D')) {
-    errors.push('Capability F (activation steering) requires capability D (real activation access).');
+    errors.push(
+      'Capability F (activation steering) requires capability D (real activation access).'
+    );
   }
   if (has('F') && !has('E')) {
     errors.push('Capability F (activation steering) requires capability E (validated SAE).');

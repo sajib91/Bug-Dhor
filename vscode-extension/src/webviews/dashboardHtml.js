@@ -144,6 +144,18 @@ ${buildNavigation()}
             <button type="button" class="button button--secondary" id="refresh-button">
               Refresh
             </button>
+            <button type="button" class="button button--secondary" id="start-engine-button">
+              Start Engine
+            </button>
+            <button type="button" class="button button--secondary" id="debug-project-button">
+              Debug Project
+            </button>
+            <button type="button" class="button button--ghost" id="view-findings-button">
+              View Findings
+            </button>
+            <button type="button" class="button button--ghost" id="review-fixes-button">
+              Review Fixes
+            </button>
             <button type="button" class="button button--secondary" id="demo-button">
               Load demo preview
             </button>

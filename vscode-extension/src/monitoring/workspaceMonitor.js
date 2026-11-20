@@ -13,10 +13,7 @@
 const { RealtimeMonitor } = require('./realtimeMonitor');
 const { ScanScheduler } = require('./scanScheduler');
 const { evaluateFileEligibility } = require('./fileFilter');
-const {
-  DEFAULT_MONITORING_SETTINGS,
-  normalizeMonitoringSettings
-} = require('./settings');
+const { DEFAULT_MONITORING_SETTINGS, normalizeMonitoringSettings } = require('./settings');
 const { createWorkspaceRequest } = require('../workspace/workspaceService');
 
 /**
@@ -91,6 +88,10 @@ class WorkspaceMonitor {
 
     /** @type {Set<string>} */
     this.createdUris = new Set();
+    /** @type {Map<string, number>} */
+    this.recentEditorSaves = new Map();
+    /** @type {{ dispose: () => void } | undefined} */
+    this.externalWatcher = undefined;
     /** @type {Array<{ dispose: () => void }>} */
     this.subscriptions = [];
     this.stats = {
@@ -98,6 +99,8 @@ class WorkspaceMonitor {
       createdFiles: 0,
       deletedFiles: 0,
       ignoredCreations: 0,
+      renames: 0,
+      externalChanges: 0,
       fullScans: 0,
       workspaceFolderEvents: 0
     };
@@ -139,6 +142,18 @@ class WorkspaceMonitor {
         workspace.onDidCloseTextDocument((document) => this.handleClose(document))
       );
     }
+    if (typeof workspace.onDidRenameFiles === 'function') {
+      this.subscriptions.push(workspace.onDidRenameFiles((event) => void this.handleRename(event)));
+    }
+    if (typeof workspace.createFileSystemWatcher === 'function') {
+      this.externalWatcher = workspace.createFileSystemWatcher('**/*');
+      this.subscriptions.push(
+        this.externalWatcher,
+        this.externalWatcher.onDidCreate((uri) => void this.handleExternalCreate(uri)),
+        this.externalWatcher.onDidChange((uri) => void this.handleExternalChange(uri)),
+        this.externalWatcher.onDidDelete((uri) => this.handleDelete({ files: [uri] }))
+      );
+    }
 
     this.logger.debug(
       'Bug Dhor workspace monitoring registered all official document and folder events. ' +
@@ -166,6 +181,9 @@ class WorkspaceMonitor {
   /** @param {any} document */
   handleSave(document) {
     if (!this.disposed) {
+      if (document?.uri) {
+        this.recentEditorSaves.set(uriKey(document.uri), Date.now());
+      }
       this.executor.handleSave(document);
     }
   }
@@ -252,6 +270,83 @@ class WorkspaceMonitor {
       this.createdUris.delete(key);
       this.executor.handleDeleteUri(key);
       this.stats.deletedFiles += 1;
+    }
+  }
+
+  /**
+   * Official rename events are handled as a delete plus a creation so tracked
+   * findings, diagnostics, and debounce state follow the new path.
+   *
+   * @param {{ files?: Array<{ oldUri?: unknown, newUri?: unknown }> }} event
+   */
+  handleRename(event) {
+    if (this.disposed || !this.settings.enabled || !this.settings.watchRenames) {
+      return;
+    }
+    const files = Array.isArray(event?.files) ? event.files : [];
+    for (const file of files) {
+      this.stats.renames += 1;
+      if (file?.oldUri) {
+        this.handleDelete({ files: [file.oldUri] });
+      }
+      if (file?.newUri) {
+        void this.handleCreate({ files: [file.newUri] });
+      }
+    }
+  }
+
+  /** @param {unknown} uri */
+  async handleExternalCreate(uri) {
+    if (!this.settings.watchExternalFiles) {
+      return;
+    }
+    await this.handleCreate({ files: [uri] });
+  }
+
+  /**
+   * External writes are scanned from disk only. A recent editor save is skipped
+   * because the document listener already handled that exact event.
+   *
+   * @param {unknown} uri
+   */
+  async handleExternalChange(uri) {
+    if (
+      this.disposed ||
+      !this.settings.enabled ||
+      !this.settings.watchWorkspaceFiles ||
+      !this.settings.watchExternalFiles
+    ) {
+      return;
+    }
+    const key = uriKey(uri);
+    const savedAt = this.recentEditorSaves.get(key);
+    if (typeof savedAt === 'number' && Date.now() - savedAt < 2000) {
+      this.recentEditorSaves.delete(key);
+      return;
+    }
+    const eligibility = evaluateFileEligibility({
+      fsPath: fsPathOf(uri),
+      settings: this.settings,
+      workspaceFolders: this.vscode.workspace?.workspaceFolders ?? []
+    });
+    if (!eligibility.eligible) {
+      return;
+    }
+    try {
+      const document = await this.resolveDocument(uri);
+      if (!document || this.disposed) {
+        return;
+      }
+      const fsPath = fsPathOf(uri);
+      this.stats.externalChanges += 1;
+      this.executor.schedule(document, key, 'external-change', { immediate: true });
+      this.logger.debug(`Bug Dhor observed an external file change: ${fsPath ?? key}`);
+    } catch (error) {
+      this.logger.debug(
+        `Bug Dhor could not open an externally changed file: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -345,6 +440,7 @@ class WorkspaceMonitor {
     if (!this.settings.enabled) {
       this.scheduler.cancelAll('monitoring disabled');
       this.createdUris.clear();
+      this.recentEditorSaves.clear();
     }
     this.logger.debug('Bug Dhor workspace monitoring settings updated.');
   }
@@ -360,6 +456,8 @@ class WorkspaceMonitor {
         createdFiles: this.stats.createdFiles,
         deletedFiles: this.stats.deletedFiles,
         ignoredCreations: this.stats.ignoredCreations,
+        renames: this.stats.renames,
+        externalChanges: this.stats.externalChanges,
         fullScans: this.stats.fullScans,
         workspaceFolderEvents: this.stats.workspaceFolderEvents,
         trackedCreations: this.createdUris.size
@@ -381,7 +479,9 @@ class WorkspaceMonitor {
       }
     }
     this.subscriptions = [];
+    this.externalWatcher = undefined;
     this.createdUris.clear();
+    this.recentEditorSaves.clear();
     this.executor.dispose();
     this.disposed = true;
   }

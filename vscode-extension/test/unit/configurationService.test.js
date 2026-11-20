@@ -136,3 +136,62 @@ test('the configuration service requires the VS Code workspace API', () => {
   assert.throws(() => createConfigurationService({}), /VS Code workspace API/);
   assert.throws(() => createConfigurationService({ vscode: {} }), /VS Code workspace API/);
 });
+
+test('remote source text requires explicit remote sharing consent', () => {
+  const remote = 'https://engine.example.test';
+  const base = {
+    baseUrl: remote,
+    requestTimeoutMs: 10_000,
+    healthTimeoutMs: 1_000,
+    token: ''
+  };
+
+  const withoutConsent = normalizeApiConfiguration(
+    {
+      ...base,
+      sendSourceText: true,
+      allowRemoteSourceSharing: false
+    },
+    { trusted: true }
+  );
+  assert.equal(withoutConsent.sendSourceText, false);
+  assert.equal(withoutConsent.allowRemoteSourceSharing, false);
+
+  const withConsent = normalizeApiConfiguration(
+    {
+      ...base,
+      sendSourceText: true,
+      allowRemoteSourceSharing: true
+    },
+    { trusted: true }
+  );
+  assert.equal(withConsent.sendSourceText, true);
+  assert.equal(withConsent.allowRemoteSourceSharing, true);
+
+  const withSourceSharingDisabled = normalizeApiConfiguration(
+    {
+      ...base,
+      sendSourceText: false,
+      allowRemoteSourceSharing: true
+    },
+    { trusted: true }
+  );
+  assert.equal(withSourceSharingDisabled.sendSourceText, false);
+});
+
+test('loopback source text does not require remote sharing consent', () => {
+  const config = normalizeApiConfiguration(
+    {
+      baseUrl: 'http://127.0.0.1:8765',
+      requestTimeoutMs: 10_000,
+      healthTimeoutMs: 1_000,
+      sendSourceText: true,
+      allowRemoteSourceSharing: false,
+      token: ''
+    },
+    { trusted: true }
+  );
+
+  assert.equal(config.sendSourceText, true);
+  assert.equal(config.allowRemoteSourceSharing, false);
+});

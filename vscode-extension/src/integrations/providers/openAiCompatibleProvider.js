@@ -36,9 +36,7 @@ function normalizeEndpoint(endpoint) {
     throw new ProviderConfigurationError('The endpoint must not embed credentials.');
   }
   const base = parsed.pathname.replace(/\/+$/, '');
-  const path = base.endsWith('/chat/completions')
-    ? `${base}`
-    : `${base}/chat/completions`;
+  const path = base.endsWith('/chat/completions') ? `${base}` : `${base}/chat/completions`;
   return `${parsed.origin}${path}`;
 }
 
@@ -123,7 +121,11 @@ function createOpenAiCompatibleProvider(options) {
         });
       } catch (error) {
         if (error?.name === 'AbortError' || controller?.signal?.aborted) {
-          throw new ProviderTimeoutError('The OpenAI-compatible request timed out.', providerId, error);
+          throw new ProviderTimeoutError(
+            'The OpenAI-compatible request timed out.',
+            providerId,
+            error
+          );
         }
         throw new ProviderTransportError(
           `The OpenAI-compatible request failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -143,7 +145,10 @@ function createOpenAiCompatibleProvider(options) {
         );
       }
       if (response.status === 429) {
-        throw new ProviderRateLimitError('The OpenAI-compatible endpoint rate-limited the request.', providerId);
+        throw new ProviderRateLimitError(
+          'The OpenAI-compatible endpoint rate-limited the request.',
+          providerId
+        );
       }
       if (!response.ok) {
         throw new ProviderGenerationError(

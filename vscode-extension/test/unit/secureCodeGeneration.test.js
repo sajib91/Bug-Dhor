@@ -101,10 +101,10 @@ function createHarness(options = {}) {
     vscode: { window: { activeTextEditor: editor } },
     service,
     diagnostics: {
-      findAt: () => options.findings === undefined ? [finding] : options.findings,
+      findAt: () => (options.findings === undefined ? [finding] : options.findings),
       getFindingsForUri: () => []
     },
-    assistantRegistry: { getActiveProvider: () => options.noProvider ? undefined : provider },
+    assistantRegistry: { getActiveProvider: () => (options.noProvider ? undefined : provider) },
     assistantHooks: options.noHooks
       ? undefined
       : {
@@ -178,7 +178,9 @@ test('secure generation obtains a prompt, calls a B/C provider, then verifies ca
   assert.deepEqual(calls[1].request.candidates, [PATCH.trim()]);
   assert.equal(calls[1].request.finding.findingId, 'finding-1');
   assert.match(calls[1].request.snapshotHash, /^[a-f0-9]{64}$/);
-  assert.deepEqual(result, { result: { state: 'recommended', verified: true, requiresApproval: true } });
+  assert.deepEqual(result, {
+    result: { state: 'recommended', verified: true, requiresApproval: true }
+  });
 });
 
 test('monitor-only provider without generation access is rejected before any request', async () => {

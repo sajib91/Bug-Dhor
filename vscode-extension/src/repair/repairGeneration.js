@@ -38,15 +38,8 @@ function isCancelled(token) {
  * @returns {(request: object, context: object) => Promise<object>}
  */
 function createRepairGenerator(dependencies) {
-  const {
-    vscode,
-    service,
-    diagnostics,
-    assistantRegistry,
-    assistantHooks,
-    getSettings,
-    logger
-  } = dependencies;
+  const { vscode, service, diagnostics, assistantRegistry, assistantHooks, getSettings, logger } =
+    dependencies;
 
   return async function generateRepairWorkflow(request, context = {}) {
     const editor = request.editor ?? vscode.window?.activeTextEditor;
@@ -176,7 +169,9 @@ function createRepairGenerator(dependencies) {
     logger?.debug?.(
       `Submitting ${candidates.length} repair candidate(s) from ${provider.providerId} for verification.`
     );
-    context.progress?.report?.({ message: 'Verifying the repair candidate with the security engine.' });
+    context.progress?.report?.({
+      message: 'Verifying the repair candidate with the security engine.'
+    });
     return service.repairVulnerability(
       {
         ...request,

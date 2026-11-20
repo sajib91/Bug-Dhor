@@ -6,6 +6,11 @@ const VIEW_ID = 'bugdhor.sidebar';
 const COMMANDS = Object.freeze({
   showStatus: 'bugdhor.showStatus',
   showLogs: 'bugdhor.showLogs',
+  startEngine: 'bugdhor.startEngine',
+  stopEngine: 'bugdhor.stopEngine',
+  debugProject: 'bugdhor.debugProject',
+  viewFindings: 'bugdhor.viewFindings',
+  reviewFixes: 'bugdhor.reviewFixes',
   scanCurrentFile: 'bugdhor.scanCurrentFile',
   scanSelection: 'bugdhor.scanSelection',
   scanWorkspace: 'bugdhor.scanWorkspace',

@@ -5,6 +5,14 @@ const { COMMANDS, VIEW_ID } = require('../constants');
 const { createNonce } = require('./csp');
 const { createSidebarHtml } = require('./sidebarHtml');
 
+const SIDEBAR_MESSAGE_COMMANDS = Object.freeze({
+  openDashboard: COMMANDS.openSecurityDashboard,
+  startEngine: COMMANDS.startEngine,
+  debugProject: COMMANDS.debugProject,
+  viewFindings: COMMANDS.viewFindings,
+  reviewFixes: COMMANDS.reviewFixes
+});
+
 class SidebarViewProvider {
   /**
    * @param {vscode.Uri} extensionUri
@@ -34,19 +42,18 @@ class SidebarViewProvider {
     );
 
     const messageSubscription = webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (!message || typeof message !== 'object' || message.type !== 'openDashboard') {
+      const command =
+        message && typeof message === 'object' ? SIDEBAR_MESSAGE_COMMANDS[message.type] : undefined;
+      if (typeof command !== 'string') {
         this.logger.debug('Ignored an unknown Bug Dhor sidebar message.');
         return;
       }
 
       try {
-        await vscode.commands.executeCommand(COMMANDS.openSecurityDashboard);
+        await vscode.commands.executeCommand(command);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        this.logger.error(
-          `Unable to open the security dashboard from the sidebar: ${detail}`,
-          error
-        );
+        this.logger.error(`Unable to run the requested sidebar command: ${detail}`, error);
       }
     });
 

@@ -782,6 +782,19 @@ h1 {
   padding: 10px 0 0;
 }
 
+.technical-list {
+  display: grid;
+  gap: 6px;
+}
+
+.technical-row {
+  padding: 6px 8px;
+  border: 1px solid var(--bugdhor-border);
+  border-radius: 5px;
+  color: var(--bugdhor-text);
+  font-size: 11px;
+}
+
 .card__actions {
   display: flex;
   flex-wrap: wrap;

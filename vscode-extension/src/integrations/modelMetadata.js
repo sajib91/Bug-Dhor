@@ -33,7 +33,9 @@ function createModelMetadata(input) {
     parameters: typeof input.parameters === 'string' ? input.parameters : undefined,
     capabilities: normalizeCapabilities(input.capabilities ?? []),
     limitations: Object.freeze(
-      Array.isArray(input.limitations) ? input.limitations.filter((item) => typeof item === 'string') : []
+      Array.isArray(input.limitations)
+        ? input.limitations.filter((item) => typeof item === 'string')
+        : []
     )
   });
 }
