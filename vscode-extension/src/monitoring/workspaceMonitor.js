@@ -14,6 +14,7 @@ const { RealtimeMonitor } = require('./realtimeMonitor');
 const { ScanScheduler } = require('./scanScheduler');
 const { evaluateFileEligibility } = require('./fileFilter');
 const { DEFAULT_MONITORING_SETTINGS, normalizeMonitoringSettings } = require('./settings');
+const { canonicalPath } = require('../security/paths');
 const { createWorkspaceRequest } = require('../workspace/workspaceService');
 
 /**
@@ -44,6 +45,22 @@ function uriKey(uri) {
 function fsPathOf(uri) {
   const normalized = normalizeUri(uri);
   return normalized.fsPath ?? normalized.path;
+}
+
+/**
+ * Dedupe key for real files. Windows can report the same saved file through an
+ * 8.3 short path and a long path; canonicalizing prevents an editor save and
+ * the external watcher from cancelling each other's scan. URI identity is
+ * preserved elsewhere by `uriKey`.
+ *
+ * @param {unknown} uri @returns {string}
+ */
+function pathKey(uri) {
+  const normalized = normalizeUri(uri);
+  if (normalized.scheme === 'file' && normalized.fsPath) {
+    return `file:${canonicalPath(normalized.fsPath)}`;
+  }
+  return uriKey(uri);
 }
 
 /**
@@ -182,7 +199,7 @@ class WorkspaceMonitor {
   handleSave(document) {
     if (!this.disposed) {
       if (document?.uri) {
-        this.recentEditorSaves.set(uriKey(document.uri), Date.now());
+        this.recentEditorSaves.set(pathKey(document.uri), Date.now());
       }
       this.executor.handleSave(document);
     }
@@ -193,7 +210,7 @@ class WorkspaceMonitor {
     if (this.disposed || !document?.uri) {
       return;
     }
-    this.createdUris.delete(uriKey(document.uri));
+    this.createdUris.delete(pathKey(document.uri));
     this.executor.handleClose(document);
   }
 
@@ -216,7 +233,7 @@ class WorkspaceMonitor {
     const files = Array.isArray(event?.files) ? event.files : [];
     const limit = Math.max(0, this.settings.maxWorkspaceFiles);
     for (const file of files.slice(0, limit)) {
-      const key = uriKey(file);
+      const key = pathKey(file);
       if (this.createdUris.has(key) || key.length === 0) {
         this.stats.ignoredCreations += 1;
         continue;
@@ -266,9 +283,8 @@ class WorkspaceMonitor {
     }
     const files = Array.isArray(event?.files) ? event.files : [];
     for (const file of files) {
-      const key = uriKey(file);
-      this.createdUris.delete(key);
-      this.executor.handleDeleteUri(key);
+      this.createdUris.delete(pathKey(file));
+      this.executor.handleDeleteUri(uriKey(file));
       this.stats.deletedFiles += 1;
     }
   }
@@ -319,9 +335,10 @@ class WorkspaceMonitor {
       return;
     }
     const key = uriKey(uri);
-    const savedAt = this.recentEditorSaves.get(key);
+    const dedupeKey = pathKey(uri);
+    const savedAt = this.recentEditorSaves.get(dedupeKey);
     if (typeof savedAt === 'number' && Date.now() - savedAt < 2000) {
-      this.recentEditorSaves.delete(key);
+      this.recentEditorSaves.delete(dedupeKey);
       return;
     }
     const eligibility = evaluateFileEligibility({
@@ -414,10 +431,10 @@ class WorkspaceMonitor {
 
   /** @param {unknown} uri */
   async resolveDocument(uri) {
-    const key = uriKey(uri);
+    const key = pathKey(uri);
     const openDocuments = this.vscode.workspace.textDocuments;
     if (Array.isArray(openDocuments)) {
-      const existing = openDocuments.find((document) => uriKey(document?.uri) === key);
+      const existing = openDocuments.find((document) => pathKey(document?.uri) === key);
       if (existing) {
         return existing;
       }

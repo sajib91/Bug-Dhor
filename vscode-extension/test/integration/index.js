@@ -272,13 +272,26 @@ async function run() {
       }
       await delay(50);
     }
-    throw new Error('Timed out waiting for Bug Dhor monitor state.');
+    throw new Error(
+      `Timed out waiting for Bug Dhor monitor state. ${JSON.stringify(api.monitor.getStats())}`
+    );
+  }
+
+  function analysisTargetPath(uri) {
+    try {
+      return canonicalPath(vscode.Uri.parse(String(uri)).fsPath);
+    } catch {
+      return String(uri);
+    }
   }
 
   function completedAnalyses(uri) {
+    const target = analysisTargetPath(uri);
     return api.monitor
       .getStats()
-      .analyses.filter((entry) => entry.uri === uri && entry.status === 'completed');
+      .analyses.filter(
+        (entry) => entry.status === 'completed' && analysisTargetPath(entry.uri) === target
+      );
   }
 
   async function openMonitoringFile(name, initialText) {

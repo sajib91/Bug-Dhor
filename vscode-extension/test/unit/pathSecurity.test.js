@@ -7,7 +7,11 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { createLocalPhase6Engine } = require('../../src/phase6/localEngine');
-const { isPathWithinRoot, isRealPathWithinRoot } = require('../../src/security/paths');
+const {
+  canonicalPath,
+  isPathWithinRoot,
+  isRealPathWithinRoot
+} = require('../../src/security/paths');
 
 test('realpath containment rejects symlinks that escape the workspace', () => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'bugdhor-path-'));
@@ -27,6 +31,19 @@ test('realpath containment rejects symlinks that escape the workspace', () => {
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
+});
+
+test('canonicalPath normalizes Windows short and long directory names', () => {
+  const shortToLong = (target) => String(target).replaceAll('RUNNER~1', 'Runner Long');
+  const fileSystem = {
+    realpathSync: Object.assign((target) => shortToLong(target), {
+      native: shortToLong
+    })
+  };
+  const shortPath = path.resolve('/tmp/RUNNER~1/workspace/saved.py');
+  const longPath = path.resolve('/tmp/Runner Long/workspace/saved.py');
+  assert.equal(canonicalPath(shortPath, { fileSystem }), longPath);
+  assert.equal(canonicalPath(longPath, { fileSystem }), longPath);
 });
 
 test('local Phase 6 session path must stay inside the workspace', () => {

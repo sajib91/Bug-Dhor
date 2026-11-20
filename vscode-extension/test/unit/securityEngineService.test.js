@@ -714,3 +714,23 @@ test('buildFileRequestBody rejects files outside the workspace root', () => {
     { code: 'E_PATH_OUTSIDE_WORKSPACE' }
   );
 });
+
+test('buildFileRequestBody canonicalizes short and long paths before computing the relative path', () => {
+  // Windows save events can report the long form while the workspace folder
+  // keeps an 8.3 short name. The backend must receive a clean relative path.
+  const shortToLong = (target) => String(target).replaceAll('RUNNER~1', 'Runner Long');
+  const fileSystem = {
+    realpathSync: Object.assign((target) => shortToLong(target), {
+      native: shortToLong
+    })
+  };
+  const body = buildFileRequestBody(
+    {
+      workspaceFolder: '/tmp/RUNNER~1/workspace',
+      filePath: '/tmp/Runner Long/workspace/saved.py'
+    },
+    { sendSourceText: true },
+    { fileSystem }
+  );
+  assert.equal(body.filePath, 'saved.py');
+});

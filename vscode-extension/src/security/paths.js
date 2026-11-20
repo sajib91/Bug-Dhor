@@ -50,6 +50,42 @@ function isFileUriWithinFolders(uri, folders) {
 }
 
 /**
+ * Resolve a path to its canonical on-disk form. Windows exposes the same file
+ * as an 8.3 short path (`RUNNER~1`) or a long path; VS Code workspace folders,
+ * documents, and file watchers do not always use the same representation.
+ * Realpath keeps containment checks and relative-path calculations stable.
+ *
+ * The injectable filesystem keeps this logic unit-testable on every host.
+ *
+ * @param {unknown} target
+ * @param {{ fileSystem?: Pick<typeof fs, 'realpathSync'> }} [options]
+ * @returns {string}
+ */
+function canonicalPath(target, options = {}) {
+  if (typeof target !== 'string' || target.length === 0) {
+    return typeof target === 'string' ? target : '';
+  }
+  const fileSystem = options.fileSystem ?? fs;
+  const resolved = path.resolve(target);
+  const realpath = (candidate) =>
+    typeof fileSystem.realpathSync?.native === 'function'
+      ? fileSystem.realpathSync.native(candidate)
+      : fileSystem.realpathSync(candidate);
+
+  try {
+    return realpath(resolved);
+  } catch {
+    // A file may still be unsaved. Canonicalize its parent so a short/long
+    // directory mismatch cannot turn a valid child into a `../` path.
+    try {
+      return path.join(realpath(path.dirname(resolved)), path.basename(resolved));
+    } catch {
+      return resolved;
+    }
+  }
+}
+
+/**
  * Containment check that also follows existing symlinks to their real paths.
  * Non-existent paths fall back to the lexical result so pre-write validation
  * remains usable; existing symlinks that escape the root are rejected.
@@ -71,4 +107,9 @@ function isRealPathWithinRoot(filePath, rootPath) {
   }
 }
 
-module.exports = { isPathWithinRoot, isRealPathWithinRoot, isFileUriWithinFolders };
+module.exports = {
+  isPathWithinRoot,
+  isRealPathWithinRoot,
+  isFileUriWithinFolders,
+  canonicalPath
+};

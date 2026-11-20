@@ -11,12 +11,13 @@
  * No command may fabricate a result when a method fails or is unavailable.
  */
 
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const { createApiClient } = require('./apiClient');
 const { createConfigurationService } = require('./configurationService');
-const { isRealPathWithinRoot } = require('../security/paths');
+const { canonicalPath, isRealPathWithinRoot } = require('../security/paths');
 const {
   validateAnalysisResponse,
   validateDetectionResponse,
@@ -213,17 +214,20 @@ function resolveDocumentUri(request, filePath) {
  *
  * @param {string} workspaceRoot
  * @param {string} filePath
+ * @param {Pick<typeof fs, 'realpathSync'>} [fileSystem]
  * @returns {string}
  */
-function relativeFilePathForApi(workspaceRoot, filePath) {
-  if (!isRealPathWithinRoot(filePath, workspaceRoot)) {
+function relativeFilePathForApi(workspaceRoot, filePath, fileSystem = fs) {
+  const canonicalRoot = canonicalPath(workspaceRoot, { fileSystem });
+  const canonicalFile = canonicalPath(filePath, { fileSystem });
+  if (!isRealPathWithinRoot(canonicalFile, canonicalRoot)) {
     throw new SecurityEngineRequestError(
       'The file is outside every approved workspace root.',
       'E_PATH_OUTSIDE_WORKSPACE'
     );
   }
   const relative = path
-    .relative(path.resolve(workspaceRoot), path.resolve(filePath))
+    .relative(canonicalRoot, canonicalFile)
     .split(path.sep)
     .join('/');
   if (
@@ -250,9 +254,10 @@ function relativeFilePathForApi(workspaceRoot, filePath) {
  * @param {{
  *   sendSourceText: boolean
  * }} configuration
+ * @param {{ fileSystem?: Pick<typeof fs, 'realpathSync'> }} [options]
  * @returns {Record<string, unknown>}
  */
-function buildFileRequestBody(request, configuration) {
+function buildFileRequestBody(request, configuration, options = {}) {
   if (!isPlainObject(request)) {
     throw new SecurityEngineRequestError(
       'The engine request must be an object.',
@@ -268,7 +273,7 @@ function buildFileRequestBody(request, configuration) {
   /** @type {Record<string, unknown>} */
   const body = {
     workspaceRoot,
-    filePath: relativeFilePathForApi(workspaceRoot, filePath)
+    filePath: relativeFilePathForApi(workspaceRoot, filePath, options.fileSystem ?? fs)
   };
 
   if (typeof request.workspaceFolderName === 'string') {
