@@ -92,19 +92,25 @@ function createHarness(settings = {}, options = {}) {
           : undefined;
       },
       openTextDocument(uri) {
-        const key = uri.toString();
-        if (!documents.has(key)) {
-          documents.set(
-            key,
-            createDocument({
-              fsPath: uri.fsPath,
-              languageId: options.languageId ?? 'python',
-              version: 1,
-              text: options.newFileText ?? 'value = 1\n'
-            })
-          );
+        const resolve = () => {
+          const key = uri.toString();
+          if (!documents.has(key)) {
+            documents.set(
+              key,
+              createDocument({
+                fsPath: uri.fsPath,
+                languageId: options.languageId ?? 'python',
+                version: 1,
+                text: options.newFileText ?? 'value = 1\n'
+              })
+            );
+          }
+          return documents.get(key);
+        };
+        if (typeof options.beforeResolve === 'function') {
+          return Promise.resolve().then(options.beforeResolve).then(resolve);
         }
-        return Promise.resolve(documents.get(key));
+        return Promise.resolve(resolve());
       },
       onDidOpenTextDocument: subscribe('open'),
       onDidChangeTextDocument: subscribe('change'),
@@ -216,6 +222,7 @@ function createHarness(settings = {}, options = {}) {
   return {
     monitor,
     vscode,
+    service,
     listeners,
     disposables,
     watcherGlobs,
@@ -232,7 +239,7 @@ function createHarness(settings = {}, options = {}) {
     folders: (event) => fire('folders', event),
     rename: (event) => fire('rename', event),
     externalCreate: (uri) => fire('externalCreate', uri),
-    externalChange: (uri) => fire('externalChange', uri)
+    externalChange: (uri) => Promise.all(listeners.externalChange.map((listener) => listener(uri)))
   };
 }
 
@@ -485,6 +492,62 @@ test('an external watcher event for a recent editor save does not scan twice', a
     await delay(80);
 
     assert.equal(harness.calls.length, 1);
+    assert.equal(harness.monitor.getStats().workspace.externalChanges, 0);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('a watcher event cannot cancel an in-flight save scan', async () => {
+  const harness = createHarness();
+  harness.monitor.start();
+  const document = createDocument({ version: 2, isDirty: false });
+  let finishScan;
+  harness.service.scanFile = (request, context) => {
+    harness.calls.push({ method: 'scanFile', request, token: context?.token });
+    return new Promise((resolve) => {
+      finishScan = () => resolve({ findings: [], operation: 'scan_file' });
+    });
+  };
+  try {
+    harness.save(document);
+    assert.equal(harness.calls.length, 1);
+
+    // One watcher event consumes the time-based save marker. A duplicate event
+    // arriving before the backend responds must still leave the save scan alone.
+    await harness.externalChange(document.uri);
+    await harness.externalChange(document.uri);
+    assert.equal(harness.calls.length, 1);
+    assert.equal(harness.monitor.getStats().workspace.externalChanges, 0);
+
+    finishScan();
+    await delay(20);
+    assert.equal(harness.calls.length, 1);
+  } finally {
+    harness.monitor.dispose();
+  }
+});
+
+test('a save observed while the watcher resolves a document still suppresses the watcher scan', async () => {
+  let releaseResolve;
+  const resolveGate = new Promise((resolve) => {
+    releaseResolve = resolve;
+  });
+  const harness = createHarness({}, { beforeResolve: () => resolveGate });
+  harness.monitor.start();
+  const document = createDocument({ version: 2, isDirty: false });
+  try {
+    // The watcher callback checks for a recent save before resolving the
+    // document. On slow Windows runners the editor save can arrive while the
+    // resolution is pending; the post-await recheck must still suppress it.
+    const watcher = harness.externalChange(document.uri);
+    harness.save(document);
+    releaseResolve();
+    await watcher;
+    await delay(80);
+
+    assert.equal(harness.calls.length, 1);
+    assert.equal(harness.calls[0].method, 'scanFile');
     assert.equal(harness.monitor.getStats().workspace.externalChanges, 0);
   } finally {
     harness.monitor.dispose();

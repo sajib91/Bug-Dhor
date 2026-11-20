@@ -377,7 +377,9 @@ async function run() {
       true
     );
     assert.equal(await saved.document.save(), true);
-    await waitForMonitor(() => completedAnalyses(saved.uri).length === 1);
+    await waitForMonitor(() =>
+      completedAnalyses(saved.uri).some((entry) => entry.reason === 'save')
+    );
     await delay(500);
     assert.equal(completedAnalyses(saved.uri).length, 1);
     assert.equal(completedAnalyses(saved.uri)[0].reason, 'save');

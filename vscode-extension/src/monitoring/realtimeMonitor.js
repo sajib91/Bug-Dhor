@@ -165,9 +165,9 @@ class RealtimeMonitor {
     this.settings = normalizeSettings(this.getSettings());
 
     this.tracker = new DocumentVersionTracker();
-    /** @type {Map<string, { timer: NodeJS.Timeout, generation: number }>} */
+    /** @type {Map<string, { timer: NodeJS.Timeout, generation: number, reason: string }>} */
     this.timers = new Map();
-    /** @type {Map<string, { generation: number, source: ReturnType<typeof createCancellationTokenSource> }>} */
+    /** @type {Map<string, { generation: number, reason: string, source: ReturnType<typeof createCancellationTokenSource> }>} */
     this.inFlight = new Map();
     /** @type {Map<string, number>} */
     this.generations = new Map();
@@ -435,6 +435,7 @@ class RealtimeMonitor {
     }
     this.timers.set(uri, {
       generation,
+      reason,
       timer: setTimeout(run, this.settings.debounceMs)
     });
   }
@@ -623,7 +624,7 @@ class RealtimeMonitor {
     }
 
     const source = createCancellationTokenSource();
-    this.inFlight.set(uri, { generation, source });
+    this.inFlight.set(uri, { generation, reason, source });
     if (textHash && !pathOnly) {
       this.analyzedHashes.set(uri, textHash);
     }
@@ -830,6 +831,24 @@ class RealtimeMonitor {
     if (this.stats.analyses.length > MAX_RECORDED_ANALYSES) {
       this.stats.analyses.shift();
     }
+  }
+
+  /**
+   * Report whether a scan for one URI is waiting or running. The workspace
+   * coordinator uses this to stop an external watcher event from superseding
+   * an authoritative editor save scan that is already in progress.
+   *
+   * @param {string} uri
+   * @param {string} [reason]
+   * @returns {boolean}
+   */
+  isActiveScan(uri, reason) {
+    const pending = this.timers.get(uri);
+    if (pending && (reason === undefined || pending.reason === reason)) {
+      return true;
+    }
+    const active = this.inFlight.get(uri);
+    return Boolean(active && (reason === undefined || active.reason === reason));
   }
 
   /**

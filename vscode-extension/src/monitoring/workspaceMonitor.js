@@ -319,6 +319,16 @@ class WorkspaceMonitor {
     await this.handleCreate({ files: [uri] });
   }
 
+  /** @param {string} dedupeKey @returns {boolean} */
+  consumeRecentSave(dedupeKey) {
+    const savedAt = this.recentEditorSaves.get(dedupeKey);
+    if (typeof savedAt !== 'number' || Date.now() - savedAt >= 2000) {
+      return false;
+    }
+    this.recentEditorSaves.delete(dedupeKey);
+    return true;
+  }
+
   /**
    * External writes are scanned from disk only. A recent editor save is skipped
    * because the document listener already handled that exact event.
@@ -336,9 +346,7 @@ class WorkspaceMonitor {
     }
     const key = uriKey(uri);
     const dedupeKey = pathKey(uri);
-    const savedAt = this.recentEditorSaves.get(dedupeKey);
-    if (typeof savedAt === 'number' && Date.now() - savedAt < 2000) {
-      this.recentEditorSaves.delete(dedupeKey);
+    if (this.consumeRecentSave(dedupeKey)) {
       return;
     }
     const eligibility = evaluateFileEligibility({
@@ -352,6 +360,12 @@ class WorkspaceMonitor {
     try {
       const document = await this.resolveDocument(uri);
       if (!document || this.disposed) {
+        return;
+      }
+      // A slow Windows watcher callback can start before the editor save event
+      // and resume after it. Recheck here so the newly scheduled save scan is
+      // never cancelled by the duplicate watcher scan.
+      if (this.consumeRecentSave(dedupeKey) || this.executor.isActiveScan(key, 'save')) {
         return;
       }
       const fsPath = fsPathOf(uri);
