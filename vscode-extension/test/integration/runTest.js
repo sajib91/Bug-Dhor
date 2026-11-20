@@ -9,6 +9,7 @@ const { spawn } = require('node:child_process');
 const { runTests } = require('@vscode/test-electron');
 const { canonicalPath } = require('./pathUtils');
 const { resolvePython } = require('./pythonDiscovery');
+const { removeTemporaryDirectory } = require('./tempCleanup');
 
 const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
 const extensionTestsPath = path.join(__dirname, 'index.js');
@@ -278,7 +279,7 @@ async function main() {
     }
   } finally {
     await stopBackend(backend);
-    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    await removeTemporaryDirectory(temporaryRoot);
   }
 }
 

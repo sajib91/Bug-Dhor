@@ -15,6 +15,7 @@ const {
 
 const { canonicalPath } = require('./pathUtils');
 const { resolvePython } = require('./pythonDiscovery');
+const { removeTemporaryDirectory } = require('./tempCleanup');
 
 const extensionRoot = path.resolve(__dirname, '..', '..');
 const repositoryRoot = path.resolve(extensionRoot, '..');
@@ -318,7 +319,7 @@ async function main() {
     }
   } finally {
     await stopBackend(backend);
-    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    await removeTemporaryDirectory(temporaryRoot);
   }
 }
 

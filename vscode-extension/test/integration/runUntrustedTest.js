@@ -11,6 +11,7 @@ const { spawn } = require('node:child_process');
 const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
 const { CAPABILITY_KEYS } = require('../../src/api/securityResultService');
 const { canonicalPath } = require('./pathUtils');
+const { removeTemporaryDirectory } = require('./tempCleanup');
 
 const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
 const extensionTestsPath = path.join(__dirname, 'untrustedWorkspace.js');
@@ -378,7 +379,7 @@ async function main() {
     console.log('Untrusted workspace Extension Host checks passed.');
   } finally {
     await closeServer(server);
-    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    await removeTemporaryDirectory(temporaryRoot);
   }
 }
 
