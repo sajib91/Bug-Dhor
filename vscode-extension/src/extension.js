@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('node:path');
 const vscode = require('vscode');
 const { createSecurityEngineService } = require('./api/securityEngineService');
 const { createConfigurationService, isLoopbackBackendUrl } = require('./api/configurationService');
@@ -256,18 +257,24 @@ function activate(context) {
   /** @returns {object} */
   function engineViewStatus(status) {
     const labels = {
-      [ENGINE_STATES.STARTING]: 'Starting local engine',
-      [ENGINE_STATES.ONLINE]: 'Local engine online',
-      [ENGINE_STATES.OFFLINE]: 'Local engine offline',
-      [ENGINE_STATES.FAILED]: 'Engine unavailable',
-      [ENGINE_STATES.STOPPING]: 'Stopping local engine'
+      [ENGINE_STATES.NOT_INSTALLED]: 'Engine not installed',
+      [ENGINE_STATES.PREPARING_RUNTIME]: 'Preparing runtime',
+      [ENGINE_STATES.INSTALLING_DEPENDENCIES]: 'Installing dependencies',
+      [ENGINE_STATES.STARTING_ENGINE]: 'Starting engine',
+      [ENGINE_STATES.ONLINE]: 'Engine online',
+      [ENGINE_STATES.OFFLINE]: 'Engine offline',
+      [ENGINE_STATES.STARTUP_FAILED]: 'Engine startup failed',
+      [ENGINE_STATES.SCAN_FAILED]: 'Scan failed',
+      [ENGINE_STATES.STOPPING]: 'Stopping engine'
     };
     return {
       status: status.state === ENGINE_STATES.ONLINE ? 'ready' : status.state,
       label: labels[status.state] ?? 'Engine status unavailable',
       detail: status.detail,
       owned: status.owned,
-      restartAttempt: status.restartAttempt
+      restartAttempt: status.restartAttempt,
+      ...(status.errorKind ? { errorKind: status.errorKind } : {}),
+      ...(status.requestId ? { requestId: status.requestId } : {})
     };
   }
 
@@ -296,6 +303,7 @@ function activate(context) {
       if (!meta) {
         return;
       }
+      engineManager.markScanSuccess();
       scanStatus.complete({ result, request, meta });
       publishRuntimeState();
     },
@@ -304,6 +312,7 @@ function activate(context) {
       if (!isScanOperation(definition)) {
         return;
       }
+      engineManager.markScanFailure(error);
       scanStatus.fail({ error, request, meta });
       publishRuntimeState();
     }
@@ -314,6 +323,11 @@ function activate(context) {
     logger,
     context: {
       extensionPath: context.extensionPath,
+      extensionUri: context.extensionUri,
+      repositoryRoot:
+        context.extensionUri && typeof context.extensionUri.fsPath === 'string'
+          ? path.resolve(context.extensionUri.fsPath, '..', '..')
+          : undefined,
       globalStoragePath: context.globalStoragePath
     },
     getSettings: () => getEngineSettings(trustGate)

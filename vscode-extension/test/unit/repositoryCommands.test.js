@@ -63,6 +63,7 @@ function createVscode(rootPaths, options = {}) {
       ProgressLocation: { Notification: 15 },
       Uri: {
         file: createUri,
+        parse: (value) => createUri(String(value).replace(/^file:\/\//, '')),
         joinPath: (base, ...parts) => createUri(path.join(base.fsPath, ...parts))
       },
       commands: {
@@ -189,7 +190,9 @@ function createHarness(options = {}) {
           status: 'ok',
           findings: [],
           filesScanned: request.filePaths?.length ?? 0,
-          scope: { uris: [] },
+          // A real backend enumerates the roots and reports the URIs it actually
+          // covered; the client must scope diagnostics from this response.
+          scope: { uris: (request.filePaths ?? []).map((filePath) => createUri(filePath).toString()) },
           stages: []
         }
       );
@@ -246,7 +249,7 @@ async function removeWorkspace(root) {
   await fs.rm(root, { recursive: true, force: true });
 }
 
-test('full repository scan sends only eligible explicit paths across multi-root and nested projects', async () => {
+test('full repository scan preflights eligible paths and scopes diagnostics from the backend response', async () => {
   const first = await createWorkspace(
     {
       'src/app.py': 'value = 1\n',
@@ -300,6 +303,44 @@ test('full repository scan sends only eligible explicit paths across multi-root 
   } finally {
     await removeWorkspace(first);
     await removeWorkspace(second);
+  }
+});
+
+test('diagnostics scope uses backend response URIs filtered by workspace and exclusions', async () => {
+  const root = await createWorkspace({
+    'src/app.py': 'value = 1\n',
+    'vendor/lib.py': 'value = 2\n'
+  });
+  const outside = await createWorkspace({ 'outside.py': 'value = 3\n' });
+  const harness = createHarness({
+    rootPaths: [root],
+    serviceResult: {
+      analysisAvailable: true,
+      status: 'ok',
+      findings: [],
+      filesScanned: 3,
+      scope: {
+        uris: [
+          createUri(path.join(root, 'src', 'app.py')).toString(),
+          createUri(path.join(root, 'vendor', 'lib.py')).toString(),
+          createUri(path.join(outside, 'outside.py')).toString(),
+          'untitled:not-a-file',
+          createUri(path.join(root, 'src', 'app.py')).toString()
+        ]
+      },
+      stages: []
+    }
+  });
+
+  try {
+    await harness.registry.execute(COMMANDS.scanRepository);
+    assert.equal(harness.publications.length, 1);
+    assert.deepEqual(harness.publications[0].details.scopeUris, [
+      createUri(path.join(root, 'src', 'app.py')).toString()
+    ]);
+  } finally {
+    await removeWorkspace(root);
+    await removeWorkspace(outside);
   }
 });
 

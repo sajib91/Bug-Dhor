@@ -1,12 +1,21 @@
 'use strict';
 
+/**
+ * Clean-install VSIX end-to-end harness.
+ *
+ * This harness deliberately does NOT start a backend. The backend is started by
+ * the installed extension's own managed-runtime lifecycle using only assets
+ * from the VSIX and a clean Python interpreter. That is the only way to prove
+ * the published runtime startup works without a developer checkout, the
+ * repository `.venv`, or a `PYTHONPATH` injected by the test.
+ */
+
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const {
   downloadAndUnzipVSCode,
   resolveCliArgsFromVSCodeExecutablePath,
@@ -19,7 +28,6 @@ const { removeTemporaryDirectory } = require('./tempCleanup');
 
 const extensionRoot = path.resolve(__dirname, '..', '..');
 const repositoryRoot = path.resolve(extensionRoot, '..');
-const engineRoot = path.join(repositoryRoot, 'security-engine');
 const extensionTestsPath = path.join(__dirname, 'vsixSmoke.js');
 const developmentExtensionPath = path.join(__dirname, 'vsix-host');
 const manifest = require('../../package.json');
@@ -81,69 +89,6 @@ function findFreePort() {
   });
 }
 
-/** @param {number} ms */
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** @param {import('node:child_process').ChildProcess} child @param {number} timeoutMs */
-function waitForExit(child, timeoutMs) {
-  return new Promise((resolve) => {
-    if (child.exitCode !== null) {
-      resolve(true);
-      return;
-    }
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    child.once('exit', () => {
-      clearTimeout(timer);
-      resolve(true);
-    });
-  });
-}
-
-/** @param {import('node:child_process').ChildProcess | undefined} child */
-async function stopBackend(child) {
-  if (!child || child.exitCode !== null) {
-    return;
-  }
-  child.kill('SIGTERM');
-  if (!(await waitForExit(child, 5_000))) {
-    child.kill('SIGKILL');
-    await waitForExit(child, 2_000);
-  }
-}
-
-/** @param {string} backendUrl @param {import('node:child_process').ChildProcess} child @param {() => string} readLogs */
-async function waitForBackend(backendUrl, child, readLogs, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(
-        `The Bug Dhor backend exited with code ${child.exitCode} before becoming ready.\n${readLogs()}`
-      );
-    }
-    try {
-      const response = await fetch(`${backendUrl}/api/v1/health`, {
-        signal: AbortSignal.timeout(1_000)
-      });
-      if (response.ok) {
-        const body = await response.json();
-        if (body.status === 'ok') {
-          return body;
-        }
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    await delay(150);
-  }
-  throw new Error(
-    `The Bug Dhor backend did not become ready at ${backendUrl} within ${timeoutMs} ms. ` +
-      `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}\n${readLogs()}`
-  );
-}
-
 /**
  * @param {string} command
  * @param {string[]} args
@@ -156,7 +101,7 @@ function runCli(command, args) {
     // Node does not quote spawned arguments when shell:true, so Windows paths
     // containing spaces must be quoted explicitly.
     const spawnArgs = useShell ? args.map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg)) : args;
-    const child = spawn(spawnTarget, spawnArgs, {
+    const child = require('node:child_process').spawn(spawnTarget, spawnArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: useShell,
       windowsHide: true
@@ -177,6 +122,25 @@ function runCli(command, args) {
       }
     });
   });
+}
+
+/** @returns {string} */
+function cleanPython() {
+  const override = process.env.BUGDHOR_CLEAN_PYTHON;
+  if (override && fs.existsSync(override)) {
+    return override;
+  }
+  const candidates =
+    process.platform === 'darwin'
+      ? [
+          '/opt/homebrew/opt/python@3.11/bin/python3.11',
+          '/usr/local/opt/python@3.11/bin/python3.11'
+        ]
+      : [];
+  return (
+    candidates.find((candidate) => fs.existsSync(candidate)) ??
+    resolvePython({ repositoryRoot, env: { ...process.env, BUGDHOR_PYTHON: 'python3' } })
+  );
 }
 
 async function main() {
@@ -200,49 +164,34 @@ async function main() {
   const sourcePath = path.join(workspacePath, 'installed — café.py');
   fs.writeFileSync(sourcePath, DISK_SOURCE, 'utf8');
 
-  /** @type {import('node:child_process').ChildProcess | undefined} */
-  let backend;
-  const logLines = [];
-  const record = (chunk) => {
-    for (const line of chunk.toString().split(/\r?\n/)) {
-      if (line.length > 0) {
-        logLines.push(line);
-      }
-    }
-    while (logLines.length > 200) {
-      logLines.shift();
-    }
-  };
-  const readLogs = () =>
-    logLines.length > 0 ? `Backend output:\n${logLines.join('\n')}` : 'No backend output captured.';
-
   try {
     const port = await findFreePort();
     const backendUrl = `http://127.0.0.1:${port}`;
-    const python = resolvePython({ repositoryRoot, env: process.env });
-    const backendEnvironment = { ...process.env };
-    delete backendEnvironment.BUGDHOR_API_TOKEN;
-    delete backendEnvironment.BUGDHOR_ENGINE_TOKEN;
-    const pythonPath = [path.join(engineRoot, 'src'), backendEnvironment.PYTHONPATH]
-      .filter(Boolean)
-      .join(path.delimiter);
-    backendEnvironment.PYTHONPATH = pythonPath;
-    backendEnvironment.BUGDHOR_WORKSPACE_ROOTS = workspacePath;
-    backendEnvironment.BUGDHOR_LOG_LEVEL = 'ERROR';
-    backendEnvironment.BUGDHOR_DATA_DIR = dataDir;
-    backendEnvironment.BUGDHOR_LOG_DIR = logDir;
+    const python = cleanPython();
+    console.log(`Using clean Python ${python} for the extension-managed runtime.`);
 
-    console.log(`Starting Bug Dhor backend with ${python} on ${backendUrl}.`);
-    backend = spawn(python, ['-m', 'bugdhor', '--host', '127.0.0.1', '--port', String(port)], {
-      cwd: engineRoot,
-      env: backendEnvironment,
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    backend.stdout?.on('data', record);
-    backend.stderr?.on('data', record);
-    backend.once('error', (error) => record(`spawn error: ${error.message}`));
-    const health = await waitForBackend(backendUrl, backend, readLogs);
-    console.log(`Bug Dhor backend ready (version ${health.version}, API ${health.apiVersion}).`);
+    // Configure a clean VS Code profile. No repository .venv and no PYTHONPATH
+    // are injected; the extension must install and start its bundled engine.
+    const userDirectory = path.join(userDataDir, 'User');
+    fs.mkdirSync(userDirectory, { recursive: true });
+    fs.writeFileSync(
+      path.join(userDirectory, 'settings.json'),
+      `${JSON.stringify(
+        {
+          'bugdhor.backend.url': backendUrl,
+          'bugdhor.engine.autoStart': true,
+          'bugdhor.engine.manageRuntime': true,
+          'bugdhor.engine.pythonPath': python,
+          'bugdhor.engine.startupTimeoutMs': 60_000,
+          'bugdhor.privacy.sendSourceText': true,
+          'bugdhor.monitoring.enabled': false,
+          'bugdhor.repository.notifyOnWorkspaceOpen': false
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
 
     const localExecutable = findLocalVSCode();
     const vscodeExecutablePath =
@@ -284,11 +233,28 @@ async function main() {
       .sort()
       .at(-1);
     assert.ok(installedDirectory, `the VSIX installer must create an ${extensionId} directory`);
-    const installedManifestPath = path.join(extensionsDir, installedDirectory, 'package.json');
-    const installed = JSON.parse(fs.readFileSync(installedManifestPath, 'utf8'));
-    assert.equal(installed.name, manifest.name);
-    assert.equal(installed.publisher, manifest.publisher);
-    assert.equal(installed.version, manifest.version);
+    const installedRoot = path.join(extensionsDir, installedDirectory);
+    const installedManifest = JSON.parse(
+      fs.readFileSync(path.join(installedRoot, 'package.json'), 'utf8')
+    );
+    assert.equal(installedManifest.name, manifest.name);
+    assert.equal(installedManifest.publisher, manifest.publisher);
+    assert.equal(installedManifest.version, manifest.version);
+
+    // Verify the engine assets the managed runtime will use are really inside
+    // the installed extension and contain no developer editable requirement.
+    for (const asset of [
+      path.join('engine', 'src', 'bugdhor', '__main__.py'),
+      path.join('engine', 'pyproject.toml'),
+      path.join('engine', 'requirements-runtime.txt')
+    ]) {
+      assert.ok(fs.existsSync(path.join(installedRoot, asset)), `${asset} must ship in the VSIX`);
+    }
+    const installedRequirements = fs.readFileSync(
+      path.join(installedRoot, 'engine', 'requirements-runtime.txt'),
+      'utf8'
+    );
+    assert.equal(/^\s*-e\b/im.test(installedRequirements), false);
 
     const exitCode = await runTests({
       vscodeExecutablePath,
@@ -310,6 +276,11 @@ async function main() {
           .createHash('sha256')
           .update(Buffer.from(DISK_SOURCE, 'utf8'))
           .digest('hex'),
+        BUGDHOR_VSIX_INSTALLED_ROOT: installedRoot,
+        BUGDHOR_WORKSPACE_ROOTS: workspacePath,
+        BUGDHOR_DATA_DIR: dataDir,
+        BUGDHOR_LOG_DIR: logDir,
+        BUGDHOR_LOG_LEVEL: 'ERROR',
         BUGDHOR_API_TOKEN: '',
         BUGDHOR_ENGINE_TOKEN: ''
       }
@@ -318,12 +289,11 @@ async function main() {
       process.exitCode = exitCode;
     }
   } finally {
-    await stopBackend(backend);
     await removeTemporaryDirectory(temporaryRoot);
   }
 }
 
 main().catch((error) => {
-  console.error('Bug Dhor VSIX smoke test failed:', error);
+  console.error('Bug Dhor VSIX clean-install test failed:', error);
   process.exitCode = 1;
 });

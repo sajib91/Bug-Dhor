@@ -17,10 +17,70 @@ const DEFAULT_PORT = 8765;
 const MAX_CAPTURE_BYTES = 8 * 1024;
 const IMPORT_PROBE = 'import fastapi, uvicorn, pydantic, tree_sitter';
 
+// The developer requirements file contains `-e .[dev,ml]`. It is never staged
+// as the runtime requirements file and is never passed to the managed runtime.
+const DEFAULT_REQUIREMENTS = 'engine/requirements-runtime.txt';
+const ENGINE_MANIFEST = 'engine/pyproject.toml';
+const LEGACY_REQUIREMENTS = 'engine/requirements.txt';
+
+/**
+ * Distinct failure categories so the UI and logs never conflate a broken
+ * managed-runtime install with an engine that cannot start or a scan that the
+ * backend rejected.
+ */
+const ENGINE_ERROR_KINDS = Object.freeze({
+  RUNTIME_INSTALL: 'runtime-install',
+  ENGINE_STARTUP: 'engine-startup',
+  CONNECTION: 'connection',
+  API_VALIDATION: 'api-validation',
+  SCANNER_EXECUTION: 'scanner-execution'
+});
+
+class EngineError extends Error {
+  /**
+   * @param {string} kind
+   * @param {string} message
+   * @param {{
+   *   code?: string,
+   *   cause?: unknown,
+   *   requestId?: string,
+   *   stdout?: string,
+   *   stderr?: string
+   * }} [options]
+   */
+  constructor(kind, message, options = {}) {
+    super(message);
+    this.name = 'EngineError';
+    this.kind = kind;
+    this.code = options.code ?? `E_${kind.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
+    if (options.cause !== undefined) {
+      this.cause = options.cause;
+    }
+    if (typeof options.requestId === 'string' && options.requestId.length > 0) {
+      this.requestId = options.requestId;
+    }
+    if (typeof options.stdout === 'string') {
+      this.stdout = options.stdout;
+    }
+    if (typeof options.stderr === 'string') {
+      this.stderr = options.stderr;
+    }
+  }
+}
+
 /**
  * @typedef {Object} EngineEndpoint
  * @property {string} host
  * @property {number} port
+ */
+
+/**
+ * @typedef {Object} EngineLayout
+ * @property {string} engineRoot
+ * @property {string} moduleRoot
+ * @property {string} manifestPath
+ * @property {string} requirementsPath
+ * @property {'bundled' | 'development'} source
  */
 
 /**
@@ -168,50 +228,151 @@ function discoverPythonCandidates(options = {}) {
 }
 
 /**
- * Find the bundled (or development-checkout) engine source tree. The returned
- * `moduleRoot` is the directory passed to `python -m bugdhor`.
+ * True only for an extension-controlled, absolute filesystem path. A `file:`
+ * URL is deliberately rejected: pip and child processes must receive plain
+ * absolute paths, never a URI (which used to resolve to `file:///`).
+ *
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+function isAbsoluteFilesystemPath(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return false;
+  }
+  if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(value) || /^(?:file|vscode|untitled):/i.test(value)) {
+    return false;
+  }
+  return path.isAbsolute(value);
+}
+
+/**
+ * Resolve the installed engine root from the extension location (or, in a
+ * development checkout, the repository root) and validate its manifest and
+ * runtime requirements. Every returned path is absolute.
  *
  * @param {{
- *   extensionPath: string,
+ *   extensionPath?: string,
+ *   extensionUri?: { fsPath?: string, path?: string },
  *   repositoryRoot?: string,
  *   fileSystem?: Pick<typeof fs, 'existsSync' | 'statSync'>
  * }} options
- * @returns {{ moduleRoot: string, source: 'bundled' | 'development' } | undefined}
+ * @returns {EngineLayout | undefined}
  */
-function discoverEngineSource(options) {
+function discoverEngineSource(options = {}) {
   const fileSystem = options.fileSystem ?? fs;
-  if (typeof options.extensionPath !== 'string' || options.extensionPath.length === 0) {
-    return undefined;
+  const providedExtensionPath =
+    options.extensionPath ?? options.extensionUri?.fsPath ?? options.extensionUri?.path;
+  /** @type {Array<{ root: string, source: 'bundled' | 'development' }>} */
+  const candidates = [];
+
+  if (isAbsoluteFilesystemPath(providedExtensionPath)) {
+    candidates.push({ root: path.resolve(providedExtensionPath), source: 'bundled' });
   }
-  const candidates = [
-    {
-      moduleRoot: path.join(options.extensionPath, 'engine', 'src'),
-      source: /** @type {const} */ ('bundled')
-    }
-  ];
-  if (typeof options.repositoryRoot === 'string' && options.repositoryRoot.length > 0) {
+  if (isAbsoluteFilesystemPath(options.repositoryRoot)) {
     candidates.push({
-      moduleRoot: path.join(options.repositoryRoot, 'security-engine', 'src'),
-      source: /** @type {const} */ ('development')
+      root: path.resolve(/** @type {string} */ (options.repositoryRoot)),
+      source: 'development'
     });
   }
+
   for (const candidate of candidates) {
-    const main = path.join(candidate.moduleRoot, 'bugdhor', '__main__.py');
-    const app = path.join(candidate.moduleRoot, 'bugdhor', 'api', 'app.py');
-    try {
-      if (fileSystem.statSync(main).isFile() && fileSystem.statSync(app).isFile()) {
-        return candidate;
+    const engineRoot =
+      candidate.source === 'bundled'
+        ? path.join(candidate.root, 'engine')
+        : path.join(candidate.root, 'security-engine');
+    const layout = {
+      engineRoot,
+      moduleRoot: path.join(engineRoot, 'src'),
+      manifestPath: path.join(engineRoot, path.basename(ENGINE_MANIFEST)),
+      requirementsPath: path.join(engineRoot, path.basename(DEFAULT_REQUIREMENTS)),
+      source: candidate.source
+    };
+    const requiredFiles = [
+      path.join(layout.moduleRoot, 'bugdhor', '__main__.py'),
+      path.join(layout.moduleRoot, 'bugdhor', 'api', 'app.py'),
+      layout.manifestPath,
+      layout.requirementsPath
+    ];
+    if (!requiredFiles.every((filePath) => isAbsoluteFilesystemPath(filePath))) {
+      continue;
+    }
+    let valid = true;
+    for (const filePath of requiredFiles) {
+      try {
+        if (!fileSystem.statSync(filePath).isFile()) {
+          valid = false;
+          break;
+        }
+      } catch {
+        valid = false;
+        break;
       }
-    } catch {
-      // Try the next candidate; absence is not an error.
+    }
+    if (valid) {
+      return layout;
     }
   }
   return undefined;
 }
 
-/** @param {unknown} error @returns {string} */
-function safeErrorText(error) {
-  return redactText(error instanceof Error ? error.message : String(error), { limit: 300 });
+/** Alias used by callers that prefer the more explicit name. */
+const resolveEngineLayout = discoverEngineSource;
+
+/**
+ * Guard against ever handing a developer requirement file to pip. The managed
+ * runtime must use only the bundled runtime list (absolute-safe, no editable
+ * install, no optional extras).
+ *
+ * @param {string} content
+ * @returns {string} the validated content
+ */
+function assertRuntimeRequirements(content) {
+  if (typeof content !== 'string' || content.trim().length === 0) {
+    throw new EngineError(
+      ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+      'The bundled engine requirements file is empty.'
+    );
+  }
+  const lines = content.split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith('#')) {
+      continue;
+    }
+    if (/^(?:-e|--editable)(?:\s|=|$)/i.test(line)) {
+      throw new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        'The bundled engine requirements file contains an editable install, which is not allowed ' +
+          'for the managed runtime.'
+      );
+    }
+    if (/^(?:\.{1,2}[/\\]|[a-z]:[/\\]|[/\\]|file:)/i.test(line)) {
+      throw new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        'The bundled engine requirements file contains a local path requirement, which is not ' +
+          'allowed for the managed runtime.'
+      );
+    }
+    if (/(?:\[(?:dev|ml|analyzers|test|docs)\])/i.test(line)) {
+      throw new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        'The bundled engine requirements file contains optional extras, which are not part of ' +
+          'the runtime dependency set.'
+      );
+    }
+  }
+  return content;
+}
+
+/**
+ * @param {unknown} error
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+function safeErrorText(error, fallback) {
+  const text = error instanceof Error ? error.message : String(error);
+  const value = text && text.trim().length > 0 ? text : (fallback ?? '');
+  return redactText(value, { limit: 300 });
 }
 
 /**
@@ -318,61 +479,192 @@ async function runtimeDependenciesReady(options) {
 }
 
 /**
+ * In-flight and completed managed-runtime installations, keyed by venv path and
+ * requirements file. Concurrent start attempts (including separate managers in
+ * one extension host) share a single install instead of racing over pip.
+ *
+ * @type {Map<string, Promise<{ python: string, installed: boolean, detail: string }>>}
+ */
+const RUNTIME_INSTALL_CACHE = new Map();
+
+function runtimeCacheKey(runtimePython, requirementsPath) {
+  return `${runtimePython}\u0000${requirementsPath}`;
+}
+
+/**
  * Create a managed virtual environment and install the bundled runtime
- * requirements. All inputs are extension-controlled paths; no workspace file
- * is read as a command, URL, or requirement source.
+ * requirements. All inputs are extension-controlled absolute paths; no
+ * workspace file is read as a command, URL, or requirement source. The install
+ * runs with `cwd` set to the verified engine root so no relative requirement
+ * (including an editable `.`) can ever resolve against the extension host's
+ * working directory.
  *
  * @param {{
  *   python: string,
  *   runtimeDirectory: string,
  *   requirementsPath: string,
+ *   engineRoot?: string,
  *   platform?: NodeJS.Platform,
  *   fileSystem?: typeof fs,
  *   spawn?: typeof import('node:child_process').spawn,
- *   timeoutMs?: number
+ *   timeoutMs?: number,
+ *   onPhase?: (phase: 'preparing-runtime' | 'installing-dependencies') => void
  * }} options
  * @returns {Promise<{ python: string, installed: boolean, detail: string }>}
  */
-async function ensureManagedRuntime(options) {
+function ensureManagedRuntime(options) {
   const platform = options.platform ?? process.platform;
   const fileSystem = options.fileSystem ?? fs;
   const spawn = options.spawn;
-  const runtimePython = path.join(
+
+  if (!isAbsoluteFilesystemPath(options.runtimeDirectory)) {
+    return Promise.reject(
+      new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        'The managed runtime directory must be an absolute filesystem path.'
+      )
+    );
+  }
+  if (!isAbsoluteFilesystemPath(options.requirementsPath)) {
+    return Promise.reject(
+      new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        'The bundled engine requirements path must be an absolute filesystem path.'
+      )
+    );
+  }
+  if (options.engineRoot !== undefined && !isAbsoluteFilesystemPath(options.engineRoot)) {
+    return Promise.reject(
+      new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        'The bundled engine root must be an absolute filesystem path.'
+      )
+    );
+  }
+
+  const runtimePython = path.resolve(
     options.runtimeDirectory,
     platform === 'win32' ? 'Scripts' : 'bin',
     platform === 'win32' ? 'python.exe' : 'python'
   );
+  const key = runtimeCacheKey(runtimePython, path.resolve(options.requirementsPath));
+  const cached = RUNTIME_INSTALL_CACHE.get(key);
+  if (cached) {
+    return cached;
+  }
+  const pending = installManagedRuntime({
+    ...options,
+    platform,
+    fileSystem,
+    spawn,
+    runtimePython,
+    cwd: options.engineRoot ? path.resolve(options.engineRoot) : undefined
+  }).catch((error) => {
+    RUNTIME_INSTALL_CACHE.delete(key);
+    throw error;
+  });
+  RUNTIME_INSTALL_CACHE.set(key, pending);
+  return pending;
+}
+
+/**
+ * @param {{
+ *   python: string,
+ *   runtimePython: string,
+ *   runtimeDirectory: string,
+ *   requirementsPath: string,
+ *   cwd?: string,
+ *   platform: NodeJS.Platform,
+ *   fileSystem: typeof fs,
+ *   spawn?: typeof import('node:child_process').spawn,
+ *   timeoutMs?: number,
+ *   onPhase?: (phase: 'preparing-runtime' | 'installing-dependencies') => void
+ * }} options
+ */
+async function installManagedRuntime(options) {
+  const { fileSystem, runtimePython, spawn } = options;
+  options.onPhase?.('preparing-runtime');
+
+  let alreadyReady = false;
   if (fileSystem.existsSync(runtimePython)) {
-    if (await runtimeDependenciesReady({ python: runtimePython, spawn })) {
-      return { python: runtimePython, installed: false, detail: 'managed runtime already ready' };
+    alreadyReady = await runtimeDependenciesReady({ python: runtimePython, cwd: options.cwd, spawn });
+    if (alreadyReady) {
+      return {
+        python: runtimePython,
+        installed: false,
+        detail: 'managed runtime already ready'
+      };
     }
   } else {
     fileSystem.mkdirSync(options.runtimeDirectory, { recursive: true });
     const created = await runFixedCommand({
       command: options.python,
       args: ['-m', 'venv', options.runtimeDirectory],
+      cwd: options.cwd,
       timeoutMs: options.timeoutMs ?? 120_000,
       spawn
     });
     if (created.code !== 0 || !fileSystem.existsSync(runtimePython)) {
-      throw new Error(
-        `Could not create a managed Python runtime: ${safeErrorText(created.stderr)}`
+      throw new EngineError(
+        ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+        `Could not create a managed Python runtime: ${safeErrorText(created.stderr, created.stdout)}`,
+        { stdout: created.stdout, stderr: created.stderr }
       );
     }
   }
+
+  options.onPhase?.('installing-dependencies');
   if (!fileSystem.existsSync(options.requirementsPath)) {
-    throw new Error('The bundled engine requirements file is missing from this installation.');
+    throw new EngineError(
+      ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+      'The bundled engine requirements file is missing from this installation.'
+    );
   }
+  let content;
+  try {
+    content = fileSystem.readFileSync(options.requirementsPath, 'utf8');
+  } catch (error) {
+    throw new EngineError(
+      ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+      `The bundled engine requirements file could not be read: ${safeErrorText(error)}`,
+      { cause: error }
+    );
+  }
+  assertRuntimeRequirements(typeof content === 'string' ? content : String(content));
+
   const installed = await runFixedCommand({
     command: runtimePython,
-    args: ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', options.requirementsPath],
+    args: [
+      '-m',
+      'pip',
+      'install',
+      '--disable-pip-version-check',
+      '--no-input',
+      '-r',
+      options.requirementsPath
+    ],
+    cwd: options.cwd,
     timeoutMs: options.timeoutMs ?? 300_000,
     spawn
   });
   if (installed.code !== 0) {
-    throw new Error(`Managed runtime dependency setup failed: ${safeErrorText(installed.stderr)}`);
+    const detail = safeErrorText(installed.stderr, installed.stdout);
+    throw new EngineError(
+      ENGINE_ERROR_KINDS.RUNTIME_INSTALL,
+      `Managed runtime dependency setup failed: ${detail}`,
+      { stdout: installed.stdout, stderr: installed.stderr }
+    );
   }
-  return { python: runtimePython, installed: true, detail: 'managed runtime prepared' };
+  return {
+    python: runtimePython,
+    installed: !alreadyReady,
+    detail: 'managed runtime prepared'
+  };
+}
+
+/** Test-only helper: clear the shared runtime installation cache. */
+function clearRuntimeInstallCache() {
+  RUNTIME_INSTALL_CACHE.clear();
 }
 
 /**
@@ -385,31 +677,56 @@ function buildEngineArguments({ python, host, port }) {
 
 /**
  * Build the child environment. Values are inherited from the extension host,
- * not from the workspace, and are never logged.
+ * not from the workspace, and are never logged. The bundled engine's `src`
+ * directory is always prepended as an absolute PYTHONPATH entry.
  *
- * @param {{ environment?: NodeJS.ProcessEnv, host: string, port: number }} options
+ * @param {{
+ *   environment?: NodeJS.ProcessEnv,
+ *   host: string,
+ *   port: number,
+ *   moduleRoot?: string
+ * }} options
  * @returns {NodeJS.ProcessEnv}
  */
-function buildEngineEnvironment({ environment = process.env, host, port }) {
-  return {
+function buildEngineEnvironment({ environment = process.env, host, port, moduleRoot }) {
+  const result = {
     ...environment,
     PYTHONUNBUFFERED: '1',
     PYTHONNOUSERSITE: '1',
     BUGDHOR_HOST: host,
     BUGDHOR_PORT: String(port)
   };
+  if (isAbsoluteFilesystemPath(moduleRoot)) {
+    const existing = typeof result.PYTHONPATH === 'string' ? result.PYTHONPATH : '';
+    const entries = existing
+      .split(path.delimiter)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0 && entry !== path.resolve(/** @type {string} */ (moduleRoot)));
+    result.PYTHONPATH = [path.resolve(/** @type {string} */ (moduleRoot)), ...entries].join(
+      path.delimiter
+    );
+  }
+  return result;
 }
 
 module.exports = {
   DEFAULT_PORT,
-  DEFAULT_REQUIREMENTS: 'engine/requirements.txt',
+  DEFAULT_REQUIREMENTS,
+  ENGINE_MANIFEST,
+  LEGACY_REQUIREMENTS,
+  ENGINE_ERROR_KINDS,
+  EngineError,
   loopbackEndpoint,
   validatePythonExecutable,
   discoverPythonCandidates,
   discoverEngineSource,
+  resolveEngineLayout,
+  assertRuntimeRequirements,
+  isAbsoluteFilesystemPath,
   runFixedCommand,
   runtimeDependenciesReady,
   ensureManagedRuntime,
+  clearRuntimeInstallCache,
   buildEngineArguments,
   buildEngineEnvironment,
   safeErrorText

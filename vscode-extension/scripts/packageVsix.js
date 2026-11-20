@@ -70,8 +70,10 @@ function prepareStaging({ targetDir = stagingDir, runtimeClosure = stageRuntimeD
     });
   }
 
-  // Ship the engine source and its declared runtime requirements. The engine
-  // is started from extension-controlled paths with a fixed argv list.
+  // Ship the engine source, its packaging manifest and the runtime-only
+  // requirements. The developer requirements.txt (which contains
+  // `-e .[dev,ml]`) is never used by the managed runtime; staging it here is
+  // only kept for tooling compatibility and is not referenced at startup.
   const engineSource = path.join(repositoryRoot, 'security-engine', 'src', 'bugdhor');
   const engineDestination = path.join(targetDir, 'engine', 'src', 'bugdhor');
   if (!fs.existsSync(path.join(engineSource, '__main__.py'))) {
@@ -79,12 +81,24 @@ function prepareStaging({ targetDir = stagingDir, runtimeClosure = stageRuntimeD
   }
   fs.mkdirSync(path.dirname(engineDestination), { recursive: true });
   fs.cpSync(engineSource, engineDestination, { recursive: true });
-  const requirements = path.join(repositoryRoot, 'security-engine', 'requirements.txt');
-  if (!fs.existsSync(requirements)) {
-    throw new Error('The local engine requirements file is missing from security-engine/.');
+
+  const engineAssets = [
+    ['pyproject.toml', 'pyproject.toml'],
+    ['requirements-runtime.txt', 'requirements-runtime.txt']
+  ];
+  const stagedEngineRoot = path.join(targetDir, 'engine');
+  fs.mkdirSync(stagedEngineRoot, { recursive: true });
+  for (const [sourceName, destinationName] of engineAssets) {
+    const source = path.join(repositoryRoot, 'security-engine', sourceName);
+    if (!fs.existsSync(source)) {
+      throw new Error(`The local engine asset ${sourceName} is missing from security-engine/.`);
+    }
+    fs.copyFileSync(source, path.join(stagedEngineRoot, destinationName));
   }
-  fs.mkdirSync(path.join(targetDir, 'engine'), { recursive: true });
-  fs.copyFileSync(requirements, path.join(targetDir, 'engine', 'requirements.txt'));
+  const legacyRequirements = path.join(repositoryRoot, 'security-engine', 'requirements.txt');
+  if (fs.existsSync(legacyRequirements)) {
+    fs.copyFileSync(legacyRequirements, path.join(stagedEngineRoot, 'requirements.txt'));
+  }
 
   const stagingModules = path.join(targetDir, 'node_modules');
   fs.mkdirSync(stagingModules, { recursive: true });

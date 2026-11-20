@@ -13,8 +13,12 @@ const {
   unregisterManager
 } = require('../../src/engine/engineManager');
 const {
+  ENGINE_ERROR_KINDS,
+  EngineError,
+  assertRuntimeRequirements,
   buildEngineArguments,
   buildEngineEnvironment,
+  clearRuntimeInstallCache,
   discoverEngineSource,
   discoverPythonCandidates,
   ensureManagedRuntime,
@@ -24,9 +28,12 @@ const {
 } = require('../../src/engine/engineRuntime');
 
 const EXTENSION_PATH = '/extension';
-const MODULE_ROOT = path.join(EXTENSION_PATH, 'engine', 'src');
+const ENGINE_ROOT = path.join(EXTENSION_PATH, 'engine');
+const MODULE_ROOT = path.join(ENGINE_ROOT, 'src');
 const PYTHON = '/opt/python3/bin/python3';
-const REQUIREMENTS = path.join(EXTENSION_PATH, 'engine', 'requirements.txt');
+const MANIFEST = path.join(ENGINE_ROOT, 'pyproject.toml');
+const REQUIREMENTS = path.join(ENGINE_ROOT, 'requirements-runtime.txt');
+const RUNTIME_REQUIREMENTS_CONTENT = 'fastapi>=0.115,<1\npydantic>=2.8,<3\n';
 const HEALTH_OK = Object.freeze({ service: 'bugdhor-engine', status: 'ok' });
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,9 +43,10 @@ function createFileSystem() {
     path.join(MODULE_ROOT, 'bugdhor', '__main__.py'),
     path.join(MODULE_ROOT, 'bugdhor', 'api', 'app.py'),
     PYTHON,
+    MANIFEST,
     REQUIREMENTS
   ]);
-  const directories = new Set([path.dirname(REQUIREMENTS), path.join(EXTENSION_PATH, 'engine')]);
+  const directories = new Set([ENGINE_ROOT, path.join(EXTENSION_PATH)]);
   return {
     files,
     directories,
@@ -53,6 +61,15 @@ function createFileSystem() {
     },
     mkdirSync(target) {
       directories.add(target);
+    },
+    readFileSync(target) {
+      if (target === REQUIREMENTS) {
+        return RUNTIME_REQUIREMENTS_CONTENT;
+      }
+      if (target === MANIFEST) {
+        return '[project]\nname = "bugdhor-engine"\n';
+      }
+      throw Object.assign(new Error(`ENOENT: ${target}`), { code: 'ENOENT' });
     }
   };
 }
@@ -90,14 +107,17 @@ function createFakeProcess(options = {}) {
   return child;
 }
 
-function createSpawn({ engineProcess, probeCode = 0 } = {}) {
+function createSpawn({ engineProcess, probeCode = 0, onCall } = {}) {
   const calls = [];
   const spawn = (command, args, options) => {
     calls.push({ command, args, options });
+    onCall?.({ command, args, options });
     if (args[0] === '-m' && args[1] === 'bugdhor') {
       return engineProcess ?? createFakeProcess({ autoClose: false });
     }
-    return createFakeProcess({ code: probeCode, stdout: 'ready' });
+    // Only dependency probes fail when probeCode is set; venv/pip commands use
+    // their own success/failure fixtures.
+    return createFakeProcess({ code: args[0] === '-c' ? probeCode : 0, stdout: 'ready' });
   };
   return { spawn, calls };
 }
@@ -139,6 +159,7 @@ function createLogger() {
 }
 
 function createManager(options = {}) {
+  clearRuntimeInstallCache();
   const settings = {
     backendUrl: 'http://127.0.0.1:8765',
     pythonPath: PYTHON,
@@ -149,7 +170,11 @@ function createManager(options = {}) {
   const service = createHealthService(options.healthResponses ?? [HEALTH_OK]);
   const logger = createLogger();
   const engineProcess = options.engineProcess ?? createFakeProcess({ autoClose: false });
-  const { spawn, calls } = createSpawn({ engineProcess, probeCode: options.probeCode ?? 0 });
+  const { spawn, calls } = createSpawn({
+    engineProcess,
+    probeCode: options.probeCode ?? 0,
+    onCall: options.onSpawn
+  });
   const fileSystem = options.fileSystem ?? createFileSystem();
   const manager = new EngineManager({
     service,
@@ -243,15 +268,53 @@ test('engine source discovery prefers bundled files and falls back to developmen
     fileSystem
   };
   assert.deepEqual(discoverEngineSource(options), {
+    engineRoot: ENGINE_ROOT,
     moduleRoot: MODULE_ROOT,
+    manifestPath: MANIFEST,
+    requirementsPath: REQUIREMENTS,
     source: 'bundled'
   });
 
+  const developmentEngineRoot = path.join('/repository', 'security-engine');
+  fileSystem.files.add(path.join(developmentEngineRoot, 'pyproject.toml'));
+  fileSystem.files.add(path.join(developmentEngineRoot, 'requirements-runtime.txt'));
   fileSystem.files.delete(path.join(MODULE_ROOT, 'bugdhor', '__main__.py'));
   assert.deepEqual(discoverEngineSource(options), {
+    engineRoot: path.join('/repository', 'security-engine'),
     moduleRoot: path.join('/repository', 'security-engine', 'src'),
+    manifestPath: path.join('/repository', 'security-engine', 'pyproject.toml'),
+    requirementsPath: path.join('/repository', 'security-engine', 'requirements-runtime.txt'),
     source: 'development'
   });
+});
+
+test('engine discovery rejects file URLs, relative paths and missing manifests', () => {
+  const fileSystem = createFileSystem();
+  assert.equal(
+    discoverEngineSource({ extensionPath: 'file:///extension', fileSystem }),
+    undefined
+  );
+  assert.equal(discoverEngineSource({ extensionPath: 'extension', fileSystem }), undefined);
+  assert.equal(
+    discoverEngineSource({
+      extensionUri: { fsPath: 'file:///extension' },
+      fileSystem
+    }),
+    undefined,
+    'a file URL must never be accepted, even from extensionUri'
+  );
+
+  fileSystem.files.delete(MANIFEST);
+  assert.equal(discoverEngineSource({ extensionPath: EXTENSION_PATH, fileSystem }), undefined);
+});
+
+test('runtime requirements reject editable installs, local paths and extras', () => {
+  assert.doesNotThrow(() => assertRuntimeRequirements(RUNTIME_REQUIREMENTS_CONTENT));
+  assert.throws(() => assertRuntimeRequirements('-e .[dev,ml]\n'), /editable/);
+  assert.throws(() => assertRuntimeRequirements('--editable .\n'), /editable/);
+  assert.throws(() => assertRuntimeRequirements('file:///app\n'), /local path/);
+  assert.throws(() => assertRuntimeRequirements('./security-engine\n'), /local path/);
+  assert.throws(() => assertRuntimeRequirements('torch[ml]>=2\n'), /extras/);
 });
 
 test('runFixedCommand uses fixed argv without a shell and captures bounded output', async () => {
@@ -278,8 +341,10 @@ test('runFixedCommand uses fixed argv without a shell and captures bounded outpu
   assert.deepEqual(calls[0].options.stdio, ['ignore', 'pipe', 'pipe']);
 });
 
-test('managed runtime setup uses fixed venv and pip arguments', async () => {
+test('managed runtime installs from the absolute engine root without editable requirements', async () => {
+  clearRuntimeInstallCache();
   const calls = [];
+  const phases = [];
   const runtimePython = path.join('/storage', 'engine-runtime', 'bin', 'python');
   let runtimeExists = false;
   const fileSystem = {
@@ -289,6 +354,12 @@ test('managed runtime setup uses fixed venv and pip arguments', async () => {
     mkdirSync() {},
     statSync() {
       throw new Error('unused');
+    },
+    readFileSync(target) {
+      if (target !== REQUIREMENTS) {
+        throw new Error(`unexpected read: ${target}`);
+      }
+      return RUNTIME_REQUIREMENTS_CONTENT;
     }
   };
   const spawn = (command, args, options) => {
@@ -302,25 +373,122 @@ test('managed runtime setup uses fixed venv and pip arguments', async () => {
     return createFakeProcess({ code: 0 });
   };
 
-  const result = await ensureManagedRuntime({
+  const options = {
     python: 'python3',
     runtimeDirectory: path.join('/storage', 'engine-runtime'),
+    engineRoot: ENGINE_ROOT,
     requirementsPath: REQUIREMENTS,
     platform: 'darwin',
     fileSystem,
-    spawn
-  });
+    spawn,
+    onPhase: (phase) => phases.push(phase)
+  };
+  const result = await ensureManagedRuntime(options);
 
   assert.equal(result.python, runtimePython);
   assert.equal(result.installed, true);
+  assert.deepEqual(phases, ['preparing-runtime', 'installing-dependencies']);
   assert.deepEqual(
     calls.map((call) => call.args),
     [
       ['-m', 'venv', path.join('/storage', 'engine-runtime')],
-      ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', REQUIREMENTS]
+      [
+        '-m',
+        'pip',
+        'install',
+        '--disable-pip-version-check',
+        '--no-input',
+        '-r',
+        REQUIREMENTS
+      ]
     ]
   );
-  assert.ok(calls.every((call) => call.options.shell === false));
+  assert.ok(
+    calls.every((call) => call.options.shell === false && call.options.cwd === ENGINE_ROOT),
+    'every managed-runtime command must run from the absolute engine root'
+  );
+
+  // A concurrent caller must share the same install instead of racing pip.
+  const before = calls.length;
+  const [first, second] = await Promise.all([
+    ensureManagedRuntime(options),
+    ensureManagedRuntime(options)
+  ]);
+  assert.equal(first.installed, second.installed);
+  assert.equal(calls.length, before, 'cached installs must not spawn more commands');
+});
+
+test('managed runtime rejects a file URL requirements path and a developer requirements file', async () => {
+  clearRuntimeInstallCache();
+  await assert.rejects(
+    () =>
+      ensureManagedRuntime({
+        python: 'python3',
+        runtimeDirectory: '/storage/engine-runtime',
+        requirementsPath: 'file:///extension/engine/requirements-runtime.txt',
+        engineRoot: ENGINE_ROOT,
+        platform: 'darwin',
+        fileSystem: createFileSystem(),
+        spawn: () => createFakeProcess({ code: 0 })
+      }),
+    (error) => {
+      assert.equal(error.kind, ENGINE_ERROR_KINDS.RUNTIME_INSTALL);
+      return true;
+    }
+  );
+
+  const fileSystem = createFileSystem();
+  fileSystem.files.add(path.join('/storage/other-runtime', 'bin', 'python'));
+  fileSystem.readFileSync = () => '-e .[dev,ml]\n';
+  await assert.rejects(
+    () =>
+      ensureManagedRuntime({
+        python: 'python3',
+        runtimeDirectory: '/storage/other-runtime',
+        requirementsPath: REQUIREMENTS,
+        engineRoot: ENGINE_ROOT,
+        platform: 'darwin',
+        fileSystem,
+        spawn: (command, args) => createFakeProcess({ code: args[0] === '-c' ? 1 : 0 })
+      }),
+    /editable install/
+  );
+});
+
+test('managed runtime install failures include captured stdout and stderr', async () => {
+  clearRuntimeInstallCache();
+  const fileSystem = createFileSystem();
+  const runtimePython = path.join('/storage/failing-runtime', 'bin', 'python');
+  fileSystem.files.add(runtimePython);
+  const spawn = (command, args) => {
+    if (args[0] === '-c') {
+      return createFakeProcess({ code: 1 });
+    }
+    return createFakeProcess({
+      code: 1,
+      stdout: 'collecting packages',
+      stderr: 'ERROR: file:/// does not appear to be a Python project'
+    });
+  };
+  await assert.rejects(
+    () =>
+      ensureManagedRuntime({
+        python: 'python3',
+        runtimeDirectory: '/storage/failing-runtime',
+        engineRoot: ENGINE_ROOT,
+        requirementsPath: REQUIREMENTS,
+        platform: 'darwin',
+        fileSystem,
+        spawn
+      }),
+    (error) => {
+      assert.ok(error instanceof EngineError);
+      assert.equal(error.kind, ENGINE_ERROR_KINDS.RUNTIME_INSTALL);
+      assert.match(error.message, /does not appear to be a Python project/);
+      assert.match(error.stderr, /file:\/\/\//);
+      return true;
+    }
+  );
 });
 
 test('engine argv and environment are fixed and loopback-scoped', () => {
@@ -399,9 +567,10 @@ test('a managed engine starts once with a fixed argv and only its owned child is
   assert.equal(engineCall.options.cwd, MODULE_ROOT);
   assert.equal(engineCall.options.shell, false);
   assert.equal(engineCall.options.windowsHide, true);
-  assert.deepEqual(engineCall.options.stdio, ['ignore', 'ignore', 'pipe']);
+  assert.deepEqual(engineCall.options.stdio, ['ignore', 'pipe', 'pipe']);
   assert.equal(engineCall.options.env.BUGDHOR_HOST, '127.0.0.1');
   assert.equal(engineCall.options.env.BUGDHOR_PORT, '8765');
+  assert.match(engineCall.options.env.PYTHONPATH, new RegExp(`^${MODULE_ROOT}`));
 
   const status = harness.manager.getStatus();
   assert.equal(status.state, ENGINE_STATES.ONLINE);
@@ -436,7 +605,8 @@ test('a missing bundled engine fails without spawning a process', async () => {
 
   assert.equal(await harness.manager.start(), false);
   assert.equal(harness.spawnCalls.length, 0);
-  assert.equal(harness.manager.getStatus().state, ENGINE_STATES.FAILED);
+  assert.equal(harness.manager.getStatus().state, ENGINE_STATES.NOT_INSTALLED);
+  assert.equal(harness.manager.getStatus().errorKind, ENGINE_ERROR_KINDS.ENGINE_STARTUP);
   assert.match(harness.manager.getStatus().detail, /Reinstall the extension/);
 });
 
@@ -507,4 +677,73 @@ test('duplicate engine managers are rejected per endpoint key', () => {
   unregisterManager(key);
   assert.equal(registerManager(key, second), true);
   unregisterManager(key);
+});
+
+test('startup publishes preparing-runtime, installing-dependencies and starting-engine states', async () => {
+  const fileSystem = createFileSystem();
+  const runtimePython = path.join('/storage', 'engine-runtime', 'bin', 'python');
+  const harness = createManager({
+    fileSystem,
+    probeCode: 1,
+    healthResponses: [new Error('offline'), HEALTH_OK],
+    onSpawn: ({ args }) => {
+      if (args[1] === 'venv') {
+        fileSystem.files.add(runtimePython);
+      }
+    }
+  });
+  const states = [];
+  harness.manager.onStateChange((status) => states.push(status.state));
+
+  assert.equal(await harness.manager.start(), true);
+  assert.ok(states.includes(ENGINE_STATES.PREPARING_RUNTIME), states.join(','));
+  assert.ok(states.includes(ENGINE_STATES.INSTALLING_DEPENDENCIES), states.join(','));
+  assert.ok(states.includes(ENGINE_STATES.STARTING_ENGINE), states.join(','));
+  assert.equal(harness.manager.getStatus().state, ENGINE_STATES.ONLINE);
+});
+
+test('scan failures are classified and keep the backend request id', () => {
+  const harness = createManager();
+  const validationError = Object.assign(new Error('body.filePaths is invalid'), {
+    name: 'ApiProblemError',
+    code: 'E_VALIDATION',
+    status: 422,
+    requestId: '8f646075755d482fa8a3ac9e6d9507f5'
+  });
+
+  harness.manager.markScanFailure(validationError);
+  let status = harness.manager.getStatus();
+  assert.equal(status.state, ENGINE_STATES.SCAN_FAILED);
+  assert.equal(status.errorKind, ENGINE_ERROR_KINDS.API_VALIDATION);
+  assert.equal(status.requestId, '8f646075755d482fa8a3ac9e6d9507f5');
+  assert.match(status.detail, /8f646075755d482fa8a3ac9e6d9507f5/);
+
+  const connectionError = Object.assign(new Error('backend unreachable'), {
+    name: 'BackendUnavailableError'
+  });
+  harness.manager.markScanFailure(connectionError);
+  assert.equal(harness.manager.getStatus().errorKind, ENGINE_ERROR_KINDS.CONNECTION);
+
+  harness.manager.markScanFailure(new Error('scanner crashed'));
+  assert.equal(harness.manager.getStatus().errorKind, ENGINE_ERROR_KINDS.SCANNER_EXECUTION);
+
+  harness.manager.markScanSuccess();
+  status = harness.manager.getStatus();
+  assert.equal(status.state, ENGINE_STATES.ONLINE);
+  assert.equal(status.lastError, undefined);
+});
+
+test('environment builder uses an absolute module root for PYTHONPATH', () => {
+  const environment = buildEngineEnvironment({
+    environment: { PATH: '/usr/bin', PYTHONPATH: '/existing' },
+    host: '127.0.0.1',
+    port: 8765,
+    moduleRoot: MODULE_ROOT
+  });
+  assert.equal(environment.PYTHONPATH, [MODULE_ROOT, '/existing'].join(path.delimiter));
+  assert.equal(
+    buildEngineEnvironment({ environment: {}, host: 'x', port: 1, moduleRoot: 'relative' })
+      .PYTHONPATH,
+    undefined
+  );
 });

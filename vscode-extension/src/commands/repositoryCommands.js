@@ -11,6 +11,7 @@ const { isLoopbackBackendUrl } = require('../api/configurationService');
 const { discoverRepositoryInventory } = require('../repository');
 const { collectGitChangedFiles, GitChangedFilesError } = require('../repository/gitChangedFiles');
 const { isRealPathWithinRoot } = require('../security/paths');
+const { DEFAULT_EXCLUDE_GLOBS, isPathExcluded } = require('../monitoring/changeAnalyzer');
 
 const WORKSPACE_PROMPT_KEY = 'bugdhor.repository.workspacePrompt';
 
@@ -161,7 +162,8 @@ function findContainingWorkspaceFolder(vscode, uri) {
 
 /**
  * Register explicit repository scan commands. Every command sends only folder
- * metadata and absolute file paths; the local backend reads source files.
+ * metadata; the local backend enumerates and reads source files under those
+ * roots using its own path-safety and resource rules.
  *
  * @param {{
  *   vscode: import('vscode'),
@@ -188,9 +190,60 @@ function registerRepositoryCommands(context) {
   };
 
   /**
-   * Repository scans send metadata and paths; the backend reads files itself.
+   * Scope diagnostics to the URIs the backend actually reported in its
+   * validated response, filtered through the client's workspace/exclusion
+   * policy. The request's local inventory is used only for preflight bounds
+   * and user feedback; it is never treated as proof of what was scanned.
+   *
+   * @param {unknown} result
+   * @param {object} request
+   */
+  const scopeUrisFromResult = (result, request) => {
+    const roots = (Array.isArray(request?.workspaceFolders) ? request.workspaceFolders : [])
+      .map((folder) => folder?.path)
+      .filter((value) => typeof value === 'string' && path.isAbsolute(value))
+      .map((value) => path.resolve(value));
+    const configured = normalizeSettings(context.getRepositorySettings()).excludeGlobs;
+    const excludeGlobs = configured.length > 0 ? configured : DEFAULT_EXCLUDE_GLOBS;
+    const reported = Array.isArray(result?.scope?.uris) ? result.scope.uris : [];
+    /** @type {string[]} */
+    const scopeUris = [];
+    const seen = new Set();
+    for (const uriText of reported) {
+      if (typeof uriText !== 'string' || !uriText.startsWith('file:')) {
+        continue;
+      }
+      let uri;
+      try {
+        uri = vscode.Uri.parse(uriText);
+      } catch {
+        continue;
+      }
+      if (uri?.scheme !== 'file' || typeof uri.fsPath !== 'string') {
+        continue;
+      }
+      const fsPath = path.resolve(uri.fsPath);
+      const containingRoot = roots.find((root) => isRealPathWithinRoot(fsPath, root));
+      if (!containingRoot) {
+        continue;
+      }
+      const relative = path.relative(containingRoot, fsPath);
+      if (isPathExcluded(relative, excludeGlobs)) {
+        continue;
+      }
+      const normalized = uri.toString();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        scopeUris.push(normalized);
+      }
+    }
+    return scopeUris;
+  };
+
+  /**
+   * Repository scans send metadata only; the backend reads files itself.
    * Publish only the findings actually returned by that backend response, and
-   * scope diagnostics to the exact paths the response was asked to cover.
+   * scope diagnostics to the paths the response actually covered.
    *
    * @param {unknown} result
    * @param {object} request
@@ -200,13 +253,7 @@ function registerRepositoryCommands(context) {
     if (!result || typeof result !== 'object' || result.analysisAvailable !== true) {
       return;
     }
-    const scopeUris =
-      typeof vscode.Uri?.file === 'function'
-        ? (Array.isArray(request?.filePaths) ? request.filePaths : [])
-            .filter((filePath) => typeof filePath === 'string')
-            .map((filePath) => vscode.Uri.file(filePath).toString())
-        : [];
-    diagnostics.publishScanResult(result, { scopeUris });
+    diagnostics.publishScanResult(result, { scopeUris: scopeUrisFromResult(result, request) });
   };
 
   for (const id of [COMMANDS.scanRepository, COMMANDS.rescanAll]) {

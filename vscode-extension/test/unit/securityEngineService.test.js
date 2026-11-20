@@ -425,6 +425,37 @@ test('scanWorkspace sends folder metadata only and validates the response', asyn
   assert.equal(result.operation, 'scan_workspace');
 });
 
+test('scanWorkspace never sends filePaths, even when the caller supplies an inventory', async () => {
+  const { service, client } = createService(workspacePayload());
+  const request = {
+    workspaceFolders: [{ name: 'workspace', path: '/workspace', uri: 'file:///workspace' }],
+    filePaths: ['/workspace/app.py', '/workspace/lib/util.py']
+  };
+
+  await service.scanWorkspace(request, {});
+
+  assert.deepEqual(Object.keys(client.calls[0].body), ['workspaceFolders']);
+  assert.equal('filePaths' in client.calls[0].body, false);
+  assert.equal('file_paths' in client.calls[0].body, false);
+});
+
+test('scanWorkspace rejects an out-of-root inventory before sending', async () => {
+  const { service, client } = createService(workspacePayload());
+
+  await assert.rejects(
+    () =>
+      service.scanWorkspace(
+        {
+          workspaceFolders: [{ name: 'workspace', path: '/workspace' }],
+          filePaths: ['/etc/passwd']
+        },
+        {}
+      ),
+    /outside every workspace folder/
+  );
+  assert.equal(client.calls.length, 0);
+});
+
 test('scanWorkspace rejects relative paths and non-file URIs before sending', async () => {
   const { service, client } = createService(workspacePayload());
 

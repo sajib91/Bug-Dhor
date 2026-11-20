@@ -12,7 +12,8 @@
 const path = require('node:path');
 const {
   DEFAULT_PORT,
-  DEFAULT_REQUIREMENTS,
+  ENGINE_ERROR_KINDS,
+  EngineError,
   buildEngineArguments,
   buildEngineEnvironment,
   discoverEngineSource,
@@ -23,11 +24,21 @@ const {
   safeErrorText
 } = require('./engineRuntime');
 
+/**
+ * Lifecycle states. STARTING/FAILED are retained as aliases for callers using
+ * the older names, but the reported value is the granular state.
+ */
 const ENGINE_STATES = Object.freeze({
-  STARTING: 'starting',
+  NOT_INSTALLED: 'not_installed',
+  PREPARING_RUNTIME: 'preparing_runtime',
+  INSTALLING_DEPENDENCIES: 'installing_dependencies',
+  STARTING_ENGINE: 'starting_engine',
+  STARTING: 'starting_engine',
   ONLINE: 'online',
   OFFLINE: 'offline',
-  FAILED: 'failed',
+  STARTUP_FAILED: 'startup_failed',
+  FAILED: 'startup_failed',
+  SCAN_FAILED: 'scan_failed',
   STOPPING: 'stopping'
 });
 
@@ -126,6 +137,7 @@ class EngineManager {
     this.stopPromise = undefined;
     this.restartTimer = undefined;
     this.listeners = new Set();
+    /** @type {{ kind: string, message: string, code?: string, requestId?: string } | undefined} */
     this.lastError = undefined;
   }
 
@@ -144,21 +156,57 @@ class EngineManager {
       ...(this.pid === undefined ? {} : { pid: this.pid }),
       ...(this.startedAt === undefined ? {} : { startedAt: this.startedAt }),
       restartAttempt: this.restartAttempt,
-      ...(this.lastError ? { lastError: this.lastError } : {}),
+      ...(this.lastError
+        ? {
+            lastError: this.lastError.message,
+            errorKind: this.lastError.kind,
+            ...(this.lastError.code ? { errorCode: this.lastError.code } : {}),
+            ...(this.lastError.requestId ? { requestId: this.lastError.requestId } : {})
+          }
+        : {}),
       backendUrl: this.settings.backendUrl
     });
   }
 
   /**
+   * Record a classified error without ever dropping a backend request id.
+   *
+   * @param {unknown} error
+   * @param {string} kind
+   * @returns {{ kind: string, message: string, code?: string, requestId?: string }}
+   */
+  recordError(error, kind = ENGINE_ERROR_KINDS.ENGINE_STARTUP) {
+    const resolvedKind =
+      error instanceof EngineError && ENGINE_ERROR_KINDS[error.kind] ? error.kind : kind;
+    const record = {
+      kind: resolvedKind,
+      message: safeErrorText(error)
+    };
+    if (error && typeof error === 'object') {
+      if (typeof /** @type {object} */ (error).code === 'string') {
+        record.code = /** @type {object} */ (error).code;
+      }
+      const requestId =
+        /** @type {object} */ (error).requestId ??
+        /** @type {object} */ (error).problem?.requestId;
+      if (typeof requestId === 'string' && requestId.length > 0) {
+        record.requestId = requestId;
+      }
+    }
+    this.lastError = record;
+    return record;
+  }
+
+  /**
    * @param {string} state
    * @param {string} detail
-   * @param {{ error?: string }} [extra]
+   * @param {{ error?: unknown, errorKind?: string }} [extra]
    */
   setState(state, detail, extra = {}) {
     this.state = state;
     this.detail = detail;
-    if (extra.error) {
-      this.lastError = extra.error;
+    if (extra.error !== undefined) {
+      this.recordError(extra.error, extra.errorKind ?? ENGINE_ERROR_KINDS.ENGINE_STARTUP);
     }
     const snapshot = this.getStatus();
     for (const listener of this.listeners) {
@@ -213,6 +261,15 @@ class EngineManager {
     return this.startPromise;
   }
 
+  /**
+   * @param {string} detail
+   * @param {unknown} error
+   * @param {string} [kind]
+   */
+  failStart(detail, error, kind = ENGINE_ERROR_KINDS.ENGINE_STARTUP) {
+    this.setState(ENGINE_STATES.STARTUP_FAILED, detail, { error, errorKind: kind });
+  }
+
   /** @returns {Promise<boolean>} */
   async _start(options = {}) {
     this.clearRestart();
@@ -231,25 +288,27 @@ class EngineManager {
     try {
       endpoint = loopbackEndpoint(this.settings.backendUrl);
     } catch (error) {
-      const detail = safeErrorText(error);
-      this.setState(ENGINE_STATES.FAILED, detail, { error: detail });
+      this.failStart(safeErrorText(error), error, ENGINE_ERROR_KINDS.ENGINE_STARTUP);
       return false;
     }
 
     const source = discoverEngineSource({
-      extensionPath: this.context.extensionPath ?? '',
+      extensionPath: this.context.extensionPath,
+      extensionUri: this.context.extensionUri,
       repositoryRoot: this.context.repositoryRoot,
       fileSystem: this.fileSystem
     });
     if (!source) {
       const detail =
         'The bundled security engine is missing from this installation. Reinstall the extension.';
-      this.setState(ENGINE_STATES.FAILED, detail, { error: detail });
+      this.setState(ENGINE_STATES.NOT_INSTALLED, detail, {
+        error: new EngineError(ENGINE_ERROR_KINDS.ENGINE_STARTUP, detail)
+      });
       return false;
     }
 
     this.setState(
-      ENGINE_STATES.STARTING,
+      ENGINE_STATES.STARTING_ENGINE,
       `Starting the local engine on ${endpoint.host}:${endpoint.port}.`
     );
 
@@ -258,7 +317,7 @@ class EngineManager {
       const detail =
         'No compatible Python 3 interpreter was found. Install Python 3.11 or newer, or set ' +
         'bugdhor.engine.pythonPath to an explicit interpreter path.';
-      this.setState(ENGINE_STATES.FAILED, detail, { error: detail });
+      this.failStart(detail, new EngineError(ENGINE_ERROR_KINDS.ENGINE_STARTUP, detail));
       return false;
     }
 
@@ -275,10 +334,24 @@ class EngineManager {
             this.context.globalStoragePath ?? path.join(source.moduleRoot, '.bugdhor-runtime'),
             'engine-runtime'
           ),
-          requirementsPath: path.join(this.context.extensionPath ?? '', DEFAULT_REQUIREMENTS),
+          engineRoot: source.engineRoot,
+          requirementsPath: source.requirementsPath,
           platform: this.platform,
           fileSystem: this.fileSystem,
-          spawn: this.spawn
+          spawn: this.spawn,
+          onPhase: (phase) => {
+            if (phase === 'preparing-runtime') {
+              this.setState(
+                ENGINE_STATES.PREPARING_RUNTIME,
+                'Preparing the managed Python runtime for the local engine.'
+              );
+            } else if (phase === 'installing-dependencies') {
+              this.setState(
+                ENGINE_STATES.INSTALLING_DEPENDENCIES,
+                'Installing the bundled engine runtime dependencies.'
+              );
+            }
+          }
         });
         python = runtime.python;
         if (runtime.installed) {
@@ -286,8 +359,11 @@ class EngineManager {
         }
       }
     } catch (error) {
-      const detail = safeErrorText(error);
-      this.setState(ENGINE_STATES.FAILED, detail, { error: detail });
+      this.failStart(
+        safeErrorText(error),
+        error,
+        error instanceof EngineError ? error.kind : ENGINE_ERROR_KINDS.RUNTIME_INSTALL
+      );
       return false;
     }
 
@@ -300,22 +376,35 @@ class EngineManager {
     const env = buildEngineEnvironment({
       environment: this.environment,
       host: endpoint.host,
-      port: endpoint.port
+      port: endpoint.port,
+      moduleRoot: source.moduleRoot
     });
 
     /** @type {import('node:child_process').ChildProcess} */
     let child;
+    let capturedOutput = '';
+    const capture = (/** @type {unknown} */ chunk) => {
+      const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+      capturedOutput = `${capturedOutput}${text}`.slice(-8 * 1024);
+      const safe = safeErrorText(text);
+      if (safe.length > 0) {
+        this.logger.debug(`Bug Dhor engine: ${safe}`);
+      }
+    };
     try {
       child = this.spawn(python, args.slice(1), {
         cwd: source.moduleRoot,
         env,
         shell: false,
         windowsHide: true,
-        stdio: ['ignore', 'ignore', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe']
       });
     } catch (error) {
-      const detail = `Could not start the local engine: ${safeErrorText(error)}`;
-      this.setState(ENGINE_STATES.FAILED, detail, { error: detail });
+      this.failStart(
+        `Could not start the local engine: ${safeErrorText(error)}`,
+        error,
+        ENGINE_ERROR_KINDS.ENGINE_STARTUP
+      );
       return false;
     }
 
@@ -325,15 +414,11 @@ class EngineManager {
     this.startedAt = new Date().toISOString();
     this.lastError = undefined;
 
-    child.stderr?.on('data', (chunk) => {
-      const text = safeErrorText(chunk);
-      if (text.length > 0) {
-        this.logger.debug(`Bug Dhor engine: ${text}`);
-      }
-    });
+    child.stdout?.on('data', capture);
+    child.stderr?.on('data', capture);
     child.once('error', (error) => {
       const detail = `The local engine process failed: ${safeErrorText(error)}`;
-      this.lastError = detail;
+      this.recordError(error, ENGINE_ERROR_KINDS.ENGINE_STARTUP);
       this.logger.warn(detail);
       this.handleUnexpectedExit();
     });
@@ -345,7 +430,7 @@ class EngineManager {
         return;
       }
       const detail = `The local engine exited unexpectedly (code ${code ?? 'unknown'}, signal ${signal ?? 'none'}).`;
-      this.lastError = detail;
+      this.recordError(new EngineError(ENGINE_ERROR_KINDS.ENGINE_STARTUP, detail, { stdout: capturedOutput }));
       this.logger.warn(detail);
       this.handleUnexpectedExit();
     });
@@ -353,9 +438,20 @@ class EngineManager {
     const ready = await this.waitForHealth();
     if (!ready && !this.disposed) {
       const detail =
-        this.lastError ??
-        `The local engine did not become ready within ${this.settings.startupTimeoutMs} ms.`;
-      this.setState(ENGINE_STATES.FAILED, detail, { error: detail });
+        this.lastError?.message ??
+        `The local engine did not become ready within ${this.settings.startupTimeoutMs} ms.` +
+          (capturedOutput.trim() ? ` Engine output: ${safeErrorText(capturedOutput)}` : '');
+      this.failStart(
+        detail,
+        this.lastError ?
+          new EngineError(this.lastError.kind, detail, {
+            code: this.lastError.code,
+            requestId: this.lastError.requestId,
+            stdout: capturedOutput
+          })
+          : new EngineError(ENGINE_ERROR_KINDS.ENGINE_STARTUP, detail, { stdout: capturedOutput }),
+        this.lastError?.kind ?? ENGINE_ERROR_KINDS.ENGINE_STARTUP
+      );
       await this.stop({ markOffline: false });
       this.scheduleRestart();
       return false;
@@ -366,6 +462,64 @@ class EngineManager {
     this.restartAttempt = 0;
     this.setState(ENGINE_STATES.ONLINE, 'The local security engine is online.');
     return true;
+  }
+
+  /**
+   * Mark a completed scan as failed without losing the backend request id.
+   *
+   * @param {unknown} error
+   */
+  markScanFailure(error) {
+    const kind = this.classifyScanError(error);
+    const record = this.recordError(error, kind);
+    const detail = `${record.message}${record.requestId ? ` (Request ID: ${record.requestId})` : ''}`;
+    this.setState(ENGINE_STATES.SCAN_FAILED, detail, { error, errorKind: kind });
+    this.logger.warn(`Scan failed [${kind}]${record.requestId ? ` requestId=${record.requestId}` : ''}: ${record.message}`);
+  }
+
+  /** Clear a transient scan-failure state after a successful scan. */
+  markScanSuccess() {
+    if (this.state === ENGINE_STATES.SCAN_FAILED) {
+      this.setState(ENGINE_STATES.ONLINE, 'The local security engine is online.');
+    }
+    this.lastError = undefined;
+  }
+
+  /**
+   * @param {unknown} error
+   * @returns {string}
+   */
+  classifyScanError(error) {
+    if (error instanceof EngineError && ENGINE_ERROR_KINDS[error.kind]) {
+      return error.kind;
+    }
+    const record = error && typeof error === 'object' ? /** @type {object} */ (error) : {};
+    const name = typeof record.name === 'string' ? record.name : '';
+    const code = typeof record.code === 'string' ? record.code : '';
+    const problemCode =
+      record.problem && typeof record.problem === 'object' && typeof record.problem.code === 'string'
+        ? record.problem.code
+        : '';
+    if (
+      code === 'E_VALIDATION' ||
+      problemCode === 'E_VALIDATION' ||
+      (typeof record.status === 'number' && record.status === 422)
+    ) {
+      return ENGINE_ERROR_KINDS.API_VALIDATION;
+    }
+    if (
+      name === 'BackendUnavailableError' ||
+      name === 'RequestTimeoutError' ||
+      code === 'E_BACKEND_UNAVAILABLE' ||
+      code === 'E_REQUEST_TIMEOUT' ||
+      code === 'E_CONNECTION'
+    ) {
+      return ENGINE_ERROR_KINDS.CONNECTION;
+    }
+    if (this.state === ENGINE_STATES.NOT_INSTALLED || this.state === ENGINE_STATES.STARTUP_FAILED) {
+      return ENGINE_ERROR_KINDS.ENGINE_STARTUP;
+    }
+    return ENGINE_ERROR_KINDS.SCANNER_EXECUTION;
   }
 
   /**
@@ -438,7 +592,10 @@ class EngineManager {
     this.owned = false;
     this.child = undefined;
     this.pid = undefined;
-    this.setState(ENGINE_STATES.OFFLINE, this.lastError ?? 'The local engine is offline.');
+    this.setState(
+      ENGINE_STATES.OFFLINE,
+      this.lastError?.message ?? 'The local engine is offline.'
+    );
     this.scheduleRestart();
   }
 

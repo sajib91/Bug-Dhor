@@ -646,6 +646,12 @@ class HttpSecurityEngineService {
       workspaceFolders.push(entry);
     }
 
+    // The stable /api/v1/scan/workspace schema accepts only `workspaceFolders`.
+    // Older engines reject any extra field (`body.filePaths: Extra inputs are
+    // not permitted`), so the explicit file inventory is validated locally for
+    // bounds/containment but is intentionally NOT transmitted. The engine
+    // enumerates the listed roots itself and applies its own path safety and
+    // file limits. Never send a field the published contract does not declare.
     const body = { workspaceFolders };
     if (request.filePaths !== undefined && request.filePaths !== null) {
       if (!Array.isArray(request.filePaths)) {
@@ -661,8 +667,6 @@ class HttpSecurityEngineService {
         );
       }
       const roots = workspaceFolders.map((folder) => folder.path);
-      const seenPaths = new Set();
-      const filePaths = [];
       for (const candidate of request.filePaths) {
         if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) {
           throw new SecurityEngineRequestError(
@@ -676,18 +680,11 @@ class HttpSecurityEngineService {
             'E_PATH_OUTSIDE_WORKSPACE'
           );
         }
-        if (seenPaths.has(candidate)) {
-          continue;
-        }
-        seenPaths.add(candidate);
-        filePaths.push(candidate);
       }
-      body.filePaths = filePaths;
     }
 
     this.logger?.debug(
-      `Sending POST /api/v1/scan/workspace for ${workspaceFolders.length} folder(s)` +
-        `${body.filePaths ? ` and ${body.filePaths.length} explicit path(s)` : ''}.`
+      `Sending POST /api/v1/scan/workspace for ${workspaceFolders.length} folder(s).`
     );
     const { data } = await client.post('/scan/workspace', body, context?.token);
     return validateScanResponse(data, { kind: 'workspace' });

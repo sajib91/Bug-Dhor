@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const path = require('node:path');
 const vscode = require('vscode');
 
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
@@ -23,6 +24,29 @@ async function waitForTab(label, timeoutMs = 5000) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return undefined;
+}
+
+/**
+ * Wait for the extension's own lifecycle manager to bring the bundled engine
+ * online. No external process is started by this test.
+ *
+ * @param {{ engineManager: { getStatus: () => object } }} api
+ * @param {number} [timeoutMs]
+ */
+async function waitForManagedEngine(api, timeoutMs = 240_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last;
+  while (Date.now() < deadline) {
+    last = api.engineManager.getStatus();
+    if (last.state === 'online') {
+      return last;
+    }
+    if (last.state === 'startup_failed' || last.state === 'not_installed') {
+      throw new Error(`Managed engine failed to start: ${JSON.stringify(last)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Managed engine did not come online: ${JSON.stringify(last)}`);
 }
 
 async function run() {
@@ -56,10 +80,40 @@ async function run() {
   assert.equal(extension.isActive, true, 'the installed extension must activate');
   assert.equal(typeof api.checkBackendHealth, 'function');
   assert.equal(typeof api.service.health, 'function');
+  assert.ok(api.engineManager, 'the installed extension must expose its engine lifecycle manager');
+
+  const installedRoot = process.env.BUGDHOR_VSIX_INSTALLED_ROOT;
+  assert.ok(installedRoot, 'BUGDHOR_VSIX_INSTALLED_ROOT must be provided by runVsixTest.js');
+  assert.equal(
+    canonicalPath(extension.extensionPath),
+    canonicalPath(installedRoot),
+    'the activated extension must be the one installed from the VSIX'
+  );
+  for (const asset of [
+    path.join('engine', 'src', 'bugdhor', '__main__.py'),
+    path.join('engine', 'pyproject.toml'),
+    path.join('engine', 'requirements-runtime.txt')
+  ]) {
+    assert.ok(
+      fs.existsSync(path.join(extension.extensionPath, asset)),
+      `${asset} must resolve inside the installed VSIX`
+    );
+  }
 
   const configuration = vscode.workspace.getConfiguration('bugdhor');
   await configuration.update('backend.url', backendUrl, vscode.ConfigurationTarget.Global);
   await configuration.update('privacy.sendSourceText', true, vscode.ConfigurationTarget.Global);
+
+  const engineStatus = await waitForManagedEngine(api);
+  assert.equal(engineStatus.owned, true, 'the extension must own the engine process it started');
+  assert.equal(
+    engineStatus.errorKind,
+    undefined,
+    'a clean managed startup must not report a runtime-install or startup error'
+  );
+  console.log(
+    `Clean-install managed engine reached ${engineStatus.state} (pid ${engineStatus.pid}).`
+  );
 
   const health = await api.checkBackendHealth();
   assert.ok(health, `the installed extension must reach the backend at ${backendUrl}`);
@@ -97,6 +151,30 @@ async function run() {
     'the scan must hash the UTF-8 source from the Unicode workspace path'
   );
   assert.equal(scan.file.sha256, diskSha256);
+
+  // Full Repository Scan is the exact path that used to fail with
+  // `body.filePaths: Extra inputs are not permitted`. It must now send only the
+  // stable workspaceFolders field and return a real backend response.
+  const repositoryScan = await vscode.commands.executeCommand(COMMANDS.scanRepository);
+  assert.ok(repositoryScan, 'Full Repository Scan must return a validated backend result');
+  assert.equal(repositoryScan.operation, 'scan_workspace');
+  assert.equal(repositoryScan.apiVersion, 'v1');
+  assert.equal(repositoryScan.analysisAvailable, true);
+  assert.ok(['ok', 'partial'].includes(repositoryScan.status));
+  assert.ok(repositoryScan.filesScanned >= 1, 'the managed engine must enumerate a workspace file');
+  assert.deepEqual(
+    repositoryScan.findings,
+    [],
+    'benign files must not produce fabricated findings'
+  );
+  assert.ok(
+    Array.isArray(repositoryScan.scope?.uris) &&
+      repositoryScan.scope.uris.some((uri) => uri === vscode.Uri.file(sourcePath).toString()),
+    'diagnostics scope must come from the backend response'
+  );
+  const statusAfterScan = api.engineManager.getStatus();
+  assert.notEqual(statusAfterScan.state, 'startup_failed');
+  assert.equal(statusAfterScan.errorKind, undefined);
 
   const contributes = extension.packageJSON.contributes;
   const container = contributes.viewsContainers.activitybar.find(
